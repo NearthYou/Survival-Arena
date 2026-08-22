@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "seed": 20260823,
+  "resolution": {"width": 1920, "height": 1080},
+  "warmup_frames": 120,
+  "measured_frames": 600,
+  "commit_sha": "361631386a5c33e3be90bb54fcb9adb8a216035c",
+  "adapter": "NVIDIA GeForce RTX 3050 Ti Laptop GPU",
+  "command": "\"C:\\\\Users\\\\siwon\\\\Documents\\\\Codex\\\\DX11-Survival-Arena\\\\out\\\\build\\\\windows-msvc-vs-release\\\\apps\\\\client\\\\Release\\\\dxa_client.exe\" \"--hidden\" \"--no-vsync\" \"--benchmark-output\" \"C:\\\\Users\\\\siwon\\\\Documents\\\\Codex\\\\DX11-Survival-Arena\\\\docs\\\\benchmarks\\\\forward-baseline\\\\20260823-032931-36163138-seed20260823\" \"--benchmark-warmup\" \"120\" \"--benchmark-frames\" \"600\" \"--benchmark-seed\" \"20260823\" \"--commit-sha\" \"361631386a5c33e3be90bb54fcb9adb8a216035c\" \"--width\" \"1920\" \"--height\" \"1080\"",
+  "started_at": "2026-08-22T18:29:31Z",
+  "sample_count": 600,
+  "gpu_sample_count": 298,
+  "gpu_missing_samples": 302,
+  "metrics": {
+    "cpu_frame_ms": {
+      "min": 0.857300,
+      "max": 6.801300,
+      "mean": 2.179444,
+      "p50": 1.944000,
+      "p95": 3.671900,
+      "p99": 4.279300
+    },
+    "gpu_forward_ms": {
+      "min": 1.219584,
+      "max": 4.249600,
+      "mean": 2.231021,
+      "p50": 2.028544,
+      "p95": 3.589120,
+      "p99": 4.054016
+    },
+    "draw_calls": {
+      "min": 2240.000000,
+      "max": 2240.000000,
+      "mean": 2240.000000,
+      "p50": 2240.000000,
+      "p95": 2240.000000,
+      "p99": 2240.000000
+    },
+    "triangle_count": {
+      "min": 944480.000000,
+      "max": 944480.000000,
+      "mean": 944480.000000,
+      "p50": 944480.000000,
+      "p95": 944480.000000,
+      "p99": 944480.000000
+    },
+    "object_count": {
+      "min": 1124.000000,
+      "max": 1124.000000,
+      "mean": 1124.000000,
+      "p50": 1124.000000,
+      "p95": 1124.000000,
+      "p99": 1124.000000
+    },
+    "working_set_bytes": {
+      "min": 189001728.000000,
+      "max": 239808512.000000,
+      "mean": 236690022.400000,
+      "p50": 239677440.000000,
+      "p95": 239808512.000000,
+      "p99": 239808512.000000
+    }
+  }
+}
