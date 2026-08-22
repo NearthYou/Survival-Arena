@@ -36,11 +36,14 @@ Quaternius 캐릭터는 7,669 정점, 22,560 인덱스, 25 관절, 22 애니메�
 
 `AssetSceneRenderer`는 Quaternius 캐릭터와 Kenney 바닥을 각각 vertex와 index buffer로 만든다. 캐릭터는 첫 clip의 palette를 b1 상수 버퍼에 올리고 바닥 머티리얼은 `colormap.dds`를 사용한다. 기존 큐브 renderer는 asset root가 없는 엔진 테스트를 위해 남겼다.
 
+병합 전 검토에서는 weight가 0인 슬롯의 joint index가 범위 검사를 건너뛰는 문제를 찾았다. shader는 weight가 0이어도 네 matrix를 모두 읽으므로 직접 만든 asset에서 범위 밖 접근이 가능했다. 모든 skinned joint index를 검사하도록 바꿨다. 긴 clip은 65,536 sample을 넘기기 전에 거부하고, texture 이름에는 부모 경로나 absolute path를 넣을 수 없게 했다.
+
 ## 검증
 
 ```text
 Windows Debug 빌드: 성공
-CTest: 50/50 통과
+CTest: 53/53 통과
+단일 프로세스 GoogleTest: 47/47 통과
 이름별 client 검사: 6/6 통과
 WARP 320×180 asset scene 3프레임: 0.24초, 종료 코드 0
 RTX 하드웨어 960×540 asset scene 240프레임: 종료 코드 0
