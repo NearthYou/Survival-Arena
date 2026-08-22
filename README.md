@@ -2,7 +2,7 @@
 
 C++20과 DirectX 11로 만드는 쿼터뷰 생존 아레나 포트폴리오다. 렌더링 엔진과 게임 클라이언트를 중심에 두고, 24인 방과 권위형 게임 서버를 같은 저장소에서 검증한다.
 
-현재 단계는 저장소와 빌드 기반 구성이다. 구현되지 않은 기능을 완료된 것처럼 적지 않는다. 진행 상태와 검증 결과는 [프로젝트 계획](docs/PROJECT_PLAN.md)과 `docs/devlog/`에 남긴다.
+현재 단계는 첫 DX11 포워드 렌더 경로까지 구현된 상태다. 숨김 WARP 스모크 테스트와 실제 하드웨어 실행은 통과했지만, 에셋 로딩과 조명, 게임 로직, 네트워크는 아직 없다. 진행 상태와 검증 결과는 [프로젝트 계획](docs/PROJECT_PLAN.md)과 `docs/devlog/`에 남긴다.
 
 ## 원칙
 
@@ -22,6 +22,14 @@ C++20과 DirectX 11로 만드는 쿼터뷰 생존 아레나 포트폴리오다. 
 ```
 
 Linux 서버 빌드는 이후 마일스톤에서 Docker와 CI로 함께 검증한다.
+
+렌더 경로만 짧게 확인하려면 다음 명령을 사용한다.
+
+```powershell
+./out/build/windows-msvc-vs-debug/apps/client/Debug/dxa_client.exe --warp --hidden --no-vsync --frames 3
+```
+
+첫 프레임에서 확인한 실패와 경계는 [개발 기록](docs/devlog/2026-08-22-first-dx11-frame.md)에 적었다.
 
 ## 라이선스
 

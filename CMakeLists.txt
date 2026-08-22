@@ -21,6 +21,12 @@ include(CompilerWarnings)
 if(DXA_BUILD_TESTS)
     include(CTest)
     enable_testing()
+endif()
+
+add_subdirectory(engine)
+add_subdirectory(apps/client)
+
+if(DXA_BUILD_TESTS)
     add_subdirectory(tests)
 endif()
 

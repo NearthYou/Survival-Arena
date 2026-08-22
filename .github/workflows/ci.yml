@@ -69,3 +69,15 @@ jobs:
 
       - name: Test
         run: ctest --test-dir out/build/ci --build-config Debug --output-on-failure
+
+      - name: Verify Windows WARP smoke registration
+        if: runner.os == 'Windows'
+        run: >-
+          ctest --test-dir out/build/ci --build-config Debug --output-on-failure
+          --no-tests=error -R '^Client\.WarpSmoke$'
+
+      - name: Verify Windows shader deployment registration
+        if: runner.os == 'Windows'
+        run: >-
+          ctest --test-dir out/build/ci --build-config Debug --output-on-failure
+          --no-tests=error -R '^Client\.ShaderDeployment$'
