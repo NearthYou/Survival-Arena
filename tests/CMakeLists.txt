@@ -21,6 +21,8 @@ target_link_libraries(
 )
 
 if(WIN32)
+    find_program(DXA_POWERSHELL_EXECUTABLE NAMES pwsh powershell REQUIRED)
+
     target_sources(
         dxa_tests
         PRIVATE
@@ -47,6 +49,15 @@ if(WIN32)
             DXA_TEST_SHADER_PATH="${PROJECT_SOURCE_DIR}/assets/shaders/forward.hlsl"
             DXA_TEST_ASSET_SHADER_PATH="${PROJECT_SOURCE_DIR}/assets/shaders/asset_scene.hlsl"
             DXA_TEST_ASSET_ROOT="${PROJECT_SOURCE_DIR}/assets/runtime"
+    )
+
+    add_test(
+        NAME BenchmarkRunner.GuardsEvidenceBoundary
+        COMMAND
+            ${DXA_POWERSHELL_EXECUTABLE}
+            -NoProfile
+            -File "${PROJECT_SOURCE_DIR}/tests/benchmark_runner_test.ps1"
+            -RepositoryRoot "${PROJECT_SOURCE_DIR}"
     )
 endif()
 

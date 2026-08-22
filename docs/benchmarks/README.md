@@ -12,8 +12,10 @@
 
 - `frames.csv`: 프레임별 CPU 시간, GPU 포워드 시간, 드로우콜, 삼각형, 객체 수, working set
 - `summary.json`: 최근접 순위 방식의 P50, P95, P99와 실행 인자
-- `environment.json`: commit SHA, 빌드 구성, OS, CPU, GPU와 드라이버
+- `environment.json`: commit SHA, 빌드 구성, OS, CPU, GPU, 드라이버와 결과 검증 상태
 
 CPU 시간은 프레임 clear 직전부터 vsync 없는 present 반환까지 측정한다. GPU 시간은 포워드 장면 제출 전후 timestamp query로 측정한다. 실행 중에는 query 결과를 기다리지 않고 오래된 슬롯만 확인하며, disjoint이거나 제한 시간 안에 해석되지 않은 값은 빈 셀로 남긴다.
+
+GPU 누락이나 adapter 불일치로 실행이 실패해도 `environment.json`을 먼저 저장한다. configure와 build가 끝난 뒤에는 Git HEAD와 작업 트리를 다시 확인해 처음 기록한 commit과 다른 binary를 실행하지 않는다.
 
 Debug 또는 WARP 결과는 동작 검증일 뿐 포트폴리오 수치로 사용하지 않는다. 기준선 원본을 수정하거나 좋은 프레임만 골라내지 않는다.

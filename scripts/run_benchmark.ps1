@@ -26,23 +26,17 @@ $ErrorActionPreference = 'Stop'
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
 $originalLocation = Get-Location
 $startedAt = [DateTimeOffset]::UtcNow
+. (Join-Path $PSScriptRoot 'benchmark_common.ps1')
 
 Set-Location $repositoryRoot
 try {
-    $status = @(& git status --porcelain=v1 --untracked-files=all)
-    if ($LASTEXITCODE -ne 0) {
-        throw 'Git 작업 트리 상태를 확인하지 못했습니다.'
-    }
-    if ($status.Count -ne 0) {
-        throw '기준선은 깨끗한 commit에서만 실행할 수 있습니다.'
-    }
-
-    $commitSha = @(& git rev-parse HEAD) -join ''
-    $commitSha = $commitSha.Trim()
-    $shortSha = @(& git rev-parse --short=8 HEAD) -join ''
-    $shortSha = $shortSha.Trim()
-    $branch = @(& git branch --show-current) -join ''
-    $branch = $branch.Trim()
+    $initialSnapshot = Get-DxaGitSnapshot -RepositoryRoot $repositoryRoot
+    Assert-DxaGitSnapshot `
+        -Snapshot $initialSnapshot `
+        -ExpectedCommitSha $initialSnapshot.commit_sha
+    $commitSha = $initialSnapshot.commit_sha
+    $shortSha = $initialSnapshot.short_sha
+    $branch = $initialSnapshot.branch
     if ([string]::IsNullOrWhiteSpace($commitSha) -or [string]::IsNullOrWhiteSpace($shortSha)) {
         throw '기준선에 기록할 commit SHA를 읽지 못했습니다.'
     }
@@ -55,6 +49,9 @@ try {
     if ($LASTEXITCODE -ne 0) {
         throw 'Release build가 실패했습니다.'
     }
+
+    $preRunSnapshot = Get-DxaGitSnapshot -RepositoryRoot $repositoryRoot
+    Assert-DxaGitSnapshot -Snapshot $preRunSnapshot -ExpectedCommitSha $commitSha
 
     $runId = '{0}-{1}-seed{2}' -f (Get-Date -Format 'yyyyMMdd-HHmmss'), $shortSha, $Seed
     $resolvedOutputRoot = if ([IO.Path]::IsPathRooted($OutputRoot)) {
@@ -103,20 +100,14 @@ try {
     }
 
     $summary = Get-Content -Raw -Encoding utf8 -LiteralPath $summaryPath | ConvertFrom-Json
-    if ($summary.commit_sha -ne $commitSha -or
-        [uint32]$summary.seed -ne $Seed -or
-        [uint32]$summary.resolution.width -ne $Width -or
-        [uint32]$summary.resolution.height -ne $Height -or
-        [uint32]$summary.sample_count -ne $MeasuredFrames) {
-        throw 'Benchmark 요약이 실행 인자와 일치하지 않습니다.'
-    }
-    if (-not [string]::IsNullOrWhiteSpace($ExpectedAdapter) -and
-        $summary.adapter -ne $ExpectedAdapter) {
-        throw "예상 GPU와 실제 GPU가 다릅니다. 예상: $ExpectedAdapter, 실제: $($summary.adapter)"
-    }
-    if ([uint32]$summary.gpu_missing_samples -ne 0) {
-        throw "GPU timestamp가 누락됐습니다: $($summary.gpu_missing_samples)개"
-    }
+    $validationErrors = @(Get-DxaBenchmarkValidationErrors `
+        -Summary $summary `
+        -CommitSha $commitSha `
+        -Seed $Seed `
+        -Width $Width `
+        -Height $Height `
+        -MeasuredFrames $MeasuredFrames `
+        -ExpectedAdapter $ExpectedAdapter)
 
     $operatingSystem = Get-CimInstance Win32_OperatingSystem
     $processor = Get-CimInstance Win32_Processor | Select-Object -First 1
@@ -166,6 +157,10 @@ try {
         selected_adapter = $summary.adapter
         video_controllers = $videoControllers
         nvidia_smi = $nvidiaSmi
+        validation = [ordered]@{
+            status = if ($validationErrors.Count -eq 0) { 'passed' } else { 'failed' }
+            errors = $validationErrors
+        }
         benchmark = [ordered]@{
             width = $Width
             height = $Height
@@ -180,6 +175,10 @@ try {
         $environmentPath,
         $environmentJson,
         [Text.UTF8Encoding]::new($false))
+
+    if ($validationErrors.Count -ne 0) {
+        throw ($validationErrors -join ' ')
+    }
 
     Write-Output "Benchmark 완료: $outputDirectory"
     Write-Output "CPU frame P95: $($summary.metrics.cpu_frame_ms.p95) ms"
