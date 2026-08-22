@@ -22,11 +22,16 @@ void RequireSuccess(const HRESULT result, const char* operation)
 }
 } // namespace
 
-void GpuFrameTimer::Initialize(ID3D11Device* const device)
+void GpuFrameTimer::Initialize(
+    ID3D11Device* const device,
+    const std::size_t querySlotCount)
 {
-    if (device == nullptr)
+    if (device == nullptr
+        || querySlotCount == 0
+        || querySlotCount > MaximumQuerySlotCount)
     {
-        throw std::invalid_argument{"GPU frame timer requires a Direct3D device"};
+        throw std::invalid_argument{
+            "GPU frame timer requires a device and a supported non-zero slot count"};
     }
 
     const D3D11_QUERY_DESC disjointDescription{
@@ -35,6 +40,8 @@ void GpuFrameTimer::Initialize(ID3D11Device* const device)
     const D3D11_QUERY_DESC timestampDescription{
         D3D11_QUERY_TIMESTAMP,
         0};
+    slots_.clear();
+    slots_.resize(querySlotCount);
     for (QuerySlot& slot : slots_)
     {
         slot = {};

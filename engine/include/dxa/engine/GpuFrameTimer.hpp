@@ -3,7 +3,6 @@
 #include <d3d11.h>
 #include <wrl/client.h>
 
-#include <array>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -21,7 +20,11 @@ struct GpuFrameResult
 class GpuFrameTimer
 {
 public:
-    void Initialize(ID3D11Device* device);
+    static constexpr std::size_t MaximumQuerySlotCount = 10000;
+
+    void Initialize(
+        ID3D11Device* device,
+        std::size_t querySlotCount = 16);
     [[nodiscard]] bool BeginFrame(
         ID3D11DeviceContext* context,
         std::uint64_t frameIndex);
@@ -33,8 +36,6 @@ public:
         std::chrono::milliseconds timeout);
 
 private:
-    static constexpr std::size_t QuerySlotCount = 16;
-
     struct QuerySlot
     {
         Microsoft::WRL::ComPtr<ID3D11Query> disjoint;
@@ -50,7 +51,7 @@ private:
         GpuFrameResult& result);
     [[nodiscard]] bool HasPendingQueries() const noexcept;
 
-    std::array<QuerySlot, QuerySlotCount> slots_;
+    std::vector<QuerySlot> slots_;
     std::optional<std::size_t> activeSlot_;
     std::size_t nextSlot_ = 0;
     bool initialized_ = false;

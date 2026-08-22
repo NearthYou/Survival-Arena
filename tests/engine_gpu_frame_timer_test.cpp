@@ -9,6 +9,7 @@
 #include <array>
 #include <algorithm>
 #include <chrono>
+#include <cstddef>
 #include <cstdint>
 #include <vector>
 
@@ -78,5 +79,35 @@ TEST(SystemMetrics, ReportsCurrentWorkingSetAndAdapterName)
 
     EXPECT_GT(dxa::engine::GetCurrentProcessWorkingSetBytes(), 0U);
     EXPECT_FALSE(dxa::engine::GetAdapterNameUtf8(graphics.Device()).empty());
+}
+
+TEST(GpuFrameTimer, AllocatesOnePendingSlotForEveryConfiguredMeasuredFrame)
+{
+    dxa::engine::InputState input;
+    dxa::engine::Window window;
+    window.Create(dxa::engine::WindowConfig{L"DXA GPU timer capacity test", 64, 64, true}, input);
+
+    dxa::engine::GraphicsDevice graphics;
+    graphics.Initialize(dxa::engine::GraphicsDeviceConfig{
+        window.NativeHandle(),
+        64,
+        64,
+        dxa::engine::GraphicsDriver::Warp,
+        false});
+
+    constexpr std::size_t ConfiguredFrames = 20;
+    dxa::engine::GpuFrameTimer timer;
+    timer.Initialize(graphics.Device(), ConfiguredFrames);
+    constexpr std::array ClearColor{0.0F, 0.0F, 0.0F, 1.0F};
+    for (std::uint64_t frameIndex = 1; frameIndex <= ConfiguredFrames; ++frameIndex)
+    {
+        graphics.BeginFrame(ClearColor);
+        EXPECT_TRUE(timer.BeginFrame(graphics.Context(), frameIndex));
+        timer.EndFrame(graphics.Context());
+        graphics.EndFrame(false);
+    }
+
+    const auto results = timer.Drain(graphics.Context(), std::chrono::seconds{2});
+    EXPECT_EQ(ConfiguredFrames, results.size());
 }
 } // namespace

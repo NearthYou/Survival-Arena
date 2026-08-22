@@ -12,6 +12,8 @@
 
 #include <array>
 #include <chrono>
+#include <cstddef>
+#include <iostream>
 #include <limits>
 #include <span>
 #include <stdexcept>
@@ -40,6 +42,10 @@ void ValidateBenchmarkOptions(const EngineRunOptions& options)
         || benchmarkOptions.commitSha.empty())
     {
         throw std::invalid_argument{"benchmark output, measured frames, and commit SHA are required"};
+    }
+    if (benchmarkOptions.measuredFrames > GpuFrameTimer::MaximumQuerySlotCount)
+    {
+        throw std::invalid_argument{"benchmark measured frame count exceeds GPU query capacity"};
     }
     if (options.vsync)
     {
@@ -108,7 +114,7 @@ int EngineApp::Run(
     GpuFrameTimer gpuTimer;
     if (options.benchmark.has_value())
     {
-        gpuTimer.Initialize(graphics.Device());
+        gpuTimer.Initialize(graphics.Device(), options.benchmark->measuredFrames);
     }
 
     const bool useAssetScene = !assetRoot.empty();
@@ -145,6 +151,9 @@ int EngineApp::Run(
     std::string adapterName;
     std::uint32_t firstMeasuredFrame = 0;
     std::uint32_t finalMeasuredFrame = 0;
+    std::size_t gpuBeginRejected = 0;
+    std::size_t gpuResolved = 0;
+    std::size_t gpuDiscarded = 0;
     if (options.benchmark.has_value())
     {
         samples.reserve(options.benchmark->measuredFrames);
@@ -170,6 +179,10 @@ int EngineApp::Run(
         graphics.BeginFrame(ClearColor);
         const bool gpuTimingActive = measuredFrame
             && gpuTimer.BeginFrame(graphics.Context(), timing.frameIndex);
+        if (measuredFrame && !gpuTimingActive)
+        {
+            ++gpuBeginRejected;
+        }
         RenderStatistics statistics;
         if (useAssetScene)
         {
@@ -229,6 +242,17 @@ int EngineApp::Run(
         if (options.benchmark.has_value())
         {
             const auto ready = gpuTimer.ResolveReady(graphics.Context());
+            for (const GpuFrameResult& result : ready)
+            {
+                if (result.elapsedMilliseconds.has_value())
+                {
+                    ++gpuResolved;
+                }
+                else
+                {
+                    ++gpuDiscarded;
+                }
+            }
             ApplyGpuResults(samples, ready, firstMeasuredFrame);
         }
 
@@ -246,7 +270,28 @@ int EngineApp::Run(
     if (options.benchmark.has_value())
     {
         const auto drained = gpuTimer.Drain(graphics.Context(), std::chrono::seconds{2});
+        for (const GpuFrameResult& result : drained)
+        {
+            if (result.elapsedMilliseconds.has_value())
+            {
+                ++gpuResolved;
+            }
+            else
+            {
+                ++gpuDiscarded;
+            }
+        }
         ApplyGpuResults(samples, drained, firstMeasuredFrame);
+        const std::size_t gpuAccounted = gpuBeginRejected + gpuResolved + gpuDiscarded;
+        if (gpuAccounted > samples.size())
+        {
+            throw std::runtime_error{"GPU query diagnostic counts are inconsistent"};
+        }
+        const std::size_t gpuUnresolved = samples.size() - gpuAccounted;
+        std::clog << "GPU query diagnostics: rejected=" << gpuBeginRejected
+                  << ", resolved=" << gpuResolved
+                  << ", discarded=" << gpuDiscarded
+                  << ", unresolved=" << gpuUnresolved << '\n';
         if (samples.size() != options.benchmark->measuredFrames)
         {
             throw std::runtime_error{"benchmark ended before every measured frame completed"};
