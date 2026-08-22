@@ -19,6 +19,7 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(CompilerWarnings)
 
 add_subdirectory(engine)
+add_subdirectory(apps/client)
 
 if(DXA_BUILD_TESTS)
     include(CTest)
