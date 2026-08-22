@@ -22,6 +22,7 @@ if(WIN32)
         dxa_tests
         PRIVATE
             asset_model_importer_test.cpp
+            asset_tool_options_test.cpp
             asset_texture_cooker_test.cpp
             engine_app_test.cpp
             engine_graphics_config_test.cpp
@@ -31,6 +32,7 @@ if(WIN32)
         dxa_tests
         PRIVATE
             dxa_asset_importer
+            dxa_asset_tool_options
             dxa_engine
             dxa_texture_cooker
     )

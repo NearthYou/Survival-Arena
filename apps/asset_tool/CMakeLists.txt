@@ -2,6 +2,13 @@ if(WIN32)
     find_package(assimp CONFIG REQUIRED)
     find_package(directxtex CONFIG REQUIRED)
 
+    add_library(dxa_asset_tool_options INTERFACE)
+    target_include_directories(
+        dxa_asset_tool_options
+        INTERFACE
+            ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+
     add_library(
         dxa_asset_importer
         STATIC
@@ -49,4 +56,23 @@ if(WIN32)
             Microsoft::DirectXTex
     )
     dxa_enable_project_warnings(dxa_texture_cooker)
+
+    add_executable(dxa_asset_tool src/main.cpp)
+    target_compile_definitions(
+        dxa_asset_tool
+        PRIVATE
+            NOMINMAX
+            UNICODE
+            WIN32_LEAN_AND_MEAN
+            _UNICODE
+    )
+    target_link_libraries(
+        dxa_asset_tool
+        PRIVATE
+            dxa_asset_importer
+            dxa_asset_tool_options
+            dxa_engine_assets
+            dxa_texture_cooker
+    )
+    dxa_enable_project_warnings(dxa_asset_tool)
 endif()
