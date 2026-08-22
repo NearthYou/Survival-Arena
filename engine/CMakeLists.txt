@@ -20,9 +20,12 @@ target_include_directories(
 target_link_libraries(dxa_engine_core INTERFACE dxa_engine_assets)
 
 if(WIN32)
+    find_package(directxtk CONFIG REQUIRED)
+
     add_library(
         dxa_engine
         STATIC
+            src/windows/AssetSceneRenderer.cpp
             src/windows/EngineApp.cpp
             src/windows/ForwardRenderer.cpp
             src/windows/GraphicsDevice.cpp
@@ -49,6 +52,7 @@ if(WIN32)
             d3d11
             d3dcompiler
             dxgi
+            Microsoft::DirectXTK
     )
     dxa_enable_project_warnings(dxa_engine)
 endif()

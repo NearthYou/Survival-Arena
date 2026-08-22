@@ -28,6 +28,14 @@ if(WIN32)
             ${CMAKE_COMMAND} -E copy_if_different
             "${PROJECT_SOURCE_DIR}/assets/shaders/forward.hlsl"
             "$<TARGET_FILE_DIR:dxa_client>/shaders/forward.hlsl"
+        COMMAND
+            ${CMAKE_COMMAND} -E copy_if_different
+            "${PROJECT_SOURCE_DIR}/assets/shaders/asset_scene.hlsl"
+            "$<TARGET_FILE_DIR:dxa_client>/shaders/asset_scene.hlsl"
+        COMMAND
+            ${CMAKE_COMMAND} -E copy_directory
+            "${PROJECT_SOURCE_DIR}/assets/runtime"
+            "$<TARGET_FILE_DIR:dxa_client>/assets"
         VERBATIM
     )
 
@@ -43,6 +51,7 @@ if(WIN32)
                 --width 320
                 --height 180
                 --verify-render
+                --verify-asset-scene
         )
         set_tests_properties(Client.WarpSmoke PROPERTIES TIMEOUT 15)
 
@@ -53,6 +62,45 @@ if(WIN32)
                 "-DSOURCE_FILE=${PROJECT_SOURCE_DIR}/assets/shaders/forward.hlsl"
                 "-DDEPLOYED_FILE=$<TARGET_FILE_DIR:dxa_client>/shaders/forward.hlsl"
                 -P "${PROJECT_SOURCE_DIR}/cmake/VerifyFileMatch.cmake"
+        )
+
+        add_test(
+            NAME Client.AssetShaderDeployment
+            COMMAND
+                ${CMAKE_COMMAND}
+                "-DSOURCE_FILE=${PROJECT_SOURCE_DIR}/assets/shaders/asset_scene.hlsl"
+                "-DDEPLOYED_FILE=$<TARGET_FILE_DIR:dxa_client>/shaders/asset_scene.hlsl"
+                -P "${PROJECT_SOURCE_DIR}/cmake/VerifyFileMatch.cmake"
+        )
+
+        add_test(
+            NAME Client.CharacterAssetDeployment
+            COMMAND
+                ${CMAKE_COMMAND}
+                "-DSOURCE_FILE=${PROJECT_SOURCE_DIR}/assets/runtime/characters/cyber-runner.dxam"
+                "-DDEPLOYED_FILE=$<TARGET_FILE_DIR:dxa_client>/assets/characters/cyber-runner.dxam"
+                -DMINIMUM_SIZE=1000000
+                -P "${PROJECT_SOURCE_DIR}/cmake/VerifyRuntimeAsset.cmake"
+        )
+
+        add_test(
+            NAME Client.FloorAssetDeployment
+            COMMAND
+                ${CMAKE_COMMAND}
+                "-DSOURCE_FILE=${PROJECT_SOURCE_DIR}/assets/runtime/environment/prototype-floor.dxam"
+                "-DDEPLOYED_FILE=$<TARGET_FILE_DIR:dxa_client>/assets/environment/prototype-floor.dxam"
+                -DMINIMUM_SIZE=1000
+                -P "${PROJECT_SOURCE_DIR}/cmake/VerifyRuntimeAsset.cmake"
+        )
+
+        add_test(
+            NAME Client.TextureAssetDeployment
+            COMMAND
+                ${CMAKE_COMMAND}
+                "-DSOURCE_FILE=${PROJECT_SOURCE_DIR}/assets/runtime/environment/colormap.dds"
+                "-DDEPLOYED_FILE=$<TARGET_FILE_DIR:dxa_client>/assets/environment/colormap.dds"
+                -DMINIMUM_SIZE=300000
+                -P "${PROJECT_SOURCE_DIR}/cmake/VerifyRuntimeAsset.cmake"
         )
     endif()
 endif()

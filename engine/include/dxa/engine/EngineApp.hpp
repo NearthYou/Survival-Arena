@@ -16,6 +16,7 @@ struct EngineRunOptions
     bool vsync = true;
     bool verifyRender = false;
     GraphicsDriver driver = GraphicsDriver::Hardware;
+    bool verifyAssetScene = false;
 };
 
 class EngineApp
@@ -23,6 +24,7 @@ class EngineApp
 public:
     [[nodiscard]] int Run(
         const EngineRunOptions& options,
-        const std::filesystem::path& shaderPath) const;
+        const std::filesystem::path& shaderPath,
+        const std::filesystem::path& assetRoot = {}) const;
 };
 } // namespace dxa::engine

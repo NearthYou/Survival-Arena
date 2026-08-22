@@ -1,5 +1,6 @@
 #include <dxa/engine/EngineApp.hpp>
 
+#include <dxa/engine/AssetSceneRenderer.hpp>
 #include <dxa/engine/ForwardRenderer.hpp>
 #include <dxa/engine/FrameClock.hpp>
 #include <dxa/engine/GraphicsDevice.hpp>
@@ -14,7 +15,8 @@ namespace dxa::engine
 {
 int EngineApp::Run(
     const EngineRunOptions& options,
-    const std::filesystem::path& shaderPath) const
+    const std::filesystem::path& shaderPath,
+    const std::filesystem::path& assetRoot) const
 {
     InputState input;
     Window window;
@@ -35,8 +37,24 @@ int EngineApp::Run(
 #endif
     });
 
-    ForwardRenderer renderer;
-    renderer.Initialize(graphics.Device(), shaderPath);
+    const bool useAssetScene = !assetRoot.empty();
+    ForwardRenderer fallbackRenderer;
+    AssetSceneRenderer assetRenderer;
+    if (useAssetScene)
+    {
+        assetRenderer.Initialize(
+            graphics.Device(),
+            shaderPath.parent_path() / L"asset_scene.hlsl",
+            assetRoot);
+    }
+    else
+    {
+        fallbackRenderer.Initialize(graphics.Device(), shaderPath);
+    }
+    if (options.verifyAssetScene && (!useAssetScene || !assetRenderer.AssetSceneReady()))
+    {
+        throw std::runtime_error{"asset scene verification requirements were not met"};
+    }
 
     constexpr std::array ClearColor{0.025F, 0.035F, 0.060F, 1.0F};
     FrameClock clock{FrameClock::Clock::now()};
@@ -52,10 +70,20 @@ int EngineApp::Run(
 
         const FrameTiming timing = clock.Tick(FrameClock::Clock::now());
         graphics.BeginFrame(ClearColor);
-        renderer.Render(
-            graphics.Context(),
-            timing.totalSeconds,
-            static_cast<float>(options.width) / static_cast<float>(options.height));
+        if (useAssetScene)
+        {
+            assetRenderer.Render(
+                graphics.Context(),
+                timing.totalSeconds,
+                static_cast<float>(options.width) / static_cast<float>(options.height));
+        }
+        else
+        {
+            fallbackRenderer.Render(
+                graphics.Context(),
+                timing.totalSeconds,
+                static_cast<float>(options.width) / static_cast<float>(options.height));
+        }
 
         if (options.verifyRender && timing.frameIndex == options.frameLimit)
         {

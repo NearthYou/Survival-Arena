@@ -22,6 +22,7 @@ struct ClientOptions
     bool hidden = false;
     bool vsync = true;
     bool verifyRender = false;
+    bool verifyAssetScene = false;
     std::uint32_t frameLimit = 0;
     std::uint32_t width = 1280;
     std::uint32_t height = 720;
@@ -79,6 +80,10 @@ namespace detail
         {
             options.verifyRender = true;
         }
+        else if (argument == "--verify-asset-scene")
+        {
+            options.verifyAssetScene = true;
+        }
         else if (argument == "--frames" || argument == "--width" || argument == "--height")
         {
             if (index + 1 >= arguments.size())
@@ -129,6 +134,11 @@ namespace detail
     if (options.verifyRender && options.frameLimit == 0)
     {
         return detail::Error("--verify-render requires --frames greater than 0");
+    }
+
+    if (options.verifyAssetScene && !options.verifyRender)
+    {
+        return detail::Error("--verify-asset-scene requires --verify-render");
     }
 
     return ClientOptionsParseResult{options, {}};

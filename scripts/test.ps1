@@ -17,22 +17,24 @@ if ($LASTEXITCODE -ne 0) {
     throw "테스트가 실패했습니다. 종료 코드: $LASTEXITCODE"
 }
 
-& $ctest `
-    --test-dir $buildDirectory `
-    --build-config Debug `
-    --output-on-failure `
-    --no-tests=error `
-    -R '^Client\.WarpSmoke$'
-if ($LASTEXITCODE -ne 0) {
-    throw "클라이언트 WARP 스모크 등록 검증이 실패했습니다. 종료 코드: $LASTEXITCODE"
-}
+$requiredClientTests = @(
+    'Client.WarpSmoke',
+    'Client.ShaderDeployment',
+    'Client.AssetShaderDeployment',
+    'Client.CharacterAssetDeployment',
+    'Client.FloorAssetDeployment',
+    'Client.TextureAssetDeployment'
+)
 
-& $ctest `
-    --test-dir $buildDirectory `
-    --build-config Debug `
-    --output-on-failure `
-    --no-tests=error `
-    -R '^Client\.ShaderDeployment$'
-if ($LASTEXITCODE -ne 0) {
-    throw "클라이언트 셰이더 배포 등록 검증이 실패했습니다. 종료 코드: $LASTEXITCODE"
+foreach ($testName in $requiredClientTests) {
+    $escapedName = [regex]::Escape($testName)
+    & $ctest `
+        --test-dir $buildDirectory `
+        --build-config Debug `
+        --output-on-failure `
+        --no-tests=error `
+        -R "^$escapedName$"
+    if ($LASTEXITCODE -ne 0) {
+        throw "$testName 등록 검증이 실패했습니다. 종료 코드: $LASTEXITCODE"
+    }
 }
