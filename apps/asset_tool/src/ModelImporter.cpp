@@ -12,7 +12,6 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
-#include <limits>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -384,7 +383,7 @@ void EvaluateNodePalette(
         throw ModelImportError{"animation duration is invalid"};
     }
     const double sampleCountValue = std::ceil(durationSeconds * sampleRate) + 1.0;
-    if (sampleCountValue > std::numeric_limits<std::uint32_t>::max())
+    if (sampleCountValue > dxa::engine::asset::MaximumAnimationSamples)
     {
         throw ModelImportError{"animation sample count exceeds the format limit"};
     }

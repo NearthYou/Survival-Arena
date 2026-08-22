@@ -90,7 +90,9 @@ void WriteBinaryFile(
     ASSERT_TRUE(file) << path;
 }
 
-void WriteAnimatedGltf(const std::filesystem::path& directory)
+void WriteAnimatedGltf(
+    const std::filesystem::path& directory,
+    const float durationSeconds = 1.0F)
 {
     std::vector<std::uint8_t> binary;
     binary.reserve(272);
@@ -118,14 +120,12 @@ void WriteAnimatedGltf(const std::filesystem::path& directory)
          0.0F, 1.0F, 0.0F, 0.0F,
          0.0F, 0.0F, 1.0F, 0.0F,
          0.0F, 0.0F, 0.0F, 1.0F});
-    AppendFloats(binary, {0.0F, 1.0F});
+    AppendFloats(binary, {0.0F, durationSeconds});
     AppendFloats(binary, {0.0F, 0.0F, 0.0F, 0.0F, 1.0F, 0.0F});
     ASSERT_EQ(272U, binary.size());
     WriteBinaryFile(directory / "animated.bin", binary);
 
-    WriteTextFile(
-        directory / "animated.gltf",
-        R"json({
+    std::string gltf = R"json({
   "asset": {"version": "2.0"},
   "scene": 0,
   "scenes": [{"nodes": [0, 1]}],
@@ -153,7 +153,7 @@ void WriteAnimatedGltf(const std::filesystem::path& directory)
     {"bufferView": 4, "componentType": 5126, "count": 3, "type": "VEC4"},
     {"bufferView": 5, "componentType": 5123, "count": 3, "type": "SCALAR"},
     {"bufferView": 6, "componentType": 5126, "count": 1, "type": "MAT4"},
-    {"bufferView": 7, "componentType": 5126, "count": 2, "type": "SCALAR", "min": [0], "max": [1]},
+    {"bufferView": 7, "componentType": 5126, "count": 2, "type": "SCALAR", "min": [0], "max": [DURATION_VALUE]},
     {"bufferView": 8, "componentType": 5126, "count": 2, "type": "VEC3"}
   ],
   "materials": [{"name": "RunnerMaterial", "pbrMetallicRoughness": {"baseColorFactor": [0.8,0.9,1.0,1.0]}}],
@@ -168,7 +168,12 @@ void WriteAnimatedGltf(const std::filesystem::path& directory)
     "samplers": [{"input": 7, "output": 8, "interpolation": "LINEAR"}],
     "channels": [{"sampler": 0, "target": {"node": 0, "path": "translation"}}]
   }]
-})json");
+})json";
+    constexpr std::string_view DurationMarker{"DURATION_VALUE"};
+    const std::size_t markerPosition = gltf.find(DurationMarker);
+    ASSERT_NE(std::string::npos, markerPosition);
+    gltf.replace(markerPosition, DurationMarker.size(), std::to_string(durationSeconds));
+    WriteTextFile(directory / "animated.gltf", gltf);
 }
 
 TEST(ModelImporter, ImportsObjGeometryMaterialAndTextureReference)
@@ -266,5 +271,17 @@ TEST(ModelImporter, BakesSkinnedAnimationAtRequestedSampleRate)
     EXPECT_NEAR(0.0F, clip.jointMatrices[0].elements[13], 0.001F);
     EXPECT_NEAR(0.5F, clip.jointMatrices[1].elements[13], 0.001F);
     EXPECT_NEAR(1.0F, clip.jointMatrices[2].elements[13], 0.001F);
+}
+
+TEST(ModelImporter, RejectsAnimationBeyondFormatSampleLimit)
+{
+    TemporaryDirectory directory;
+    WriteAnimatedGltf(directory.Path(), 300.0F);
+
+    EXPECT_THROW(
+        (void)dxa::asset_tool::ImportModel(
+            directory.Path() / "animated.gltf",
+            dxa::asset_tool::ModelImportOptions{240.0F}),
+        dxa::asset_tool::ModelImportError);
 }
 } // namespace

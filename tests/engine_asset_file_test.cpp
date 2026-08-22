@@ -129,4 +129,25 @@ TEST(AssetFile, RejectsIncompleteAnimationPalette)
         (void)dxa::engine::asset::EncodeModelAsset(asset),
         std::invalid_argument);
 }
+
+TEST(AssetFile, RejectsUnusedJointIndexOutsideSkeleton)
+{
+    ModelAsset asset = MakeSkinnedTriangle();
+    asset.vertices.front().jointIndices[1] = 63;
+    asset.vertices.front().jointWeights[1] = 0.0F;
+
+    EXPECT_THROW(
+        (void)dxa::engine::asset::EncodeModelAsset(asset),
+        std::invalid_argument);
+}
+
+TEST(AssetFile, RejectsTexturePathOutsideModelDirectory)
+{
+    ModelAsset asset = MakeSkinnedTriangle();
+    asset.materials.front().baseColorTexture = "../outside.dds";
+
+    EXPECT_THROW(
+        (void)dxa::engine::asset::EncodeModelAsset(asset),
+        std::invalid_argument);
+}
 } // namespace

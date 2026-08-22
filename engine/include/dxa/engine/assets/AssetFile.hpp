@@ -12,6 +12,7 @@ namespace dxa::engine::asset
 {
 inline constexpr std::uint16_t ModelAssetVersion = 1;
 inline constexpr std::size_t MaximumSkinJoints = 64;
+inline constexpr std::size_t MaximumAnimationSamples = 65'536;
 
 struct Float2
 {

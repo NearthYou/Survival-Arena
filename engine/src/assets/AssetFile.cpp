@@ -18,7 +18,6 @@ constexpr std::size_t MaximumIndices = 3'000'000;
 constexpr std::size_t MaximumMeshParts = 65'536;
 constexpr std::size_t MaximumMaterials = 4'096;
 constexpr std::size_t MaximumAnimations = 1'024;
-constexpr std::size_t MaximumSamplesPerClip = 65'536;
 constexpr std::size_t MaximumStringBytes = 4'096;
 constexpr std::size_t MaximumFileBytes = 256U * 1024U * 1024U;
 
@@ -222,7 +221,8 @@ void ValidateModelAsset(const ModelAsset& asset)
             {
                 throw std::invalid_argument{"vertex contains an invalid joint weight"};
             }
-            if (weight > 0.0F && vertex.jointIndices[influence] >= asset.joints.size())
+            if (!asset.joints.empty()
+                && vertex.jointIndices[influence] >= asset.joints.size())
             {
                 throw std::invalid_argument{"vertex references a joint outside the skeleton"};
             }
@@ -262,6 +262,13 @@ void ValidateModelAsset(const ModelAsset& asset)
     {
         RequireString(material.name, "material name");
         RequireString(material.baseColorTexture, "base color texture path");
+        if (!material.baseColorTexture.empty()
+            && (material.baseColorTexture.find_first_of("/\\:") != std::string::npos
+                || material.baseColorTexture.find('\0') != std::string::npos))
+        {
+            throw std::invalid_argument{
+                "base color texture must be a file name inside the model directory"};
+        }
         if (!IsFinite(material.baseColor))
         {
             throw std::invalid_argument{"material contains a non-finite base color"};
@@ -287,7 +294,7 @@ void ValidateModelAsset(const ModelAsset& asset)
     for (const AnimationClip& clip : asset.animations)
     {
         RequireString(clip.name, "animation name");
-        RequireCount(clip.sampleCount, MaximumSamplesPerClip, "animation sample");
+        RequireCount(clip.sampleCount, MaximumAnimationSamples, "animation sample");
         if (asset.joints.empty() || clip.sampleCount == 0 || !std::isfinite(clip.durationSeconds)
             || clip.durationSeconds <= 0.0F || !std::isfinite(clip.sampleRate)
             || clip.sampleRate <= 0.0F)
@@ -485,7 +492,7 @@ ModelAsset DecodeModelAsset(const std::span<const std::uint8_t> bytes)
             clip.durationSeconds = reader.ReadFloat();
             clip.sampleRate = reader.ReadFloat();
             clip.sampleCount = static_cast<std::uint32_t>(
-                reader.ReadCount(MaximumSamplesPerClip, "animation sample"));
+                reader.ReadCount(MaximumAnimationSamples, "animation sample"));
             const std::size_t matrixCount =
                 static_cast<std::size_t>(clip.sampleCount) * jointCount;
             clip.jointMatrices.resize(matrixCount);
