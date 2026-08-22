@@ -1,0 +1,48 @@
+name: ci
+
+on:
+  push:
+    branches:
+      - main
+      - 'feat/**'
+      - 'fix/**'
+      - 'docs/**'
+  pull_request:
+
+jobs:
+  build-and-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - windows-latest
+          - ubuntu-latest
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: >-
+          cmake -S . -B out/build/ci -G "Visual Studio 17 2022" -A x64
+          -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
+          -DDXA_BUILD_TESTS=ON
+          -DDXA_WARNINGS_AS_ERRORS=ON
+
+      - name: Configure Linux
+        if: runner.os == 'Linux'
+        shell: bash
+        run: >-
+          cmake -S . -B out/build/ci -G Ninja
+          -DCMAKE_BUILD_TYPE=Debug
+          -DCMAKE_TOOLCHAIN_FILE="$VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
+          -DDXA_BUILD_TESTS=ON
+          -DDXA_WARNINGS_AS_ERRORS=ON
+
+      - name: Build
+        run: cmake --build out/build/ci --config Debug
+
+      - name: Test
+        run: ctest --test-dir out/build/ci --build-config Debug --output-on-failure
