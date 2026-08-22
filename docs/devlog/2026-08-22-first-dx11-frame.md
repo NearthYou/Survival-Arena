@@ -35,7 +35,7 @@ dxa_client --warp --hidden --no-vsync --frames 3 --width 320 --height 180
 
 ## 구현
 
-Win32 창은 키 입력을 `InputState`로 전달하고 메시지 큐를 비우는 역할만 맡는다. `GraphicsDevice`는 swap chain, back buffer view, depth buffer와 viewport를 소유한다. `ForwardRenderer`는 HLSL을 실행 시점에 컴파일하고 큐브용 정점·인덱스·상수 버퍼를 만든다.
+Win32 창은 키 입력을 `InputState`로 전달하고 메시지 큐를 비우는 역할만 맡는다. `GraphicsDevice`는 swap chain, back buffer view, depth buffer와 viewport를 소유한다. `ForwardRenderer`는 HLSL을 실행 시점에 컴파일하고 큐브용 정점, 인덱스, 상수 버퍼를 만든다.
 
 매 프레임에는 고정 카메라의 view/projection과 시간 기반 world 회전을 합쳐 상수 버퍼에 기록한다. 이 단계에서는 재질, 조명, 에셋 로더를 넣지 않았다.
 
@@ -48,15 +48,14 @@ WARP 숨김 창 3프레임: 0.19초, 종료 코드 0
 RTX 하드웨어 960x540 120프레임: 종료 코드 0
 ```
 
-자동 테스트가 확인한 것은 장치 생성, 셰이더 컴파일, 버퍼 생성, draw, present, 정상 종료다. 화면에 그려진 픽셀의 정확성은 아직 확인하지 않았다.
+자동 테스트는 장치 생성, 셰이더 컴파일, 버퍼 생성, draw, present, 정상 종료를 확인한다. 검토 이후에는 back buffer를 staging texture로 읽어 clear color와 다른 RGB 픽셀이 실제로 존재하는지도 확인한다. 정확한 이미지 일치까지 검증하는 것은 아니다.
 
 ## 남은 한계
 
 - 창 크기 변경과 device lost 복구가 없다.
 - debug layer 메시지를 테스트 실패로 승격하지 않는다.
-- 화면 캡처와 픽셀 비교가 없다.
+- readback은 non-clear pixel만 확인하며 형태와 색상의 정답 이미지는 비교하지 않는다.
 - 큐브 데이터가 렌더러 안에 있어 메시와 재질을 재사용할 수 없다.
 - 현재 셰이더는 정점 색상만 출력하며 조명 계산이 없다.
 
 다음 변경에서는 메시와 머티리얼의 소유 경계를 먼저 분리한 뒤, 같은 스모크 장면을 포워드 렌더링 기준선으로 확장한다.
-
