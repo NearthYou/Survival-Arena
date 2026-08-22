@@ -3,6 +3,7 @@ find_package(GTest CONFIG REQUIRED)
 add_executable(
     dxa_tests
     client_options_test.cpp
+    engine_animation_playback_test.cpp
     engine_asset_file_test.cpp
     engine_frame_clock_test.cpp
     engine_input_state_test.cpp

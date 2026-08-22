@@ -1,6 +1,7 @@
 add_library(
     dxa_engine_assets
     STATIC
+        src/assets/AnimationPlayback.cpp
         src/assets/AssetFile.cpp
 )
 target_include_directories(
