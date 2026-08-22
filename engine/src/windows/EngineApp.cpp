@@ -45,7 +45,8 @@ int EngineApp::Run(
         assetRenderer.Initialize(
             graphics.Device(),
             shaderPath.parent_path() / L"asset_scene.hlsl",
-            assetRoot);
+            assetRoot,
+            AssetSceneConfig{options.stressSceneSeed});
     }
     else
     {
@@ -54,6 +55,10 @@ int EngineApp::Run(
     if (options.verifyAssetScene && (!useAssetScene || !assetRenderer.AssetSceneReady()))
     {
         throw std::runtime_error{"asset scene verification requirements were not met"};
+    }
+    if (options.stressSceneSeed.has_value() && !useAssetScene)
+    {
+        throw std::runtime_error{"stress scene requires runtime assets"};
     }
 
     constexpr std::array ClearColor{0.025F, 0.035F, 0.060F, 1.0F};
@@ -72,10 +77,25 @@ int EngineApp::Run(
         graphics.BeginFrame(ClearColor);
         if (useAssetScene)
         {
-            assetRenderer.Render(
+            const RenderStatistics statistics = assetRenderer.Render(
                 graphics.Context(),
-                timing.totalSeconds,
-                static_cast<float>(options.width) / static_cast<float>(options.height));
+                AssetSceneFrame{
+                    timing.frameIndex,
+                    timing.totalSeconds,
+                    static_cast<float>(options.width) / static_cast<float>(options.height)});
+            if (options.stressSceneSeed.has_value())
+            {
+                constexpr std::uint32_t ExpectedObjects = static_cast<std::uint32_t>(
+                    benchmark::PlayerCount
+                    + benchmark::AiCount
+                    + benchmark::StaticInstanceCount);
+                if (statistics.objectCount != ExpectedObjects
+                    || statistics.drawCalls < statistics.objectCount
+                    || statistics.triangleCount <= statistics.drawCalls)
+                {
+                    throw std::runtime_error{"stress scene render statistics are incomplete"};
+                }
+            }
         }
         else
         {

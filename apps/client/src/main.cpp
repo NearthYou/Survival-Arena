@@ -5,8 +5,10 @@
 
 #include <spdlog/spdlog.h>
 
+#include <cstdint>
 #include <filesystem>
 #include <iostream>
+#include <optional>
 #include <stdexcept>
 #include <string_view>
 #include <vector>
@@ -45,14 +47,15 @@ int main(const int argc, const char* const* argv)
     const dxa::client::ClientOptions& options = *parsed.options;
     spdlog::set_pattern("[%H:%M:%S.%e] [%^%l%$] %v");
     spdlog::info(
-        "client start: adapter={}, size={}x{}, frames={}, hidden={}, vsync={}, asset_scene={}",
+        "client start: adapter={}, size={}x{}, frames={}, hidden={}, vsync={}, asset_scene={}, benchmark={}",
         options.adapter == dxa::client::AdapterType::Warp ? "warp" : "hardware",
         options.width,
         options.height,
         options.frameLimit,
         options.hidden,
         options.vsync,
-        options.verifyAssetScene);
+        options.verifyAssetScene,
+        options.benchmark.has_value());
 
     const dxa::engine::EngineRunOptions engineOptions{
         options.width,
@@ -64,7 +67,10 @@ int main(const int argc, const char* const* argv)
         options.adapter == dxa::client::AdapterType::Warp
             ? dxa::engine::GraphicsDriver::Warp
             : dxa::engine::GraphicsDriver::Hardware,
-        options.verifyAssetScene};
+        options.verifyAssetScene,
+        options.benchmark.has_value()
+            ? std::optional<std::uint32_t>{options.benchmark->seed}
+            : std::nullopt};
 
     try
     {

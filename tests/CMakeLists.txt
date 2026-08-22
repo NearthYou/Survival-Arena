@@ -28,6 +28,7 @@ if(WIN32)
             asset_tool_options_test.cpp
             asset_texture_cooker_test.cpp
             engine_app_test.cpp
+            engine_asset_scene_renderer_test.cpp
             engine_graphics_config_test.cpp
             engine_window_test.cpp
     )
@@ -43,6 +44,8 @@ if(WIN32)
         dxa_tests
         PRIVATE
             DXA_TEST_SHADER_PATH="${PROJECT_SOURCE_DIR}/assets/shaders/forward.hlsl"
+            DXA_TEST_ASSET_SHADER_PATH="${PROJECT_SOURCE_DIR}/assets/shaders/asset_scene.hlsl"
+            DXA_TEST_ASSET_ROOT="${PROJECT_SOURCE_DIR}/assets/runtime"
     )
 endif()
 

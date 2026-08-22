@@ -4,6 +4,7 @@
 
 #include <cstdint>
 #include <filesystem>
+#include <optional>
 
 namespace dxa::engine
 {
@@ -17,6 +18,7 @@ struct EngineRunOptions
     bool verifyRender = false;
     GraphicsDriver driver = GraphicsDriver::Hardware;
     bool verifyAssetScene = false;
+    std::optional<std::uint32_t> stressSceneSeed;
 };
 
 class EngineApp
