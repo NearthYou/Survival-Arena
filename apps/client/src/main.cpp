@@ -59,6 +59,7 @@ int main(const int argc, const char* const* argv)
         options.frameLimit,
         options.hidden,
         options.vsync,
+        options.verifyRender,
         options.adapter == dxa::client::AdapterType::Warp
             ? dxa::engine::GraphicsDriver::Warp
             : dxa::engine::GraphicsDriver::Hardware};

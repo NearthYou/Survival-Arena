@@ -1,3 +1,4 @@
+// Minimal forward path used by the engine-core smoke scene.
 cbuffer FrameConstants : register(b0)
 {
     float4x4 worldViewProjection;
@@ -27,4 +28,3 @@ float4 PSMain(PixelInput input) : SV_TARGET
 {
     return float4(input.color, 1.0F);
 }
-

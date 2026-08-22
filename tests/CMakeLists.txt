@@ -17,7 +17,12 @@ target_link_libraries(
 )
 
 if(WIN32)
-    target_sources(dxa_tests PRIVATE engine_window_test.cpp)
+    target_sources(
+        dxa_tests
+        PRIVATE
+            engine_graphics_config_test.cpp
+            engine_window_test.cpp
+    )
     target_link_libraries(dxa_tests PRIVATE dxa_engine)
 endif()
 

@@ -21,6 +21,7 @@ TEST(ClientOptions, ParsesHeadlessWarpSmokeRun)
         std::string_view{"640"},
         std::string_view{"--height"},
         std::string_view{"360"},
+        std::string_view{"--verify-render"},
         std::string_view{"--no-vsync"}};
 
     const auto result = ParseClientOptions(arguments);
@@ -29,6 +30,7 @@ TEST(ClientOptions, ParsesHeadlessWarpSmokeRun)
     EXPECT_EQ(AdapterType::Warp, result.options->adapter);
     EXPECT_TRUE(result.options->hidden);
     EXPECT_FALSE(result.options->vsync);
+    EXPECT_TRUE(result.options->verifyRender);
     EXPECT_EQ(3U, result.options->frameLimit);
     EXPECT_EQ(640U, result.options->width);
     EXPECT_EQ(360U, result.options->height);

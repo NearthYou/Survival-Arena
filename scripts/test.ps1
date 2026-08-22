@@ -16,3 +16,13 @@ $buildDirectory = Join-Path $repositoryRoot 'out\build\windows-msvc-vs-debug'
 if ($LASTEXITCODE -ne 0) {
     throw "테스트가 실패했습니다. 종료 코드: $LASTEXITCODE"
 }
+
+& $ctest `
+    --test-dir $buildDirectory `
+    --build-config Debug `
+    --output-on-failure `
+    --no-tests=error `
+    -R '^Client\.(WarpSmoke|ShaderDeployment)$'
+if ($LASTEXITCODE -ne 0) {
+    throw "클라이언트 스모크 등록 검증이 실패했습니다. 종료 코드: $LASTEXITCODE"
+}

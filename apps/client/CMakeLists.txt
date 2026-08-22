@@ -42,7 +42,17 @@ if(WIN32)
                 --frames 3
                 --width 320
                 --height 180
+                --verify-render
         )
         set_tests_properties(Client.WarpSmoke PROPERTIES TIMEOUT 15)
+
+        add_test(
+            NAME Client.ShaderDeployment
+            COMMAND
+                ${CMAKE_COMMAND}
+                "-DSOURCE_FILE=${PROJECT_SOURCE_DIR}/assets/shaders/forward.hlsl"
+                "-DDEPLOYED_FILE=$<TARGET_FILE_DIR:dxa_client>/shaders/forward.hlsl"
+                -P "${PROJECT_SOURCE_DIR}/cmake/VerifyFileMatch.cmake"
+        )
     endif()
 endif()

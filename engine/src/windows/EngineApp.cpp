@@ -8,6 +8,7 @@
 
 #include <array>
 #include <chrono>
+#include <stdexcept>
 
 namespace dxa::engine
 {
@@ -54,6 +55,13 @@ int EngineApp::Run(
             graphics.Context(),
             timing.totalSeconds,
             static_cast<float>(options.width) / static_cast<float>(options.height));
+
+        if (options.verifyRender && timing.frameIndex == options.frameLimit
+            && !graphics.BackBufferContainsNonClearPixel(ClearColor))
+        {
+            throw std::runtime_error("render verification found only the clear color");
+        }
+
         graphics.EndFrame(options.vsync);
 
         if (options.frameLimit != 0 && timing.frameIndex >= options.frameLimit)
@@ -65,4 +73,3 @@ int EngineApp::Run(
     return 0;
 }
 } // namespace dxa::engine
-

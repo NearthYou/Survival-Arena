@@ -1,9 +1,10 @@
 #include <dxa/engine/GraphicsDevice.hpp>
 
-#include <dxa/engine/EngineApp.hpp>
-
 #include <dxgi.h>
 
+#include <algorithm>
+#include <array>
+#include <cmath>
 #include <cstdint>
 #include <iomanip>
 #include <sstream>
@@ -105,13 +106,12 @@ void GraphicsDevice::Initialize(const GraphicsDeviceConfig& config)
 
 void GraphicsDevice::CreateTargets(const std::uint32_t width, const std::uint32_t height)
 {
-    Microsoft::WRL::ComPtr<ID3D11Texture2D> backBuffer;
     RequireSuccess(
-        swapChain_->GetBuffer(0, IID_PPV_ARGS(backBuffer.GetAddressOf())),
+        swapChain_->GetBuffer(0, IID_PPV_ARGS(backBuffer_.ReleaseAndGetAddressOf())),
         "IDXGISwapChain::GetBuffer");
     RequireSuccess(
         device_->CreateRenderTargetView(
-            backBuffer.Get(), nullptr, renderTargetView_.ReleaseAndGetAddressOf()),
+            backBuffer_.Get(), nullptr, renderTargetView_.ReleaseAndGetAddressOf()),
         "ID3D11Device::CreateRenderTargetView");
 
     D3D11_TEXTURE2D_DESC depthDescription{};
@@ -155,6 +155,64 @@ void GraphicsDevice::EndFrame(const bool vsync) const
     RequireSuccess(swapChain_->Present(vsync ? 1U : 0U, 0), "IDXGISwapChain::Present");
 }
 
+bool GraphicsDevice::BackBufferContainsNonClearPixel(
+    const std::array<float, 4>& clearColor) const
+{
+    D3D11_TEXTURE2D_DESC description{};
+    backBuffer_->GetDesc(&description);
+    description.Usage = D3D11_USAGE_STAGING;
+    description.BindFlags = 0;
+    description.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+    description.MiscFlags = 0;
+
+    Microsoft::WRL::ComPtr<ID3D11Texture2D> staging;
+    RequireSuccess(
+        device_->CreateTexture2D(&description, nullptr, staging.GetAddressOf()),
+        "ID3D11Device::CreateTexture2D(readback)");
+    context_->CopyResource(staging.Get(), backBuffer_.Get());
+
+    D3D11_MAPPED_SUBRESOURCE mapped{};
+    RequireSuccess(
+        context_->Map(staging.Get(), 0, D3D11_MAP_READ, 0, &mapped),
+        "ID3D11DeviceContext::Map(readback)");
+
+    std::array<std::uint8_t, 4> expected{};
+    for (std::size_t channel = 0; channel < expected.size(); ++channel)
+    {
+        const float normalized = std::clamp(clearColor[channel], 0.0F, 1.0F);
+        expected[channel] = static_cast<std::uint8_t>(std::lround(normalized * 255.0F));
+    }
+
+    bool foundDifferentPixel = false;
+    const auto* bytes = static_cast<const std::uint8_t*>(mapped.pData);
+    for (std::uint32_t y = 0; y < description.Height && !foundDifferentPixel; ++y)
+    {
+        const std::uint8_t* row = bytes + static_cast<std::size_t>(y) * mapped.RowPitch;
+        for (std::uint32_t x = 0; x < description.Width; ++x)
+        {
+            const std::uint8_t* pixel = row + static_cast<std::size_t>(x) * 4U;
+            for (std::size_t channel = 0; channel < 3; ++channel)
+            {
+                const int difference =
+                    std::abs(static_cast<int>(pixel[channel]) - static_cast<int>(expected[channel]));
+                if (difference > 2)
+                {
+                    foundDifferentPixel = true;
+                    break;
+                }
+            }
+
+            if (foundDifferentPixel)
+            {
+                break;
+            }
+        }
+    }
+
+    context_->Unmap(staging.Get(), 0);
+    return foundDifferentPixel;
+}
+
 ID3D11Device* GraphicsDevice::Device() const noexcept
 {
     return device_.Get();
@@ -170,4 +228,3 @@ bool GraphicsDevice::DebugLayerEnabled() const noexcept
     return debugLayerEnabled_;
 }
 } // namespace dxa::engine
-

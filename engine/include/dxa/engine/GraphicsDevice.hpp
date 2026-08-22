@@ -1,5 +1,7 @@
 #pragma once
 
+#include <dxa/engine/GraphicsTypes.hpp>
+
 #include <d3d11.h>
 #include <wrl/client.h>
 
@@ -8,14 +10,12 @@
 
 namespace dxa::engine
 {
-enum class GraphicsDriver;
-
 struct GraphicsDeviceConfig
 {
     HWND window = nullptr;
     std::uint32_t width = 0;
     std::uint32_t height = 0;
-    GraphicsDriver driver;
+    GraphicsDriver driver = GraphicsDriver::Hardware;
     bool enableDebugLayer = false;
 };
 
@@ -25,6 +25,8 @@ public:
     void Initialize(const GraphicsDeviceConfig& config);
     void BeginFrame(const std::array<float, 4>& clearColor) const;
     void EndFrame(bool vsync) const;
+    [[nodiscard]] bool BackBufferContainsNonClearPixel(
+        const std::array<float, 4>& clearColor) const;
 
     [[nodiscard]] ID3D11Device* Device() const noexcept;
     [[nodiscard]] ID3D11DeviceContext* Context() const noexcept;
@@ -36,6 +38,7 @@ private:
     Microsoft::WRL::ComPtr<ID3D11Device> device_;
     Microsoft::WRL::ComPtr<ID3D11DeviceContext> context_;
     Microsoft::WRL::ComPtr<IDXGISwapChain> swapChain_;
+    Microsoft::WRL::ComPtr<ID3D11Texture2D> backBuffer_;
     Microsoft::WRL::ComPtr<ID3D11RenderTargetView> renderTargetView_;
     Microsoft::WRL::ComPtr<ID3D11Texture2D> depthTexture_;
     Microsoft::WRL::ComPtr<ID3D11DepthStencilView> depthStencilView_;
@@ -43,4 +46,3 @@ private:
     bool debugLayerEnabled_ = false;
 };
 } // namespace dxa::engine
-
