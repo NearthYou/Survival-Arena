@@ -1,9 +1,22 @@
+add_library(
+    dxa_engine_assets
+    STATIC
+        src/assets/AssetFile.cpp
+)
+target_include_directories(
+    dxa_engine_assets
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+dxa_enable_project_warnings(dxa_engine_assets)
+
 add_library(dxa_engine_core INTERFACE)
 target_include_directories(
     dxa_engine_core
     INTERFACE
         ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
+target_link_libraries(dxa_engine_core INTERFACE dxa_engine_assets)
 
 if(WIN32)
     add_library(
