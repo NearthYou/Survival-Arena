@@ -2,7 +2,7 @@
 
 C++20과 DirectX 11로 만드는 쿼터뷰 생존 아레나 포트폴리오다. 렌더링 엔진과 게임 클라이언트를 중심에 두고, 24인 방과 권위형 게임 서버를 같은 저장소에서 검증한다.
 
-현재 단계는 첫 DX11 포워드 렌더 경로까지 구현된 상태다. 숨김 WARP 스모크 테스트와 실제 하드웨어 실행은 통과했지만, 에셋 로딩과 조명, 게임 로직, 네트워크는 아직 없다. 진행 상태와 검증 결과는 [프로젝트 계획](docs/PROJECT_PLAN.md)과 `docs/devlog/`에 남긴다.
+현재 단계는 에셋 변환과 GPU 스키닝까지 구현된 상태다. Assimp로 원본 모델을 엔진 포맷으로 변환하고, DirectXTex로 만든 BC7 DDS를 DirectXTK로 불러온다. CC0 캐릭터와 바닥을 그리는 숨김 WARP 스모크와 실제 하드웨어 실행은 통과했지만 게임 로직과 네트워크는 아직 없다. 진행 상태와 검증 결과는 [프로젝트 계획](docs/PROJECT_PLAN.md)과 `docs/devlog/`에 남긴다.
 
 ## 원칙
 
@@ -26,10 +26,17 @@ Linux 서버 빌드는 이후 마일스톤에서 Docker와 CI로 함께 검증�
 렌더 경로만 짧게 확인하려면 다음 명령을 사용한다.
 
 ```powershell
-./out/build/windows-msvc-vs-debug/apps/client/Debug/dxa_client.exe --warp --hidden --no-vsync --frames 3
+./out/build/windows-msvc-vs-debug/apps/client/Debug/dxa_client.exe --warp --hidden --no-vsync --frames 3 --verify-render --verify-asset-scene
 ```
 
-첫 프레임에서 확인한 실패와 경계는 [개발 기록](docs/devlog/2026-08-22-first-dx11-frame.md)에 적었다.
+원본 에셋을 다시 변환하려면 다음 명령을 사용한다.
+
+```powershell
+./out/build/windows-msvc-vs-debug/apps/asset_tool/Debug/dxa_asset_tool.exe model --input Character.fbx --output cyber-runner.dxam --sample-rate 30
+./out/build/windows-msvc-vs-debug/apps/asset_tool/Debug/dxa_asset_tool.exe texture --input colormap.png --output colormap.dds
+```
+
+첫 프레임에서 확인한 실패와 경계는 [첫 DX11 프레임 기록](docs/devlog/2026-08-22-first-dx11-frame.md)에, 에셋 파이프라인에서 확인한 문제는 [에셋 파이프라인 기록](docs/devlog/2026-08-23-asset-pipeline.md)에 적었다.
 
 ## 라이선스
 
