@@ -6,11 +6,16 @@
 #include <spdlog/spdlog.h>
 
 #include <cstdint>
+#include <chrono>
+#include <ctime>
 #include <filesystem>
+#include <iomanip>
 #include <iostream>
 #include <optional>
+#include <sstream>
 #include <stdexcept>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace
@@ -25,6 +30,36 @@ namespace
     }
     path.resize(length);
     return std::filesystem::path{path}.parent_path();
+}
+
+[[nodiscard]] std::string CommandLine(
+    const int argc,
+    const char* const* const argv)
+{
+    std::ostringstream command;
+    for (int index = 0; index < argc; ++index)
+    {
+        if (index != 0)
+        {
+            command << ' ';
+        }
+        command << std::quoted(argv[index]);
+    }
+    return command.str();
+}
+
+[[nodiscard]] std::string UtcTimestamp()
+{
+    const std::time_t now = std::chrono::system_clock::to_time_t(
+        std::chrono::system_clock::now());
+    std::tm utc{};
+    if (gmtime_s(&utc, &now) != 0)
+    {
+        throw std::runtime_error{"gmtime_s failed"};
+    }
+    std::ostringstream formatted;
+    formatted << std::put_time(&utc, "%Y-%m-%dT%H:%M:%SZ");
+    return formatted.str();
 }
 } // namespace
 
@@ -57,6 +92,19 @@ int main(const int argc, const char* const* argv)
         options.verifyAssetScene,
         options.benchmark.has_value());
 
+    std::optional<dxa::engine::BenchmarkRunOptions> engineBenchmark;
+    if (options.benchmark.has_value())
+    {
+        engineBenchmark = dxa::engine::BenchmarkRunOptions{
+            std::filesystem::path{options.benchmark->outputDirectory},
+            options.benchmark->warmupFrames,
+            options.benchmark->measuredFrames,
+            options.benchmark->seed,
+            options.benchmark->commitSha,
+            CommandLine(argc, argv),
+            UtcTimestamp()};
+    }
+
     const dxa::engine::EngineRunOptions engineOptions{
         options.width,
         options.height,
@@ -68,9 +116,7 @@ int main(const int argc, const char* const* argv)
             ? dxa::engine::GraphicsDriver::Warp
             : dxa::engine::GraphicsDriver::Hardware,
         options.verifyAssetScene,
-        options.benchmark.has_value()
-            ? std::optional<std::uint32_t>{options.benchmark->seed}
-            : std::nullopt};
+        std::move(engineBenchmark)};
 
     try
     {

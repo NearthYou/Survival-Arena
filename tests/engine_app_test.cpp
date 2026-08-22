@@ -4,11 +4,53 @@
 
 #include <Windows.h>
 
+#include <algorithm>
 #include <filesystem>
+#include <chrono>
+#include <fstream>
+#include <iterator>
 #include <stdexcept>
+#include <string>
 
 namespace
 {
+class TemporaryDirectory
+{
+public:
+    TemporaryDirectory()
+    {
+        const auto suffix = std::chrono::steady_clock::now().time_since_epoch().count();
+        path_ = std::filesystem::temp_directory_path()
+            / ("dxa-engine-benchmark-" + std::to_string(suffix));
+        std::filesystem::create_directories(path_);
+    }
+
+    ~TemporaryDirectory()
+    {
+        std::error_code error;
+        std::filesystem::remove_all(path_, error);
+    }
+
+    TemporaryDirectory(const TemporaryDirectory&) = delete;
+    TemporaryDirectory& operator=(const TemporaryDirectory&) = delete;
+
+    [[nodiscard]] const std::filesystem::path& Path() const noexcept
+    {
+        return path_;
+    }
+
+private:
+    std::filesystem::path path_;
+};
+
+[[nodiscard]] std::string ReadText(const std::filesystem::path& path)
+{
+    std::ifstream input{path, std::ios::binary};
+    return std::string{
+        std::istreambuf_iterator<char>{input},
+        std::istreambuf_iterator<char>{}};
+}
+
 void DrainThreadMessages()
 {
     MSG message{};
@@ -37,5 +79,45 @@ TEST(EngineApp, RenderVerificationRejectsQuitBeforeFirstFrame)
         std::runtime_error);
 
     DrainThreadMessages();
+}
+
+TEST(EngineApp, WritesMeasuredWarpFramesToANewBenchmarkRunDirectory)
+{
+    TemporaryDirectory temporary;
+    const std::filesystem::path output = temporary.Path() / "run-001";
+    const dxa::engine::BenchmarkRunOptions benchmark{
+        output,
+        0,
+        2,
+        20260823,
+        "test-sha",
+        "dxa_client --benchmark-frames 2",
+        "2026-08-23T12:34:56Z"};
+    const dxa::engine::EngineRunOptions options{
+        96,
+        54,
+        2,
+        true,
+        false,
+        false,
+        dxa::engine::GraphicsDriver::Warp,
+        true,
+        benchmark};
+
+    EXPECT_EQ(
+        0,
+        dxa::engine::EngineApp{}.Run(
+            options,
+            std::filesystem::path{DXA_TEST_SHADER_PATH},
+            std::filesystem::path{DXA_TEST_ASSET_ROOT}));
+
+    const std::string csv = ReadText(output / "frames.csv");
+    EXPECT_EQ(3U, std::ranges::count(csv, '\n'));
+    EXPECT_NE(std::string::npos, csv.find("1124"));
+
+    const std::string json = ReadText(output / "summary.json");
+    EXPECT_NE(std::string::npos, json.find("\"seed\": 20260823"));
+    EXPECT_NE(std::string::npos, json.find("\"sample_count\": 2"));
+    EXPECT_EQ(std::string::npos, json.find("\"adapter\": \"\""));
 }
 } // namespace

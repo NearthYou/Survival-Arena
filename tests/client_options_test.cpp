@@ -110,6 +110,7 @@ TEST(ClientOptions, ParsesDeterministicBenchmarkRun)
         std::string_view{"1920"},
         std::string_view{"--height"},
         std::string_view{"1080"},
+        std::string_view{"--hidden"},
         std::string_view{"--no-vsync"}};
 
     const auto result = ParseClientOptions(arguments);
@@ -124,6 +125,7 @@ TEST(ClientOptions, ParsesDeterministicBenchmarkRun)
     EXPECT_EQ(20260823U, result.options->benchmark->seed);
     EXPECT_EQ("abc1234", result.options->benchmark->commitSha);
     EXPECT_EQ(720U, result.options->frameLimit);
+    EXPECT_TRUE(result.options->hidden);
     EXPECT_FALSE(result.options->vsync);
 }
 

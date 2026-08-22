@@ -191,12 +191,12 @@ namespace detail
         }
     }
 
-    if (options.hidden && options.frameLimit == 0)
+    if (options.hidden && options.frameLimit == 0 && !benchmarkOutputSet)
     {
         return detail::Error("--hidden requires --frames greater than 0");
     }
 
-    if (options.verifyRender && options.frameLimit == 0)
+    if (options.verifyRender && options.frameLimit == 0 && !benchmarkOutputSet)
     {
         return detail::Error("--verify-render requires --frames greater than 0");
     }

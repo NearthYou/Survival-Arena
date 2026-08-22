@@ -30,6 +30,7 @@ if(WIN32)
             engine_app_test.cpp
             engine_asset_scene_renderer_test.cpp
             engine_graphics_config_test.cpp
+            engine_gpu_frame_timer_test.cpp
             engine_window_test.cpp
     )
     target_link_libraries(

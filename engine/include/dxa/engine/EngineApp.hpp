@@ -5,9 +5,21 @@
 #include <cstdint>
 #include <filesystem>
 #include <optional>
+#include <string>
 
 namespace dxa::engine
 {
+struct BenchmarkRunOptions
+{
+    std::filesystem::path outputDirectory;
+    std::uint32_t warmupFrames = 0;
+    std::uint32_t measuredFrames = 0;
+    std::uint32_t seed = 0;
+    std::string commitSha;
+    std::string command;
+    std::string startedAt;
+};
+
 struct EngineRunOptions
 {
     std::uint32_t width = 1280;
@@ -18,7 +30,7 @@ struct EngineRunOptions
     bool verifyRender = false;
     GraphicsDriver driver = GraphicsDriver::Hardware;
     bool verifyAssetScene = false;
-    std::optional<std::uint32_t> stressSceneSeed;
+    std::optional<BenchmarkRunOptions> benchmark;
 };
 
 class EngineApp

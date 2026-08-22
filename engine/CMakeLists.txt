@@ -46,7 +46,9 @@ if(WIN32)
             src/windows/AssetSceneRenderer.cpp
             src/windows/EngineApp.cpp
             src/windows/ForwardRenderer.cpp
+            src/windows/GpuFrameTimer.cpp
             src/windows/GraphicsDevice.cpp
+            src/windows/SystemMetrics.cpp
             src/windows/Window.cpp
     )
     target_include_directories(
@@ -71,6 +73,7 @@ if(WIN32)
             d3dcompiler
             dxgi
             Microsoft::DirectXTK
+            psapi
     )
     dxa_enable_project_warnings(dxa_engine)
 endif()
