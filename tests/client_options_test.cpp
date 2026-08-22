@@ -22,6 +22,7 @@ TEST(ClientOptions, ParsesHeadlessWarpSmokeRun)
         std::string_view{"--height"},
         std::string_view{"360"},
         std::string_view{"--verify-render"},
+        std::string_view{"--verify-asset-scene"},
         std::string_view{"--no-vsync"}};
 
     const auto result = ParseClientOptions(arguments);
@@ -31,6 +32,7 @@ TEST(ClientOptions, ParsesHeadlessWarpSmokeRun)
     EXPECT_TRUE(result.options->hidden);
     EXPECT_FALSE(result.options->vsync);
     EXPECT_TRUE(result.options->verifyRender);
+    EXPECT_TRUE(result.options->verifyAssetScene);
     EXPECT_EQ(3U, result.options->frameLimit);
     EXPECT_EQ(640U, result.options->width);
     EXPECT_EQ(360U, result.options->height);
@@ -76,5 +78,18 @@ TEST(ClientOptions, RejectsHiddenRunWithoutFrameLimit)
 
     EXPECT_FALSE(result.options.has_value());
     EXPECT_EQ("--hidden requires --frames greater than 0", result.error);
+}
+
+TEST(ClientOptions, RejectsAssetSceneCheckWithoutRenderVerification)
+{
+    constexpr std::array arguments{
+        std::string_view{"--frames"},
+        std::string_view{"3"},
+        std::string_view{"--verify-asset-scene"}};
+
+    const auto result = ParseClientOptions(arguments);
+
+    EXPECT_FALSE(result.options.has_value());
+    EXPECT_EQ("--verify-asset-scene requires --verify-render", result.error);
 }
 } // namespace

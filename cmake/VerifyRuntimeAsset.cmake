@@ -1,0 +1,23 @@
+foreach(required_variable IN ITEMS SOURCE_FILE DEPLOYED_FILE MINIMUM_SIZE)
+    if(NOT DEFINED ${required_variable})
+        message(FATAL_ERROR "${required_variable} is required")
+    endif()
+endforeach()
+
+foreach(required_file IN ITEMS "${SOURCE_FILE}" "${DEPLOYED_FILE}")
+    if(NOT EXISTS "${required_file}")
+        message(FATAL_ERROR "runtime asset is missing: ${required_file}")
+    endif()
+endforeach()
+
+file(SIZE "${SOURCE_FILE}" source_size)
+file(SIZE "${DEPLOYED_FILE}" deployed_size)
+if(source_size LESS MINIMUM_SIZE OR deployed_size LESS MINIMUM_SIZE)
+    message(FATAL_ERROR "runtime asset is smaller than expected; Git LFS content may be missing")
+endif()
+
+file(SHA256 "${SOURCE_FILE}" source_hash)
+file(SHA256 "${DEPLOYED_FILE}" deployed_hash)
+if(NOT source_hash STREQUAL deployed_hash)
+    message(FATAL_ERROR "runtime asset deployment hash mismatch")
+endif()

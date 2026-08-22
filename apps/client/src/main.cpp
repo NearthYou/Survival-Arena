@@ -45,13 +45,14 @@ int main(const int argc, const char* const* argv)
     const dxa::client::ClientOptions& options = *parsed.options;
     spdlog::set_pattern("[%H:%M:%S.%e] [%^%l%$] %v");
     spdlog::info(
-        "client start: adapter={}, size={}x{}, frames={}, hidden={}, vsync={}",
+        "client start: adapter={}, size={}x{}, frames={}, hidden={}, vsync={}, asset_scene={}",
         options.adapter == dxa::client::AdapterType::Warp ? "warp" : "hardware",
         options.width,
         options.height,
         options.frameLimit,
         options.hidden,
-        options.vsync);
+        options.vsync,
+        options.verifyAssetScene);
 
     const dxa::engine::EngineRunOptions engineOptions{
         options.width,
@@ -62,13 +63,15 @@ int main(const int argc, const char* const* argv)
         options.verifyRender,
         options.adapter == dxa::client::AdapterType::Warp
             ? dxa::engine::GraphicsDriver::Warp
-            : dxa::engine::GraphicsDriver::Hardware};
+            : dxa::engine::GraphicsDriver::Hardware,
+        options.verifyAssetScene};
 
     try
     {
         const std::filesystem::path shaderPath =
             ExecutableDirectory() / L"shaders" / L"forward.hlsl";
-        const int exitCode = dxa::engine::EngineApp{}.Run(engineOptions, shaderPath);
+        const std::filesystem::path assetRoot = ExecutableDirectory() / L"assets";
+        const int exitCode = dxa::engine::EngineApp{}.Run(engineOptions, shaderPath, assetRoot);
         spdlog::info("client stop: exit={}", exitCode);
         return exitCode;
     }
