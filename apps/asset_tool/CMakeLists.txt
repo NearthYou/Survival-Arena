@@ -1,5 +1,6 @@
 if(WIN32)
     find_package(assimp CONFIG REQUIRED)
+    find_package(directxtex CONFIG REQUIRED)
 
     add_library(
         dxa_asset_importer
@@ -25,4 +26,27 @@ if(WIN32)
             assimp::assimp
     )
     dxa_enable_project_warnings(dxa_asset_importer)
+
+    add_library(
+        dxa_texture_cooker
+        STATIC
+            src/TextureCooker.cpp
+    )
+    target_include_directories(
+        dxa_texture_cooker
+        PUBLIC
+            ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_compile_definitions(
+        dxa_texture_cooker
+        PRIVATE
+            NOMINMAX
+            WIN32_LEAN_AND_MEAN
+    )
+    target_link_libraries(
+        dxa_texture_cooker
+        PRIVATE
+            Microsoft::DirectXTex
+    )
+    dxa_enable_project_warnings(dxa_texture_cooker)
 endif()
