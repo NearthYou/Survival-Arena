@@ -20,4 +20,4 @@ Testing/
 *.log
 assets/_source/
 .cache/
-
+.vcpkg/
