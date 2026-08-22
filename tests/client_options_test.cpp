@@ -65,5 +65,14 @@ TEST(ClientOptions, RejectsUnknownArgument)
     EXPECT_FALSE(result.options.has_value());
     EXPECT_EQ("unknown argument: --fast", result.error);
 }
-} // namespace
 
+TEST(ClientOptions, RejectsHiddenRunWithoutFrameLimit)
+{
+    constexpr std::array arguments{std::string_view{"--hidden"}};
+
+    const auto result = ParseClientOptions(arguments);
+
+    EXPECT_FALSE(result.options.has_value());
+    EXPECT_EQ("--hidden requires --frames greater than 0", result.error);
+}
+} // namespace

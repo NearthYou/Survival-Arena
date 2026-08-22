@@ -116,6 +116,11 @@ namespace detail
         }
     }
 
+    if (options.hidden && options.frameLimit == 0)
+    {
+        return detail::Error("--hidden requires --frames greater than 0");
+    }
+
     return ClientOptionsParseResult{options, {}};
 }
 } // namespace dxa::client
