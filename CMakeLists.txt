@@ -18,12 +18,15 @@ option(DXA_WARNINGS_AS_ERRORS "Treat project warnings as errors" ON)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(CompilerWarnings)
 
+if(DXA_BUILD_TESTS)
+    include(CTest)
+    enable_testing()
+endif()
+
 add_subdirectory(engine)
 add_subdirectory(apps/client)
 
 if(DXA_BUILD_TESTS)
-    include(CTest)
-    enable_testing()
     add_subdirectory(tests)
 endif()
 
