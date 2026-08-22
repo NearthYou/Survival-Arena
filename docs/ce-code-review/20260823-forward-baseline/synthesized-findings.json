@@ -1,0 +1,34 @@
+{
+  "reviewed_head_sha": "4cb26e809c6ff77477bf4cc7ba7fbf1232b00e89",
+  "applied_head_sha": "63f3733ab27db9fd8fcf98edcbed2e639c091980",
+  "findings": [],
+  "applied": [
+    {
+      "#": 1,
+      "title": "검증 실패가 실행 환경 증거를 누락",
+      "severity": "P2",
+      "confidence": 100,
+      "reviewers": ["reliability"],
+      "independent_reviewers": [],
+      "fix": "summary 검증 오류를 모은 뒤 environment.json에 validation 상태를 쓰고 실패를 반환"
+    },
+    {
+      "#": 2,
+      "title": "Build 중 변경된 소스를 이전 SHA로 기록",
+      "severity": "P2",
+      "confidence": 75,
+      "reviewers": ["correctness", "adversarial"],
+      "independent_reviewers": [],
+      "fix": "Release build 직후 Git snapshot을 다시 읽어 dirty tree와 HEAD 이동을 client 실행 전에 거부"
+    }
+  ],
+  "pre_existing_findings": [],
+  "actionable_findings": [],
+  "residual_risks": [
+    "기본 600프레임은 검증됐지만 최대 10000프레임에서 query 객체 30000개 생성과 슬롯 순회 비용은 측정하지 않았다.",
+    "채택한 실행은 hidden window여서 보이는 창의 presentation 비용과 기준 이미지 비교는 포함하지 않는다."
+  ],
+  "testing_gaps": [
+    "RTX 검증은 clear 색 이외 픽셀을 확인하며 기준 이미지 비교는 하지 않는다."
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "reviewer": "performance",
+  "findings": [],
+  "residual_risks": [
+    "기본 600프레임은 검증됐지만 최대 10000프레임에서 query 객체 30000개 생성과 매 프레임 슬롯 순회 비용은 측정하지 않았다."
+  ],
+  "testing_gaps": []
+}

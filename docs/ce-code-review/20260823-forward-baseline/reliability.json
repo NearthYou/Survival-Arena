@@ -1,0 +1,26 @@
+{
+  "reviewer": "reliability",
+  "findings": [
+    {
+      "title": "검증 실패가 실행 환경 증거를 누락",
+      "severity": "P2",
+      "file": "scripts/run_benchmark.ps1",
+      "line": 117,
+      "why_it_matters": "GPU timestamp 누락이나 adapter 불일치는 원인을 조사해야 하는 실행인데도 OS, CPU, driver와 power state가 저장되지 않는다. 실제 첫 600프레임 실패 디렉터리도 summary와 CSV만 남아 환경 비교가 불가능했다. 결과 검증 전에 환경을 기록하면 성공과 실패 실행이 같은 증거 계약을 지킨다.",
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "summary JSON을 읽은 직후 시스템 환경을 수집해 environment.json을 먼저 쓰고, 그 다음 commit, adapter와 GPU 누락 검증을 수행한다. 실패 사유도 environment.json의 validation 상태에 기록한다.",
+      "confidence": 100,
+      "evidence": [
+        "scripts/run_benchmark.ps1:117-119 -- GPU 누락이면 environment 수집 전에 throw한다.",
+        "scripts/run_benchmark.ps1:121-182 -- 환경 수집과 environment.json 쓰기는 모든 summary 검증 뒤에 있다.",
+        "docs/benchmarks/forward-baseline/20260823-032931-36163138-seed20260823/FAILED.md:34 -- 첫 실패 실행에 environment.json이 없음을 기록한다.",
+        "docs/benchmarks/README.md:15 -- 각 실행 디렉터리가 environment.json을 가진다고 명시한다."
+      ],
+      "pre_existing": false
+    }
+  ],
+  "residual_risks": [],
+  "testing_gaps": []
+}
