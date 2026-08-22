@@ -22,7 +22,7 @@ Review lenses:
 | 1 | `scripts/run_benchmark.ps1:102` (+helper, test) | summary 검증 전에 environment를 쓰고 `validation.status`와 오류 목록 보존 | reliability |
 | 2 | `scripts/run_benchmark.ps1:53` (+helper, test) | Release build 뒤 Git snapshot 재검증으로 dirty tree와 HEAD 이동 거부 | correctness, adversarial |
 
-Validation: PowerShell 3개 파일 구문 통과, 임시 Git 저장소에서 clean, dirty와 HEAD 이동 경로 통과, BenchmarkRunner CTest 추가, 전체 CTest 74/74와 client 배포 검사 6/6 통과.
+Validation: PowerShell 3개 파일 구문 통과, 임시 Git 저장소에서 clean, dirty와 HEAD 이동 경로 통과, 의도한 adapter 불일치 실행에서 `validation.status=failed` 환경 파일 보존, BenchmarkRunner CTest 추가, 전체 CTest 74/74와 client 배포 검사 6/6 통과.
 
 Committed: `63f3733 fix(review): 기준선 증거 경계 보강`
 
