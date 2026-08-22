@@ -2,24 +2,22 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <deque>
 #include <limits>
 #include <optional>
 #include <stdexcept>
 #include <utility>
-#include <vector>
 
 namespace dxa::engine
 {
+template <typename T>
+class ResourcePool;
+
 template <typename T>
 class ResourceHandle
 {
 public:
     constexpr ResourceHandle() noexcept = default;
-
-    constexpr ResourceHandle(const std::uint32_t index, const std::uint32_t generation) noexcept
-        : index_(index), generation_(generation)
-    {
-    }
 
     [[nodiscard]] constexpr std::uint32_t Index() const noexcept
     {
@@ -39,6 +37,13 @@ public:
     friend constexpr bool operator==(const ResourceHandle&, const ResourceHandle&) noexcept = default;
 
 private:
+    friend class ResourcePool<T>;
+
+    constexpr ResourceHandle(const std::uint32_t index, const std::uint32_t generation) noexcept
+        : index_(index), generation_(generation)
+    {
+    }
+
     static constexpr std::uint32_t InvalidIndex = std::numeric_limits<std::uint32_t>::max();
 
     std::uint32_t index_ = InvalidIndex;
@@ -58,9 +63,10 @@ public:
         {
             index = freeHead_;
             Slot& slot = slots_[index];
-            freeHead_ = slot.nextFree;
-            slot.nextFree = InvalidIndex;
+            const std::uint32_t nextFree = slot.nextFree;
             slot.value.emplace(std::forward<Args>(args)...);
+            freeHead_ = nextFree;
+            slot.nextFree = InvalidIndex;
         }
         else
         {
@@ -71,7 +77,15 @@ public:
 
             index = static_cast<std::uint32_t>(slots_.size());
             slots_.emplace_back();
-            slots_.back().value.emplace(std::forward<Args>(args)...);
+            try
+            {
+                slots_.back().value.emplace(std::forward<Args>(args)...);
+            }
+            catch (...)
+            {
+                slots_.pop_back();
+                throw;
+            }
         }
 
         ++liveCount_;
@@ -158,7 +172,7 @@ private:
         return generation == std::numeric_limits<std::uint32_t>::max() ? 1U : generation + 1U;
     }
 
-    std::vector<Slot> slots_;
+    std::deque<Slot> slots_;
     std::uint32_t freeHead_ = InvalidIndex;
     std::size_t liveCount_ = 0;
 };
