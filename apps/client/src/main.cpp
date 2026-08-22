@@ -3,6 +3,8 @@
 
 #include <Windows.h>
 
+#include <spdlog/spdlog.h>
+
 #include <filesystem>
 #include <iostream>
 #include <stdexcept>
@@ -41,6 +43,16 @@ int main(const int argc, const char* const* argv)
     }
 
     const dxa::client::ClientOptions& options = *parsed.options;
+    spdlog::set_pattern("[%H:%M:%S.%e] [%^%l%$] %v");
+    spdlog::info(
+        "client start: adapter={}, size={}x{}, frames={}, hidden={}, vsync={}",
+        options.adapter == dxa::client::AdapterType::Warp ? "warp" : "hardware",
+        options.width,
+        options.height,
+        options.frameLimit,
+        options.hidden,
+        options.vsync);
+
     const dxa::engine::EngineRunOptions engineOptions{
         options.width,
         options.height,
@@ -55,11 +67,13 @@ int main(const int argc, const char* const* argv)
     {
         const std::filesystem::path shaderPath =
             ExecutableDirectory() / L"shaders" / L"forward.hlsl";
-        return dxa::engine::EngineApp{}.Run(engineOptions, shaderPath);
+        const int exitCode = dxa::engine::EngineApp{}.Run(engineOptions, shaderPath);
+        spdlog::info("client stop: exit={}", exitCode);
+        return exitCode;
     }
     catch (const std::exception& error)
     {
-        std::cerr << error.what() << '\n';
+        spdlog::error("client failed: {}", error.what());
         return 2;
     }
 }

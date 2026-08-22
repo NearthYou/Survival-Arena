@@ -6,8 +6,16 @@ target_include_directories(
 )
 
 if(WIN32)
+    find_package(spdlog CONFIG REQUIRED)
+
     add_executable(dxa_client src/main.cpp)
-    target_link_libraries(dxa_client PRIVATE dxa_client_options dxa_engine)
+    target_link_libraries(
+        dxa_client
+        PRIVATE
+            dxa_client_options
+            dxa_engine
+            spdlog::spdlog
+    )
     dxa_enable_project_warnings(dxa_client)
 
     add_custom_command(
