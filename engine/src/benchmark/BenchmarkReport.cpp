@@ -46,8 +46,9 @@ namespace
 {
     std::ostringstream escaped;
     escaped << std::hex << std::setfill('0');
-    for (const unsigned char character : value)
+    for (const char rawCharacter : value)
     {
+        const auto character = static_cast<unsigned char>(rawCharacter);
         switch (character)
         {
         case '\"':
