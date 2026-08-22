@@ -22,6 +22,11 @@ struct PackedInfluences
     std::array<float, 4> jointWeights{};
 };
 
+struct ModelImportOptions
+{
+    float animationSampleRate = 30.0F;
+};
+
 class ModelImportError : public std::runtime_error
 {
 public:
@@ -31,5 +36,6 @@ public:
 [[nodiscard]] PackedInfluences PackVertexInfluences(
     std::span<const JointInfluence> influences);
 [[nodiscard]] dxa::engine::asset::ModelAsset ImportModel(
-    const std::filesystem::path& sourcePath);
+    const std::filesystem::path& sourcePath,
+    const ModelImportOptions& options = {});
 } // namespace dxa::asset_tool
