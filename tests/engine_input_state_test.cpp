@@ -37,5 +37,28 @@ TEST(InputState, ReportsReleasedOnlyOnTransition)
     input.BeginFrame();
     EXPECT_FALSE(input.WasReleased(MoveForward));
 }
-} // namespace
 
+TEST(InputState, PreservesPressAndReleaseWithinOneFrame)
+{
+    InputState input;
+
+    input.SetKey(MoveForward, true);
+    input.SetKey(MoveForward, false);
+
+    EXPECT_FALSE(input.IsDown(MoveForward));
+    EXPECT_TRUE(input.WasPressed(MoveForward));
+    EXPECT_TRUE(input.WasReleased(MoveForward));
+}
+
+TEST(InputState, ReleasesHeldKeysWhenFocusIsLost)
+{
+    InputState input;
+    input.SetKey(MoveForward, true);
+    input.BeginFrame();
+
+    input.ReleaseAll();
+
+    EXPECT_FALSE(input.IsDown(MoveForward));
+    EXPECT_TRUE(input.WasReleased(MoveForward));
+}
+} // namespace

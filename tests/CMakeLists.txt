@@ -15,6 +15,12 @@ target_link_libraries(
         dxa_client_options
         dxa_engine_core
 )
+
+if(WIN32)
+    target_sources(dxa_tests PRIVATE engine_window_test.cpp)
+    target_link_libraries(dxa_tests PRIVATE dxa_engine)
+endif()
+
 dxa_enable_project_warnings(dxa_tests)
 
 include(GoogleTest)

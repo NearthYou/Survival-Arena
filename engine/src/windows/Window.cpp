@@ -122,17 +122,38 @@ LRESULT Window::HandleMessage(
     switch (message)
     {
     case WM_KEYDOWN:
-    case WM_SYSKEYDOWN:
         if (inputState_ != nullptr && wParam <= 0xFFU)
         {
             inputState_->SetKey(static_cast<std::uint8_t>(wParam), true);
         }
         return 0;
     case WM_KEYUP:
+        if (inputState_ != nullptr && wParam <= 0xFFU)
+        {
+            inputState_->SetKey(static_cast<std::uint8_t>(wParam), false);
+        }
+        return 0;
+    case WM_SYSKEYDOWN:
+        if (inputState_ != nullptr && wParam <= 0xFFU)
+        {
+            inputState_->SetKey(static_cast<std::uint8_t>(wParam), true);
+        }
+        if (wParam == VK_F4 && (lParam & (static_cast<LPARAM>(1) << 29)) != 0)
+        {
+            SendMessageW(window, WM_CLOSE, 0, 0);
+            return 0;
+        }
+        return DefWindowProcW(window, message, wParam, lParam);
     case WM_SYSKEYUP:
         if (inputState_ != nullptr && wParam <= 0xFFU)
         {
             inputState_->SetKey(static_cast<std::uint8_t>(wParam), false);
+        }
+        return DefWindowProcW(window, message, wParam, lParam);
+    case WM_KILLFOCUS:
+        if (inputState_ != nullptr)
+        {
+            inputState_->ReleaseAll();
         }
         return 0;
     case WM_CLOSE:
@@ -150,4 +171,3 @@ LRESULT Window::HandleMessage(
     }
 }
 } // namespace dxa::engine
-
