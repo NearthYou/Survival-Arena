@@ -92,4 +92,106 @@ TEST(ClientOptions, RejectsAssetSceneCheckWithoutRenderVerification)
     EXPECT_FALSE(result.options.has_value());
     EXPECT_EQ("--verify-asset-scene requires --verify-render", result.error);
 }
+
+TEST(ClientOptions, ParsesDeterministicBenchmarkRun)
+{
+    constexpr std::array arguments{
+        std::string_view{"--benchmark-output"},
+        std::string_view{"docs/benchmarks/forward-baseline/run-001"},
+        std::string_view{"--benchmark-warmup"},
+        std::string_view{"120"},
+        std::string_view{"--benchmark-frames"},
+        std::string_view{"600"},
+        std::string_view{"--benchmark-seed"},
+        std::string_view{"20260823"},
+        std::string_view{"--commit-sha"},
+        std::string_view{"abc1234"},
+        std::string_view{"--width"},
+        std::string_view{"1920"},
+        std::string_view{"--height"},
+        std::string_view{"1080"},
+        std::string_view{"--no-vsync"}};
+
+    const auto result = ParseClientOptions(arguments);
+
+    ASSERT_TRUE(result.options.has_value()) << result.error;
+    ASSERT_TRUE(result.options->benchmark.has_value());
+    EXPECT_EQ(
+        "docs/benchmarks/forward-baseline/run-001",
+        result.options->benchmark->outputDirectory);
+    EXPECT_EQ(120U, result.options->benchmark->warmupFrames);
+    EXPECT_EQ(600U, result.options->benchmark->measuredFrames);
+    EXPECT_EQ(20260823U, result.options->benchmark->seed);
+    EXPECT_EQ("abc1234", result.options->benchmark->commitSha);
+    EXPECT_EQ(720U, result.options->frameLimit);
+    EXPECT_FALSE(result.options->vsync);
+}
+
+TEST(ClientOptions, RejectsBenchmarkWithVsync)
+{
+    constexpr std::array arguments{
+        std::string_view{"--benchmark-output"},
+        std::string_view{"run-001"}};
+
+    const auto result = ParseClientOptions(arguments);
+
+    EXPECT_FALSE(result.options.has_value());
+    EXPECT_EQ("benchmark run requires --no-vsync", result.error);
+}
+
+TEST(ClientOptions, RejectsBenchmarkFrameLimitOverride)
+{
+    constexpr std::array arguments{
+        std::string_view{"--benchmark-output"},
+        std::string_view{"run-001"},
+        std::string_view{"--frames"},
+        std::string_view{"1"},
+        std::string_view{"--no-vsync"}};
+
+    const auto result = ParseClientOptions(arguments);
+
+    EXPECT_FALSE(result.options.has_value());
+    EXPECT_EQ("benchmark run calculates --frames from its measurement window", result.error);
+}
+
+TEST(ClientOptions, RejectsBenchmarkOptionWithoutOutputDirectory)
+{
+    constexpr std::array arguments{
+        std::string_view{"--benchmark-seed"},
+        std::string_view{"7"},
+        std::string_view{"--no-vsync"}};
+
+    const auto result = ParseClientOptions(arguments);
+
+    EXPECT_FALSE(result.options.has_value());
+    EXPECT_EQ("benchmark options require --benchmark-output", result.error);
+}
+
+TEST(ClientOptions, RejectsZeroMeasuredBenchmarkFrames)
+{
+    constexpr std::array arguments{
+        std::string_view{"--benchmark-output"},
+        std::string_view{"run-001"},
+        std::string_view{"--benchmark-frames"},
+        std::string_view{"0"},
+        std::string_view{"--no-vsync"}};
+
+    const auto result = ParseClientOptions(arguments);
+
+    EXPECT_FALSE(result.options.has_value());
+    EXPECT_EQ("--benchmark-frames must be greater than 0", result.error);
+}
+
+TEST(ClientOptions, RejectsBenchmarkWithoutCommitSha)
+{
+    constexpr std::array arguments{
+        std::string_view{"--benchmark-output"},
+        std::string_view{"run-001"},
+        std::string_view{"--no-vsync"}};
+
+    const auto result = ParseClientOptions(arguments);
+
+    EXPECT_FALSE(result.options.has_value());
+    EXPECT_EQ("benchmark run requires --commit-sha", result.error);
+}
 } // namespace
