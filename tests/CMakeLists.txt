@@ -2,6 +2,8 @@ find_package(GTest CONFIG REQUIRED)
 
 add_executable(
     dxa_tests
+    engine_frame_clock_test.cpp
+    engine_input_state_test.cpp
     engine_resource_pool_test.cpp
     foundation_test.cpp
 )
