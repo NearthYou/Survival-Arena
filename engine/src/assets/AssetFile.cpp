@@ -130,7 +130,9 @@ public:
     void ExpectBytes(const std::span<const std::uint8_t> expected)
     {
         Require(expected.size());
-        if (!std::equal(expected.begin(), expected.end(), bytes_.begin() + offset_))
+        const std::span<const std::uint8_t> actual =
+            bytes_.subspan(offset_, expected.size());
+        if (!std::equal(expected.begin(), expected.end(), actual.begin()))
         {
             throw AssetFormatError{"model asset magic does not match"};
         }
