@@ -22,7 +22,17 @@ if ($LASTEXITCODE -ne 0) {
     --build-config Debug `
     --output-on-failure `
     --no-tests=error `
-    -R '^Client\.(WarpSmoke|ShaderDeployment)$'
+    -R '^Client\.WarpSmoke$'
 if ($LASTEXITCODE -ne 0) {
-    throw "클라이언트 스모크 등록 검증이 실패했습니다. 종료 코드: $LASTEXITCODE"
+    throw "클라이언트 WARP 스모크 등록 검증이 실패했습니다. 종료 코드: $LASTEXITCODE"
+}
+
+& $ctest `
+    --test-dir $buildDirectory `
+    --build-config Debug `
+    --output-on-failure `
+    --no-tests=error `
+    -R '^Client\.ShaderDeployment$'
+if ($LASTEXITCODE -ne 0) {
+    throw "클라이언트 셰이더 배포 등록 검증이 실패했습니다. 종료 코드: $LASTEXITCODE"
 }
