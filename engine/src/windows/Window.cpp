@@ -13,6 +13,7 @@ Window::~Window()
 {
     if (window_ != nullptr && IsWindow(window_))
     {
+        ownerTeardown_ = true;
         DestroyWindow(window_);
     }
 }
@@ -21,6 +22,7 @@ void Window::Create(const WindowConfig& config, InputState& inputState)
 {
     instance_ = GetModuleHandleW(nullptr);
     inputState_ = &inputState;
+    ownerTeardown_ = false;
 
     WNDCLASSEXW windowClass{};
     windowClass.cbSize = sizeof(windowClass);
@@ -160,7 +162,10 @@ LRESULT Window::HandleMessage(
         DestroyWindow(window);
         return 0;
     case WM_DESTROY:
-        PostQuitMessage(0);
+        if (!ownerTeardown_)
+        {
+            PostQuitMessage(0);
+        }
         return 0;
     case WM_NCDESTROY:
         window_ = nullptr;

@@ -37,6 +37,6 @@ private:
     HINSTANCE instance_ = nullptr;
     HWND window_ = nullptr;
     InputState* inputState_ = nullptr;
+    bool ownerTeardown_ = false;
 };
 } // namespace dxa::engine
-

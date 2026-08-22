@@ -40,6 +40,7 @@ int EngineApp::Run(
 
     constexpr std::array ClearColor{0.025F, 0.035F, 0.060F, 1.0F};
     FrameClock clock{FrameClock::Clock::now()};
+    bool renderVerified = !options.verifyRender;
 
     while (true)
     {
@@ -56,10 +57,13 @@ int EngineApp::Run(
             timing.totalSeconds,
             static_cast<float>(options.width) / static_cast<float>(options.height));
 
-        if (options.verifyRender && timing.frameIndex == options.frameLimit
-            && !graphics.BackBufferContainsNonClearPixel(ClearColor))
+        if (options.verifyRender && timing.frameIndex == options.frameLimit)
         {
-            throw std::runtime_error("render verification found only the clear color");
+            if (!graphics.BackBufferContainsNonClearPixel(ClearColor))
+            {
+                throw std::runtime_error("render verification found only the clear color");
+            }
+            renderVerified = true;
         }
 
         graphics.EndFrame(options.vsync);
@@ -68,6 +72,11 @@ int EngineApp::Run(
         {
             break;
         }
+    }
+
+    if (!renderVerified)
+    {
+        throw std::runtime_error("render verification ended before the requested frame");
     }
 
     return 0;
