@@ -3,6 +3,7 @@ add_library(
     STATIC
         src/AiDecision.cpp
         src/BehaviorTree.cpp
+        src/MatchConfig.cpp
         src/Math2.cpp
         src/NavAgent.cpp
         src/NavMesh.cpp
