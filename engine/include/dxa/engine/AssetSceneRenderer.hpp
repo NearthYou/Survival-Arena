@@ -2,6 +2,7 @@
 
 #include <dxa/engine/assets/AssetFile.hpp>
 #include <dxa/engine/benchmark/StressScene.hpp>
+#include <dxa/engine/detail/GpuSceneModel.hpp>
 
 #include <d3d11.h>
 #include <wrl/client.h>
@@ -9,7 +10,6 @@
 #include <cstdint>
 #include <filesystem>
 #include <optional>
-#include <vector>
 
 namespace dxa::engine
 {
@@ -52,28 +52,9 @@ public:
     [[nodiscard]] bool AssetSceneReady() const noexcept;
 
 private:
-    struct GpuMaterial
-    {
-        asset::Float4 baseColor;
-        Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> texture;
-    };
-
-    struct GpuModel
-    {
-        asset::ModelAsset assetData;
-        Microsoft::WRL::ComPtr<ID3D11Buffer> vertexBuffer;
-        Microsoft::WRL::ComPtr<ID3D11Buffer> indexBuffer;
-        std::vector<GpuMaterial> materials;
-        asset::Float3 minimumBounds;
-        asset::Float3 maximumBounds;
-    };
-
-    [[nodiscard]] static GpuModel LoadModel(
-        ID3D11Device* device,
-        const std::filesystem::path& modelPath);
     [[nodiscard]] RenderStatistics RenderModel(
         ID3D11DeviceContext* context,
-        const GpuModel& model,
+        const detail::GpuSceneModel& model,
         const float* worldMatrix,
         const float* viewProjectionMatrix,
         double totalSeconds) const;
@@ -88,8 +69,8 @@ private:
     Microsoft::WRL::ComPtr<ID3D11Buffer> skinConstantBuffer_;
     Microsoft::WRL::ComPtr<ID3D11Buffer> lightingConstantBuffer_;
     Microsoft::WRL::ComPtr<ID3D11SamplerState> sampler_;
-    GpuModel character_;
-    GpuModel floor_;
+    detail::GpuSceneModel character_;
+    detail::GpuSceneModel floor_;
     std::optional<benchmark::StressScene> stressScene_;
     bool ready_ = false;
 };

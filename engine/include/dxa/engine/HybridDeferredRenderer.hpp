@@ -4,10 +4,12 @@
 #include <dxa/engine/RenderPass.hpp>
 #include <dxa/engine/assets/AssetFile.hpp>
 #include <dxa/engine/benchmark/StressScene.hpp>
+#include <dxa/engine/detail/GpuSceneModel.hpp>
 
 #include <d3d11.h>
 #include <wrl/client.h>
 
+#include <array>
 #include <cstdint>
 #include <filesystem>
 #include <functional>
@@ -35,50 +37,31 @@ public:
         ID3D11DeviceContext* context,
         ID3D11RenderTargetView* backBufferRenderTarget,
         const AssetSceneFrame& frame,
-        const RenderPassCallback& passCompleted = {}) const;
+        const RenderPassCallback& passCompleted = {});
     [[nodiscard]] bool ShadowMapReady() const noexcept;
 
 private:
-    struct GpuMaterial
-    {
-        asset::Float4 baseColor;
-        Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> texture;
-    };
-
-    struct GpuModel
-    {
-        asset::ModelAsset assetData;
-        Microsoft::WRL::ComPtr<ID3D11Buffer> vertexBuffer;
-        Microsoft::WRL::ComPtr<ID3D11Buffer> indexBuffer;
-        std::vector<GpuMaterial> materials;
-        asset::Float3 minimumBounds;
-        asset::Float3 maximumBounds;
-    };
-
-    [[nodiscard]] static GpuModel LoadModel(
-        ID3D11Device* device,
-        const std::filesystem::path& modelPath);
     [[nodiscard]] RenderStatistics RenderGeometryModel(
         ID3D11DeviceContext* context,
-        const GpuModel& model,
+        const detail::GpuSceneModel& model,
         const float* worldMatrix,
         const float* viewProjectionMatrix,
         double totalSeconds) const;
     [[nodiscard]] RenderStatistics RenderGeometryInstances(
         ID3D11DeviceContext* context,
-        const GpuModel& model,
+        const detail::GpuSceneModel& model,
         ID3D11Buffer* instanceBuffer,
         std::uint32_t instanceCount,
         const float* viewProjectionMatrix) const;
     [[nodiscard]] RenderStatistics RenderShadowModel(
         ID3D11DeviceContext* context,
-        const GpuModel& model,
+        const detail::GpuSceneModel& model,
         const float* worldMatrix,
         const float* lightViewProjectionMatrix,
         double totalSeconds) const;
     [[nodiscard]] RenderStatistics RenderShadowInstances(
         ID3D11DeviceContext* context,
-        const GpuModel& model,
+        const detail::GpuSceneModel& model,
         ID3D11Buffer* instanceBuffer,
         std::uint32_t instanceCount,
         const float* lightViewProjectionMatrix) const;
@@ -128,9 +111,12 @@ private:
     Microsoft::WRL::ComPtr<ID3D11Texture2D> shadowTexture_;
     Microsoft::WRL::ComPtr<ID3D11DepthStencilView> shadowDepthStencilView_;
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> shadowShaderResource_;
-    GpuModel character_;
-    GpuModel floor_;
+    detail::GpuSceneModel character_;
+    detail::GpuSceneModel floor_;
     benchmark::StressScene stressScene_;
+    std::vector<std::array<float, 16>> staticInstanceTransforms_;
+    std::vector<std::array<float, 16>> visibleInstanceScratch_;
+    std::vector<std::array<float, 16>> markerInstanceScratch_;
     D3D11_VIEWPORT viewport_{};
     D3D11_VIEWPORT shadowViewport_{};
 };

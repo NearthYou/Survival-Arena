@@ -104,6 +104,14 @@ visible object는 최소 975개, P50 1,009개, 최대 1,079개였다. culled obj
 
 원본 CSV와 실행 환경은 [20260823-145749 실행](../benchmarks/hybrid-deferred/20260823-145749-54a54e5c-seed20260823/RESULT.md)에 있다.
 
+## 리뷰 뒤 구조 정리
+
+실측 뒤 merge 전 리뷰에서 `HybridDeferredRenderer.cpp`가 1,318줄까지 커졌고 포워드 렌더러와 GPU model upload를 각각 구현한 점을 다시 정리했다. model asset, vertex와 index buffer, material texture 생성은 `GpuSceneModel` 한 곳으로 옮겼다. shadow, G-Buffer, transparent draw 함수는 별도 pass 구현 파일로 분리해 renderer 본체는 893줄이 됐다.
+
+정적 객체 world matrix는 초기화 때 한 번 만들고, visible matrix와 marker matrix용 CPU vector는 capacity를 유지한 채 재사용한다. 기존에는 `Render`를 호출할 때마다 세 vector를 새로 만들고 정적 matrix 1,000개를 다시 계산했다.
+
+이 정리는 출력 순서와 draw 통계를 바꾸지 않았고 WARP, 전체 CTest 94개, MSVC Release, RTX readback으로 확인했다. 위 성능표는 구조 정리 전 측정 commit `54a54e5`의 원본이며, 후속 정리에서 더 좋아졌다고 다시 해석하지 않는다.
+
 ## 남은 한계
 
 lighting P95 0.970752ms가 네 pass 중 가장 컸다. 현재는 모든 pixel이 포인트 광원 32개를 순회한다. 광원 수를 늘리는 실험 전에는 tiled 또는 clustered culling이 필요한지 다시 측정해야 한다.
