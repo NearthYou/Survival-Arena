@@ -141,4 +141,108 @@ TEST(HybridDeferredRenderer, RendersGBufferAndLightingOnWarp)
         renderer.SetControlledPlayerPosition({notANumber, 0.0F, 0.0F}),
         std::invalid_argument);
 }
+
+TEST(HybridDeferredRenderer, AppliesGenericCharacterStatesAndZoneOverrideOnWarp)
+{
+    dxa::engine::HybridDeferredRenderer uninitialized;
+    std::vector<dxa::engine::SceneCharacterState> uninitializedPlayers(
+        dxa::engine::benchmark::PlayerCount);
+    EXPECT_THROW(
+        uninitialized.SetPlayerStates(uninitializedPlayers),
+        std::logic_error);
+    EXPECT_THROW(uninitialized.SetZoneRadius(1.0F), std::logic_error);
+
+    dxa::engine::InputState input;
+    dxa::engine::Window window;
+    window.Create(
+        dxa::engine::WindowConfig{L"DXA match state test", 96, 54, true},
+        input);
+    dxa::engine::GraphicsDevice graphics;
+    graphics.Initialize(dxa::engine::GraphicsDeviceConfig{
+        window.NativeHandle(),
+        96,
+        54,
+        dxa::engine::GraphicsDriver::Warp,
+        true});
+
+    Microsoft::WRL::ComPtr<ID3D11InfoQueue> infoQueue;
+    if (graphics.DebugLayerEnabled())
+    {
+        ASSERT_TRUE(SUCCEEDED(graphics.Device()->QueryInterface(
+            IID_PPV_ARGS(infoQueue.ReleaseAndGetAddressOf()))));
+        infoQueue->ClearStoredMessages();
+    }
+
+    dxa::engine::HybridDeferredRenderer renderer;
+    renderer.Initialize(
+        graphics.Device(),
+        dxa::engine::HybridDeferredConfig{
+            96,
+            54,
+            128,
+            20260823U,
+            std::filesystem::path{DXA_TEST_SHADER_ROOT},
+            std::filesystem::path{DXA_TEST_ASSET_ROOT}});
+
+    constexpr std::array ClearColor{0.025F, 0.035F, 0.060F, 1.0F};
+    graphics.BeginFrame(ClearColor);
+    const dxa::engine::RenderStatistics baseline = renderer.Render(
+        graphics.Context(),
+        graphics.BackBufferRenderTargetView(),
+        dxa::engine::AssetSceneFrame{1, 0.0, 96.0F / 54.0F});
+    graphics.EndFrame(false);
+
+    const dxa::engine::benchmark::StressScene scene =
+        dxa::engine::benchmark::GenerateStressScene(20260823U);
+    std::vector<dxa::engine::SceneCharacterState> players;
+    std::vector<dxa::engine::SceneCharacterState> ai;
+    players.reserve(scene.players.size());
+    ai.reserve(scene.ai.size());
+    for (const auto& instance : scene.players)
+    {
+        players.push_back({instance.position, true});
+    }
+    for (const auto& instance : scene.ai)
+    {
+        ai.push_back({instance.position, true});
+    }
+    players[0].position = {20.0F, 0.0F, 10.0F};
+    players[1].active = false;
+    ai[2].active = false;
+
+    renderer.SetPlayerStates(players);
+    renderer.SetAiStates(ai);
+    renderer.SetZoneRadius(0.0F);
+    renderer.SetZoneRadius(64.0F);
+
+    graphics.BeginFrame(ClearColor);
+    const dxa::engine::RenderStatistics updated = renderer.Render(
+        graphics.Context(),
+        graphics.BackBufferRenderTargetView(),
+        dxa::engine::AssetSceneFrame{2, 1.0 / 60.0, 96.0F / 54.0F});
+    const bool containsRenderedPixel = graphics.BackBufferContainsNonClearPixel(ClearColor);
+    graphics.Context()->Flush();
+    const std::vector<std::string> debugErrors = CollectDebugErrors(infoQueue.Get());
+    graphics.EndFrame(false);
+
+    EXPECT_EQ(baseline.objectCount - 2U, updated.objectCount);
+    EXPECT_LT(updated.shadowDrawCalls, baseline.shadowDrawCalls);
+    EXPECT_EQ(baseline.lightingDrawCalls, updated.lightingDrawCalls);
+    EXPECT_EQ(baseline.transparentDrawCalls, updated.transparentDrawCalls);
+    EXPECT_TRUE(containsRenderedPixel);
+    EXPECT_TRUE(debugErrors.empty())
+        << (debugErrors.empty() ? std::string{} : debugErrors.front());
+
+    players.pop_back();
+    EXPECT_THROW(renderer.SetPlayerStates(players), std::invalid_argument);
+    players.push_back({});
+    players[0].position.x = std::numeric_limits<float>::quiet_NaN();
+    EXPECT_THROW(renderer.SetPlayerStates(players), std::invalid_argument);
+    ai.pop_back();
+    EXPECT_THROW(renderer.SetAiStates(ai), std::invalid_argument);
+    EXPECT_THROW(renderer.SetZoneRadius(-1.0F), std::invalid_argument);
+    EXPECT_THROW(
+        renderer.SetZoneRadius(std::numeric_limits<float>::quiet_NaN()),
+        std::invalid_argument);
+}
 } // namespace
