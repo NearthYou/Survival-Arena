@@ -1,6 +1,7 @@
 add_library(
     dxa_simulation
     STATIC
+        src/AiDecision.cpp
         src/Math2.cpp
         src/NavAgent.cpp
         src/NavMesh.cpp

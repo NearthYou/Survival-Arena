@@ -12,6 +12,7 @@ add_executable(
     engine_frame_clock_test.cpp
     engine_input_state_test.cpp
     engine_resource_pool_test.cpp
+    simulation_ai_decision_test.cpp
     simulation_math_test.cpp
     simulation_nav_agent_test.cpp
     simulation_navmesh_test.cpp
