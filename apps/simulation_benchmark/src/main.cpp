@@ -95,7 +95,9 @@ public:
 
     [[nodiscard]] std::uint32_t Next()
     {
-        return engine_();
+        static_assert(
+            std::mt19937::max() <= std::numeric_limits<std::uint32_t>::max());
+        return static_cast<std::uint32_t>(engine_());
     }
 
     [[nodiscard]] float Range(const float minimum, const float maximum)
