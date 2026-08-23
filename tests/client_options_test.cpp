@@ -1,4 +1,5 @@
 #include <dxa/client/ClientOptions.hpp>
+#include <dxa/engine/RenderPath.hpp>
 
 #include <gtest/gtest.h>
 
@@ -195,5 +196,29 @@ TEST(ClientOptions, RejectsBenchmarkWithoutCommitSha)
 
     EXPECT_FALSE(result.options.has_value());
     EXPECT_EQ("benchmark run requires --commit-sha", result.error);
+}
+
+TEST(ClientOptions, ParsesHybridDeferredRenderPath)
+{
+    constexpr std::array arguments{
+        std::string_view{"--render-path"},
+        std::string_view{"hybrid-deferred"}};
+
+    const auto result = ParseClientOptions(arguments);
+
+    ASSERT_TRUE(result.options.has_value()) << result.error;
+    EXPECT_EQ(dxa::engine::RenderPath::HybridDeferred, result.options->renderPath);
+}
+
+TEST(ClientOptions, RejectsUnknownRenderPath)
+{
+    constexpr std::array arguments{
+        std::string_view{"--render-path"},
+        std::string_view{"path-tracing"}};
+
+    const auto result = ParseClientOptions(arguments);
+
+    EXPECT_FALSE(result.options.has_value());
+    EXPECT_EQ("--render-path must be forward or hybrid-deferred", result.error);
 }
 } // namespace

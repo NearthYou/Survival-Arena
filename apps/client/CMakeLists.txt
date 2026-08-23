@@ -4,6 +4,7 @@ target_include_directories(
     INTERFACE
         ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
+target_link_libraries(dxa_client_options INTERFACE dxa_engine_core)
 
 if(WIN32)
     find_package(spdlog CONFIG REQUIRED)

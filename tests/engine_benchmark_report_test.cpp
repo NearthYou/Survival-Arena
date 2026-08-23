@@ -1,4 +1,5 @@
 #include <dxa/engine/benchmark/BenchmarkReport.hpp>
+#include <dxa/engine/RenderPath.hpp>
 
 #include <gtest/gtest.h>
 
@@ -99,12 +100,12 @@ TEST(BenchmarkReport, WritesRawCsvAndSummaryJsonWithoutOverwritingARun)
 
     const std::string csv = ReadText(output / "frames.csv");
     EXPECT_NE(std::string::npos, csv.find(
-        "frame_index,cpu_frame_ms,gpu_forward_ms,draw_calls,triangle_count,object_count,working_set_bytes\n"));
-    EXPECT_NE(std::string::npos, csv.find("121,5.250000,3.500000,1002,3006,1124,104857600\n"));
-    EXPECT_NE(std::string::npos, csv.find("122,6.750000,,1002,3006,1124,105906176\n"));
+        "frame_index,cpu_frame_ms,gpu_forward_ms,draw_calls,triangle_count,object_count,working_set_bytes,"));
+    EXPECT_NE(std::string::npos, csv.find("121,5.250000,3.500000,1002,3006,1124,104857600,"));
+    EXPECT_NE(std::string::npos, csv.find("122,6.750000,,1002,3006,1124,105906176,"));
 
     const std::string json = ReadText(output / "summary.json");
-    EXPECT_NE(std::string::npos, json.find("\"schema_version\": 1"));
+    EXPECT_NE(std::string::npos, json.find("\"schema_version\": 2"));
     EXPECT_NE(std::string::npos, json.find("\"seed\": 20260823"));
     EXPECT_NE(std::string::npos, json.find("\"commit_sha\": \"abc1234\""));
     EXPECT_NE(std::string::npos, json.find("\"gpu_missing_samples\": 1"));
@@ -117,5 +118,56 @@ TEST(BenchmarkReport, WritesRawCsvAndSummaryJsonWithoutOverwritingARun)
 TEST(BenchmarkReport, RejectsAnEmptySampleSet)
 {
     EXPECT_THROW((void)SummarizeFrames({}), std::invalid_argument);
+}
+
+TEST(BenchmarkReport, WritesHybridPassMetricsWithoutRemovingBaselineColumns)
+{
+    TemporaryDirectory temporary;
+    const std::filesystem::path output = temporary.Path() / "hybrid-run";
+    const BenchmarkMetadata metadata{
+        .seed = 20260823,
+        .width = 1920,
+        .height = 1080,
+        .warmupFrames = 120,
+        .measuredFrames = 1,
+        .commitSha = "def5678",
+        .adapter = "NVIDIA GeForce RTX 3050 Ti Laptop GPU",
+        .command = "dxa_client --render-path hybrid-deferred",
+        .startedAt = "2026-08-23T13:00:00+09:00",
+        .renderPath = dxa::engine::RenderPath::HybridDeferred};
+    const std::array samples{
+        FrameSample{
+            .frameIndex = 121,
+            .cpuFrameMilliseconds = 4.0,
+            .gpuForwardMilliseconds = std::nullopt,
+            .drawCalls = 1400,
+            .triangleCount = 5000,
+            .objectCount = 1124,
+            .workingSetBytes = 104857600,
+            .gpuTotalMilliseconds = 3.0,
+            .gpuShadowMilliseconds = 0.5,
+            .gpuGBufferMilliseconds = 1.0,
+            .gpuLightingMilliseconds = 1.25,
+            .gpuTransparentMilliseconds = 0.25,
+            .shadowDrawCalls = 125,
+            .gBufferDrawCalls = 1273,
+            .lightingDrawCalls = 1,
+            .transparentDrawCalls = 1,
+            .visibleObjectCount = 700,
+            .culledObjectCount = 424}};
+
+    WriteBenchmarkReport(output, metadata, samples);
+
+    const std::string csv = ReadText(output / "frames.csv");
+    EXPECT_NE(std::string::npos, csv.find(
+        "frame_index,cpu_frame_ms,gpu_forward_ms,draw_calls,triangle_count,object_count,working_set_bytes,gpu_total_ms,gpu_shadow_ms,gpu_gbuffer_ms,gpu_lighting_ms,gpu_transparent_ms,shadow_draw_calls,gbuffer_draw_calls,lighting_draw_calls,transparent_draw_calls,visible_object_count,culled_object_count\n"));
+    EXPECT_NE(std::string::npos, csv.find(
+        "121,4.000000,,1400,5000,1124,104857600,3.000000,0.500000,1.000000,1.250000,0.250000,125,1273,1,1,700,424\n"));
+
+    const std::string json = ReadText(output / "summary.json");
+    EXPECT_NE(std::string::npos, json.find("\"render_path\": \"hybrid-deferred\""));
+    EXPECT_NE(std::string::npos, json.find("\"gpu_total_ms\""));
+    EXPECT_NE(std::string::npos, json.find("\"gpu_shadow_ms\""));
+    EXPECT_NE(std::string::npos, json.find("\"visible_object_count\""));
 }
 } // namespace
