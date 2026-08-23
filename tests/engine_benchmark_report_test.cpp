@@ -5,6 +5,7 @@
 
 #include <array>
 #include <chrono>
+#include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <iterator>
@@ -56,14 +57,34 @@ private:
         std::istreambuf_iterator<char>{}};
 }
 
+[[nodiscard]] FrameSample ForwardFrameSample(
+    const std::uint64_t frameIndex,
+    const double cpuFrameMilliseconds,
+    const std::optional<double> gpuForwardMilliseconds,
+    const std::uint32_t drawCalls,
+    const std::uint64_t triangleCount,
+    const std::uint32_t objectCount,
+    const std::uint64_t workingSetBytes)
+{
+    FrameSample sample{};
+    sample.frameIndex = frameIndex;
+    sample.cpuFrameMilliseconds = cpuFrameMilliseconds;
+    sample.gpuForwardMilliseconds = gpuForwardMilliseconds;
+    sample.drawCalls = drawCalls;
+    sample.triangleCount = triangleCount;
+    sample.objectCount = objectCount;
+    sample.workingSetBytes = workingSetBytes;
+    return sample;
+}
+
 TEST(BenchmarkReport, UsesNearestRankForPercentilesAndSkipsMissingGpuSamples)
 {
     const std::array samples{
-        FrameSample{1, 1.0, 4.0, 10, 30, 20, 1000},
-        FrameSample{2, 2.0, std::nullopt, 11, 33, 21, 2000},
-        FrameSample{3, 3.0, 8.0, 12, 36, 22, 3000},
-        FrameSample{4, 4.0, 10.0, 13, 39, 23, 4000},
-        FrameSample{5, 100.0, std::nullopt, 14, 42, 24, 5000}};
+        ForwardFrameSample(1, 1.0, 4.0, 10, 30, 20, 1000),
+        ForwardFrameSample(2, 2.0, std::nullopt, 11, 33, 21, 2000),
+        ForwardFrameSample(3, 3.0, 8.0, 12, 36, 22, 3000),
+        ForwardFrameSample(4, 4.0, 10.0, 13, 39, 23, 4000),
+        ForwardFrameSample(5, 100.0, std::nullopt, 14, 42, 24, 5000)};
 
     const auto summary = SummarizeFrames(samples);
 
@@ -83,18 +104,26 @@ TEST(BenchmarkReport, WritesRawCsvAndSummaryJsonWithoutOverwritingARun)
     TemporaryDirectory temporary;
     const std::filesystem::path output = temporary.Path() / "run-001";
     const BenchmarkMetadata metadata{
-        20260823,
-        1920,
-        1080,
-        120,
-        2,
-        "abc1234",
-        "NVIDIA GeForce RTX 3050 Ti Laptop GPU",
-        "dxa_client --benchmark-output run-001 --commit-sha abc1234",
-        "2026-08-23T12:34:56+09:00"};
+        .seed = 20260823,
+        .width = 1920,
+        .height = 1080,
+        .warmupFrames = 120,
+        .measuredFrames = 2,
+        .commitSha = "abc1234",
+        .adapter = "NVIDIA GeForce RTX 3050 Ti Laptop GPU",
+        .command = "dxa_client --benchmark-output run-001 --commit-sha abc1234",
+        .startedAt = "2026-08-23T12:34:56+09:00",
+        .renderPath = dxa::engine::RenderPath::Forward};
     const std::array samples{
-        FrameSample{121, 5.25, 3.5, 1002, 3006, 1124, 104857600},
-        FrameSample{122, 6.75, std::nullopt, 1002, 3006, 1124, 105906176}};
+        ForwardFrameSample(121, 5.25, 3.5, 1002, 3006, 1124, 104857600),
+        ForwardFrameSample(
+            122,
+            6.75,
+            std::nullopt,
+            1002,
+            3006,
+            1124,
+            105906176)};
 
     WriteBenchmarkReport(output, metadata, samples);
 
