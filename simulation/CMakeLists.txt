@@ -2,6 +2,7 @@ add_library(
     dxa_simulation
     STATIC
         src/Math2.cpp
+        src/NavMesh.cpp
 )
 target_include_directories(
     dxa_simulation

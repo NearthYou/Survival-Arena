@@ -13,6 +13,7 @@ add_executable(
     engine_input_state_test.cpp
     engine_resource_pool_test.cpp
     simulation_math_test.cpp
+    simulation_navmesh_test.cpp
     foundation_test.cpp
 )
 target_link_libraries(
