@@ -4,6 +4,7 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <limits>
 #include <numbers>
 #include <stdexcept>
 #include <vector>
@@ -125,5 +126,23 @@ TEST(PerspectiveFrustum, RejectsInvalidProjectionAndCameraInputs)
         (void)BuildPerspectiveFrustum(
             degenerate, std::numbers::pi_v<float> / 4.0F, 1.0F, 0.1F, 10.0F),
         std::invalid_argument);
+}
+
+TEST(PerspectiveFrustum, RejectsNonFiniteBoundingSphereValues)
+{
+    const auto frustum = BuildPerspectiveFrustum(
+        StressCamera{
+            SceneVector3{0.0F, 0.0F, 0.0F},
+            SceneVector3{0.0F, 0.0F, 1.0F}},
+        std::numbers::pi_v<float> / 4.0F,
+        16.0F / 9.0F,
+        0.1F,
+        100.0F);
+    const float notANumber = std::numeric_limits<float>::quiet_NaN();
+
+    EXPECT_FALSE(frustum.IntersectsSphere(
+        BoundingSphere{SceneVector3{notANumber, 0.0F, 5.0F}, 1.0F}));
+    EXPECT_FALSE(frustum.IntersectsSphere(
+        BoundingSphere{SceneVector3{0.0F, 0.0F, 5.0F}, notANumber}));
 }
 } // namespace

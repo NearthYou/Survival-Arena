@@ -64,7 +64,11 @@ PerspectiveFrustum::PerspectiveFrustum(
 
 bool PerspectiveFrustum::IntersectsSphere(const BoundingSphere& sphere) const noexcept
 {
-    if (!std::isfinite(sphere.radius) || sphere.radius < 0.0F)
+    if (!std::isfinite(sphere.center.x)
+        || !std::isfinite(sphere.center.y)
+        || !std::isfinite(sphere.center.z)
+        || !std::isfinite(sphere.radius)
+        || sphere.radius < 0.0F)
     {
         return false;
     }
