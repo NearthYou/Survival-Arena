@@ -10,6 +10,7 @@ add_library(
         src/NavMesh.cpp
         src/NavMeshGrid.cpp
         src/NavMeshPath.cpp
+        src/SafeZone.cpp
         src/SpatialIndex.cpp
 )
 target_include_directories(

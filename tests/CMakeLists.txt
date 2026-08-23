@@ -19,6 +19,7 @@ add_executable(
     simulation_match_types_test.cpp
     simulation_nav_agent_test.cpp
     simulation_navmesh_test.cpp
+    simulation_safe_zone_test.cpp
     simulation_benchmark_options_test.cpp
     simulation_spatial_index_test.cpp
     foundation_test.cpp
