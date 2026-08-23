@@ -75,8 +75,8 @@ enum class MatchEventType
 struct MatchCommand
 {
     ActorId actor = 0;
-    std::optional<Vec2> moveDestination;
-    std::optional<ActorId> attackTarget;
+    std::optional<Vec2> moveDestination = std::nullopt;
+    std::optional<ActorId> attackTarget = std::nullopt;
 
     [[nodiscard]] bool operator==(const MatchCommand&) const = default;
 };
@@ -86,10 +86,10 @@ struct MatchEvent
     std::uint32_t tick = 0;
     MatchEventType type = MatchEventType::CommandRejected;
     ActorId actor = 0;
-    std::optional<ActorId> subject;
-    std::optional<LootId> loot;
+    std::optional<ActorId> subject = std::nullopt;
+    std::optional<LootId> loot = std::nullopt;
     std::int32_t amount = 0;
-    std::optional<WeaponType> weapon;
+    std::optional<WeaponType> weapon = std::nullopt;
 
     [[nodiscard]] bool operator==(const MatchEvent&) const = default;
 };
