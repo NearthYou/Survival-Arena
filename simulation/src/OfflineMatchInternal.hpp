@@ -22,6 +22,8 @@ struct OfflineMatch::Impl
     }
 
     void Spawn();
+    void Step();
+    void RecordEvents(std::vector<MatchEvent> tickEvents);
 
     NavMesh navMesh;
     MatchConfig config;
@@ -31,7 +33,8 @@ struct OfflineMatch::Impl
     std::vector<NeutralArchetype> neutralArchetypes;
     std::vector<NavAgent> agents;
     std::vector<LootItem> loot;
-    std::map<ActorId, MatchCommand> queuedCommands;
+    std::vector<MatchCommand> queuedCommands;
+    std::map<ActorId, MatchCommand> selectedCommands;
     std::vector<MatchEvent> events;
     std::optional<MatchResult> result;
     std::uint64_t eventChecksum = 14695981039346656037ULL;

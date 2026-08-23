@@ -50,7 +50,7 @@ void OfflineMatch::Submit(MatchCommand command)
     {
         throw std::logic_error{"offline match accepts commands only while running"};
     }
-    impl_->queuedCommands.insert_or_assign(command.actor, std::move(command));
+    impl_->queuedCommands.push_back(std::move(command));
 }
 
 void OfflineMatch::Step()
@@ -63,6 +63,7 @@ void OfflineMatch::Step()
     {
         throw std::logic_error{"offline match can step only while running"};
     }
+    impl_->Step();
 }
 
 MatchSnapshot OfflineMatch::Snapshot() const
