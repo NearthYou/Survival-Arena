@@ -60,6 +60,14 @@ void GpuFrameTimer::Initialize(
                 &timestampDescription,
                 slot.end.ReleaseAndGetAddressOf()),
             "ID3D11Device::CreateQuery(timestamp end)");
+        for (auto& marker : slot.markers)
+        {
+            RequireSuccess(
+                device->CreateQuery(
+                    &timestampDescription,
+                    marker.ReleaseAndGetAddressOf()),
+                "ID3D11Device::CreateQuery(timestamp marker)");
+        }
     }
     activeSlot_.reset();
     nextSlot_ = 0;
@@ -90,6 +98,7 @@ bool GpuFrameTimer::BeginFrame(
         }
 
         slot.frameIndex = frameIndex;
+        slot.markerCount = 0;
         context->Begin(slot.disjoint.Get());
         context->End(slot.start.Get());
         activeSlot_ = index;
@@ -97,6 +106,31 @@ bool GpuFrameTimer::BeginFrame(
         return true;
     }
     return false;
+}
+
+void GpuFrameTimer::MarkPass(
+    ID3D11DeviceContext* const context,
+    const RenderPass pass)
+{
+    if (context == nullptr || !activeSlot_.has_value())
+    {
+        throw std::logic_error{"GPU pass marker requires an active frame"};
+    }
+
+    constexpr std::array ExpectedPasses{
+        RenderPass::Shadow,
+        RenderPass::GBuffer,
+        RenderPass::DeferredLighting,
+        RenderPass::Transparent};
+    QuerySlot& slot = slots_[*activeSlot_];
+    if (slot.markerCount >= ExpectedPasses.size()
+        || pass != ExpectedPasses[slot.markerCount])
+    {
+        throw std::logic_error{"GPU pass markers must follow hybrid render order"};
+    }
+    context->End(slot.markers[slot.markerCount].Get());
+    slot.passes[slot.markerCount] = pass;
+    ++slot.markerCount;
 }
 
 void GpuFrameTimer::EndFrame(ID3D11DeviceContext* const context)
@@ -157,13 +191,35 @@ bool GpuFrameTimer::TryResolve(
     result.frameIndex = slot.frameIndex;
     if (disjoint.Disjoint == FALSE && disjoint.Frequency != 0 && end >= start)
     {
-        result.elapsedMilliseconds = static_cast<double>(end - start)
-            * 1000.0
-            / static_cast<double>(disjoint.Frequency);
+        benchmark::TimestampSequence sequence;
+        sequence.frequency = disjoint.Frequency;
+        sequence.start = start;
+        sequence.end = end;
+        sequence.markerCount = slot.markerCount;
+        for (std::size_t index = 0; index < slot.markerCount; ++index)
+        {
+            std::uint64_t marker = 0;
+            const HRESULT markerResult = context->GetData(
+                slot.markers[index].Get(),
+                &marker,
+                sizeof(marker),
+                D3D11_ASYNC_GETDATA_DONOTFLUSH);
+            if (markerResult == S_FALSE)
+            {
+                return false;
+            }
+            RequireSuccess(markerResult, "ID3D11DeviceContext::GetData(timestamp marker)");
+            sequence.markers[index] = marker;
+        }
+        result.passDurations = benchmark::CalculatePassDurations(
+            sequence,
+            std::span<const RenderPass>{slot.passes.data(), slot.markerCount});
+        result.elapsedMilliseconds = result.passDurations.totalMilliseconds;
     }
     else
     {
         result.elapsedMilliseconds.reset();
+        result.passDurations = {};
     }
     slot.pending = false;
     return true;

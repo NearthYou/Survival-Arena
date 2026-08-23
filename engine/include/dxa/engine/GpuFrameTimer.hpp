@@ -1,8 +1,12 @@
 #pragma once
 
+#include <dxa/engine/RenderPass.hpp>
+#include <dxa/engine/benchmark/GpuPassTiming.hpp>
+
 #include <d3d11.h>
 #include <wrl/client.h>
 
+#include <array>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -15,6 +19,7 @@ struct GpuFrameResult
 {
     std::uint64_t frameIndex = 0;
     std::optional<double> elapsedMilliseconds;
+    benchmark::GpuPassDurations passDurations;
 };
 
 class GpuFrameTimer
@@ -29,6 +34,7 @@ public:
         ID3D11DeviceContext* context,
         std::uint64_t frameIndex);
     void EndFrame(ID3D11DeviceContext* context);
+    void MarkPass(ID3D11DeviceContext* context, RenderPass pass);
     [[nodiscard]] std::vector<GpuFrameResult> ResolveReady(
         ID3D11DeviceContext* context);
     [[nodiscard]] std::vector<GpuFrameResult> Drain(
@@ -41,6 +47,9 @@ private:
         Microsoft::WRL::ComPtr<ID3D11Query> disjoint;
         Microsoft::WRL::ComPtr<ID3D11Query> start;
         Microsoft::WRL::ComPtr<ID3D11Query> end;
+        std::array<Microsoft::WRL::ComPtr<ID3D11Query>, 4> markers;
+        std::array<RenderPass, 4> passes{};
+        std::size_t markerCount = 0;
         std::uint64_t frameIndex = 0;
         bool pending = false;
     };

@@ -2,7 +2,6 @@
 
 #include <dxa/engine/assets/AnimationPlayback.hpp>
 
-#include <DDSTextureLoader.h>
 #include <DirectXMath.h>
 #include <d3dcompiler.h>
 
@@ -12,7 +11,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
-#include <limits>
 #include <sstream>
 #include <span>
 #include <stdexcept>
@@ -241,8 +239,10 @@ void AssetSceneRenderer::Initialize(
         device->CreateSamplerState(&samplerDescription, sampler_.ReleaseAndGetAddressOf()),
         "ID3D11Device::CreateSamplerState(asset scene)");
 
-    character_ = LoadModel(device, assetRoot / L"characters" / L"cyber-runner.dxam");
-    floor_ = LoadModel(device, assetRoot / L"environment" / L"prototype-floor.dxam");
+    character_ = detail::LoadGpuSceneModel(
+        device, assetRoot / L"characters" / L"cyber-runner.dxam");
+    floor_ = detail::LoadGpuSceneModel(
+        device, assetRoot / L"environment" / L"prototype-floor.dxam");
     if (config.stressSceneSeed.has_value())
     {
         stressScene_ = benchmark::GenerateStressScene(*config.stressSceneSeed);
@@ -253,88 +253,11 @@ void AssetSceneRenderer::Initialize(
     }
     ready_ = !character_.assetData.joints.empty()
         && !character_.assetData.animations.empty()
-        && std::ranges::any_of(floor_.materials, [](const GpuMaterial& material) {
-            return material.texture != nullptr;
-        });
-}
-
-AssetSceneRenderer::GpuModel AssetSceneRenderer::LoadModel(
-    ID3D11Device* const device,
-    const std::filesystem::path& modelPath)
-{
-    GpuModel model;
-    model.assetData = asset::LoadModelAsset(modelPath);
-    if (model.assetData.vertices.empty() || model.assetData.indices.empty())
-    {
-        throw std::runtime_error{"runtime model contains no geometry"};
-    }
-
-    D3D11_BUFFER_DESC vertexBufferDescription{};
-    vertexBufferDescription.ByteWidth = static_cast<UINT>(
-        model.assetData.vertices.size() * sizeof(asset::Vertex));
-    vertexBufferDescription.Usage = D3D11_USAGE_IMMUTABLE;
-    vertexBufferDescription.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-    D3D11_SUBRESOURCE_DATA vertexData{};
-    vertexData.pSysMem = model.assetData.vertices.data();
-    RequireSuccess(
-        device->CreateBuffer(
-            &vertexBufferDescription,
-            &vertexData,
-            model.vertexBuffer.ReleaseAndGetAddressOf()),
-        "ID3D11Device::CreateBuffer(runtime vertices)");
-
-    D3D11_BUFFER_DESC indexBufferDescription{};
-    indexBufferDescription.ByteWidth = static_cast<UINT>(
-        model.assetData.indices.size() * sizeof(std::uint32_t));
-    indexBufferDescription.Usage = D3D11_USAGE_IMMUTABLE;
-    indexBufferDescription.BindFlags = D3D11_BIND_INDEX_BUFFER;
-    D3D11_SUBRESOURCE_DATA indexData{};
-    indexData.pSysMem = model.assetData.indices.data();
-    RequireSuccess(
-        device->CreateBuffer(
-            &indexBufferDescription,
-            &indexData,
-            model.indexBuffer.ReleaseAndGetAddressOf()),
-        "ID3D11Device::CreateBuffer(runtime indices)");
-
-    model.minimumBounds = asset::Float3{
-        std::numeric_limits<float>::max(),
-        std::numeric_limits<float>::max(),
-        std::numeric_limits<float>::max()};
-    model.maximumBounds = asset::Float3{
-        std::numeric_limits<float>::lowest(),
-        std::numeric_limits<float>::lowest(),
-        std::numeric_limits<float>::lowest()};
-    for (const asset::Vertex& vertex : model.assetData.vertices)
-    {
-        model.minimumBounds.x = std::min(model.minimumBounds.x, vertex.position.x);
-        model.minimumBounds.y = std::min(model.minimumBounds.y, vertex.position.y);
-        model.minimumBounds.z = std::min(model.minimumBounds.z, vertex.position.z);
-        model.maximumBounds.x = std::max(model.maximumBounds.x, vertex.position.x);
-        model.maximumBounds.y = std::max(model.maximumBounds.y, vertex.position.y);
-        model.maximumBounds.z = std::max(model.maximumBounds.z, vertex.position.z);
-    }
-
-    model.materials.reserve(model.assetData.materials.size());
-    for (const asset::Material& material : model.assetData.materials)
-    {
-        GpuMaterial gpuMaterial;
-        gpuMaterial.baseColor = material.baseColor;
-        if (!material.baseColorTexture.empty())
-        {
-            const std::filesystem::path texturePath =
-                modelPath.parent_path() / std::filesystem::path{material.baseColorTexture};
-            RequireSuccess(
-                DirectX::CreateDDSTextureFromFile(
-                    device,
-                    texturePath.c_str(),
-                    nullptr,
-                    gpuMaterial.texture.ReleaseAndGetAddressOf()),
-                "DirectX::CreateDDSTextureFromFile");
-        }
-        model.materials.push_back(std::move(gpuMaterial));
-    }
-    return model;
+        && std::ranges::any_of(
+            floor_.materials,
+            [](const detail::GpuSceneMaterial& material) {
+                return material.texture != nullptr;
+            });
 }
 
 RenderStatistics AssetSceneRenderer::Render(
@@ -447,7 +370,7 @@ RenderStatistics AssetSceneRenderer::Render(
 
 RenderStatistics AssetSceneRenderer::RenderModel(
     ID3D11DeviceContext* const context,
-    const GpuModel& model,
+    const detail::GpuSceneModel& model,
     const float* const worldMatrix,
     const float* const viewProjectionMatrix,
     const double totalSeconds) const
@@ -494,7 +417,7 @@ RenderStatistics AssetSceneRenderer::RenderModel(
     statistics.objectCount = 1;
     for (const asset::MeshPart& part : model.assetData.meshParts)
     {
-        const GpuMaterial& material = model.materials.at(part.materialIndex);
+        const detail::GpuSceneMaterial& material = model.materials.at(part.materialIndex);
         SceneConstants constants{};
         XMStoreFloat4x4(&constants.world, world);
         XMStoreFloat4x4(&constants.worldViewProjection, world * viewProjection);

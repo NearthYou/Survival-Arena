@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-08-23T06:51:25.2208823+00:00",
+  "forward": {
+    "run_id": "20260823-033736-80988ef7-seed20260823",
+    "schema_version": 1,
+    "commit_sha": "80988ef71f21430fc6baabea7b3d5cb4beae71f0",
+    "render_path": "forward"
+  },
+  "hybrid": {
+    "run_id": "20260823-145749-54a54e5c-seed20260823",
+    "schema_version": 2,
+    "commit_sha": "54a54e5cac60cbc2f8d025d0500f0b7ac70be57e",
+    "render_path": "hybrid-deferred"
+  },
+  "comparable_scene": {
+    "seed": 20260823,
+    "width": 1920,
+    "height": 1080,
+    "adapter": "NVIDIA GeForce RTX 3050 Ti Laptop GPU",
+    "warmup_frames": 120,
+    "measured_frames": 600
+  },
+  "metrics": {
+    "cpu_frame_p95_ms": {
+      "forward": 3.9227,
+      "hybrid": 2.1695,
+      "percent_change": -44.693706
+    },
+    "gpu_total_p95_ms": {
+      "forward": 3.885056,
+      "hybrid": 2.174976,
+      "percent_change": -44.016869
+    },
+    "draw_calls_p50": {
+      "forward": 2240.0,
+      "hybrid": 1148.0,
+      "percent_change": -48.75
+    },
+    "working_set_p95_bytes": {
+      "forward": 238190592.0,
+      "hybrid": 166449152.0,
+      "percent_change": -30.119342
+    }
+  }
+}

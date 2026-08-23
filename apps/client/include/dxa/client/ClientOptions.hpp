@@ -1,5 +1,7 @@
 #pragma once
 
+#include <dxa/engine/RenderPath.hpp>
+
 #include <cstdint>
 #include <charconv>
 #include <limits>
@@ -36,6 +38,7 @@ struct ClientOptions
     std::uint32_t frameLimit = 0;
     std::uint32_t width = 1280;
     std::uint32_t height = 720;
+    dxa::engine::RenderPath renderPath = dxa::engine::RenderPath::Forward;
     std::optional<BenchmarkOptions> benchmark;
 };
 
@@ -98,6 +101,26 @@ namespace detail
         else if (argument == "--verify-asset-scene")
         {
             options.verifyAssetScene = true;
+        }
+        else if (argument == "--render-path")
+        {
+            if (index + 1 >= arguments.size())
+            {
+                return detail::Error("--render-path requires a value");
+            }
+            const std::string_view value = arguments[++index];
+            if (value == "forward")
+            {
+                options.renderPath = dxa::engine::RenderPath::Forward;
+            }
+            else if (value == "hybrid-deferred")
+            {
+                options.renderPath = dxa::engine::RenderPath::HybridDeferred;
+            }
+            else
+            {
+                return detail::Error("--render-path must be forward or hybrid-deferred");
+            }
         }
         else if (
             argument == "--frames"

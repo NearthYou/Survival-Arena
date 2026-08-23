@@ -21,6 +21,10 @@ $requiredClientTests = @(
     'Client.WarpSmoke',
     'Client.ShaderDeployment',
     'Client.AssetShaderDeployment',
+    'Client.HybridGeometryShaderDeployment',
+    'Client.HybridLightingShaderDeployment',
+    'Client.HybridShadowShaderDeployment',
+    'Client.HybridTransparentShaderDeployment',
     'Client.CharacterAssetDeployment',
     'Client.FloorAssetDeployment',
     'Client.TextureAssetDeployment'

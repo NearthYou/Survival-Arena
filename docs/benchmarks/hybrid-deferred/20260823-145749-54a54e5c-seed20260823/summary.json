@@ -1,0 +1,158 @@
+{
+  "schema_version": 2,
+  "render_path": "hybrid-deferred",
+  "seed": 20260823,
+  "resolution": {"width": 1920, "height": 1080},
+  "warmup_frames": 120,
+  "measured_frames": 600,
+  "commit_sha": "54a54e5cac60cbc2f8d025d0500f0b7ac70be57e",
+  "adapter": "NVIDIA GeForce RTX 3050 Ti Laptop GPU",
+  "command": "\"C:\\\\Users\\\\siwon\\\\Documents\\\\Codex\\\\DX11-Survival-Arena\\\\out\\\\build\\\\windows-msvc-vs-release\\\\apps\\\\client\\\\Release\\\\dxa_client.exe\" \"--hidden\" \"--no-vsync\" \"--benchmark-output\" \"C:\\\\Users\\\\siwon\\\\Documents\\\\Codex\\\\DX11-Survival-Arena\\\\docs\\\\benchmarks\\\\hybrid-deferred\\\\20260823-145749-54a54e5c-seed20260823\" \"--benchmark-warmup\" \"120\" \"--benchmark-frames\" \"600\" \"--benchmark-seed\" \"20260823\" \"--commit-sha\" \"54a54e5cac60cbc2f8d025d0500f0b7ac70be57e\" \"--render-path\" \"hybrid-deferred\" \"--width\" \"1920\" \"--height\" \"1080\"",
+  "started_at": "2026-08-23T05:57:49Z",
+  "sample_count": 600,
+  "gpu_sample_count": 600,
+  "gpu_missing_samples": 0,
+  "gpu_total_sample_count": 600,
+  "gpu_shadow_sample_count": 600,
+  "gpu_gbuffer_sample_count": 600,
+  "gpu_lighting_sample_count": 600,
+  "gpu_transparent_sample_count": 600,
+  "metrics": {
+    "cpu_frame_ms": {
+      "min": 0.510700,
+      "max": 3.305300,
+      "mean": 1.589511,
+      "p50": 1.496400,
+      "p95": 2.169500,
+      "p99": 2.363900
+    },
+    "gpu_forward_ms": {
+      "min": 0.000000,
+      "max": 0.000000,
+      "mean": 0.000000,
+      "p50": 0.000000,
+      "p95": 0.000000,
+      "p99": 0.000000
+    },
+    "gpu_total_ms": {
+      "min": 1.323008,
+      "max": 2.445312,
+      "mean": 1.602231,
+      "p50": 1.510400,
+      "p95": 2.174976,
+      "p99": 2.239488
+    },
+    "gpu_shadow_ms": {
+      "min": 0.364544,
+      "max": 0.786432,
+      "mean": 0.426641,
+      "p50": 0.391168,
+      "p95": 0.733184,
+      "p99": 0.766976
+    },
+    "gpu_gbuffer_ms": {
+      "min": 0.416768,
+      "max": 1.167360,
+      "mean": 0.522907,
+      "p50": 0.480256,
+      "p95": 0.800768,
+      "p99": 0.888832
+    },
+    "gpu_lighting_ms": {
+      "min": 0.491520,
+      "max": 1.329152,
+      "mean": 0.651226,
+      "p50": 0.627712,
+      "p95": 0.970752,
+      "p99": 1.015808
+    },
+    "gpu_transparent_ms": {
+      "min": 0.000000,
+      "max": 0.008192,
+      "mean": 0.001447,
+      "p50": 0.002048,
+      "p95": 0.003072,
+      "p99": 0.003072
+    },
+    "draw_calls": {
+      "min": 1118.000000,
+      "max": 1208.000000,
+      "mean": 1152.683333,
+      "p50": 1148.000000,
+      "p95": 1188.000000,
+      "p99": 1208.000000
+    },
+    "shadow_draw_calls": {
+      "min": 125.000000,
+      "max": 125.000000,
+      "mean": 125.000000,
+      "p50": 125.000000,
+      "p95": 125.000000,
+      "p99": 125.000000
+    },
+    "gbuffer_draw_calls": {
+      "min": 991.000000,
+      "max": 1081.000000,
+      "mean": 1025.683333,
+      "p50": 1021.000000,
+      "p95": 1061.000000,
+      "p99": 1081.000000
+    },
+    "lighting_draw_calls": {
+      "min": 1.000000,
+      "max": 1.000000,
+      "mean": 1.000000,
+      "p50": 1.000000,
+      "p95": 1.000000,
+      "p99": 1.000000
+    },
+    "transparent_draw_calls": {
+      "min": 1.000000,
+      "max": 1.000000,
+      "mean": 1.000000,
+      "p50": 1.000000,
+      "p95": 1.000000,
+      "p99": 1.000000
+    },
+    "triangle_count": {
+      "min": 1700361.000000,
+      "max": 1769061.000000,
+      "mean": 1726823.706667,
+      "p50": 1723473.000000,
+      "p95": 1754033.000000,
+      "p99": 1769049.000000
+    },
+    "object_count": {
+      "min": 1124.000000,
+      "max": 1124.000000,
+      "mean": 1124.000000,
+      "p50": 1124.000000,
+      "p95": 1124.000000,
+      "p99": 1124.000000
+    },
+    "visible_object_count": {
+      "min": 975.000000,
+      "max": 1079.000000,
+      "mean": 1020.205000,
+      "p50": 1009.000000,
+      "p95": 1077.000000,
+      "p99": 1078.000000
+    },
+    "culled_object_count": {
+      "min": 45.000000,
+      "max": 149.000000,
+      "mean": 103.795000,
+      "p50": 114.000000,
+      "p95": 147.000000,
+      "p99": 149.000000
+    },
+    "working_set_bytes": {
+      "min": 138334208.000000,
+      "max": 166711296.000000,
+      "mean": 164563312.640000,
+      "p50": 165134336.000000,
+      "p95": 166449152.000000,
+      "p99": 166453248.000000
+    }
+  }
+}

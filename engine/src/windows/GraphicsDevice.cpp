@@ -223,6 +223,11 @@ ID3D11DeviceContext* GraphicsDevice::Context() const noexcept
     return context_.Get();
 }
 
+ID3D11RenderTargetView* GraphicsDevice::BackBufferRenderTargetView() const noexcept
+{
+    return renderTargetView_.Get();
+}
+
 bool GraphicsDevice::DebugLayerEnabled() const noexcept
 {
     return debugLayerEnabled_;
