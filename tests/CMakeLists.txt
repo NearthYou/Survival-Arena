@@ -17,6 +17,7 @@ add_executable(
     simulation_math_test.cpp
     simulation_nav_agent_test.cpp
     simulation_navmesh_test.cpp
+    simulation_benchmark_options_test.cpp
     simulation_spatial_index_test.cpp
     foundation_test.cpp
 )
@@ -27,6 +28,7 @@ target_link_libraries(
         dxa_client_options
         dxa_engine_core
         dxa_simulation
+        dxa_simulation_benchmark_options
 )
 
 if(WIN32)
@@ -77,6 +79,15 @@ if(WIN32)
             ${DXA_POWERSHELL_EXECUTABLE}
             -NoProfile
             -File "${PROJECT_SOURCE_DIR}/tests/benchmark_comparison_test.ps1"
+            -RepositoryRoot "${PROJECT_SOURCE_DIR}"
+    )
+
+    add_test(
+        NAME SimulationBenchmarkRunner.GuardsEvidenceBoundary
+        COMMAND
+            ${DXA_POWERSHELL_EXECUTABLE}
+            -NoProfile
+            -File "${PROJECT_SOURCE_DIR}/tests/simulation_benchmark_runner_test.ps1"
             -RepositoryRoot "${PROJECT_SOURCE_DIR}"
     )
 endif()
