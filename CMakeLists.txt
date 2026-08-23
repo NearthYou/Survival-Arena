@@ -28,6 +28,7 @@ add_subdirectory(engine)
 add_subdirectory(apps/client)
 add_subdirectory(apps/navigation_demo)
 add_subdirectory(apps/offline_match_demo)
+add_subdirectory(apps/offline_match_benchmark)
 add_subdirectory(apps/simulation_benchmark)
 add_subdirectory(apps/asset_tool)
 
