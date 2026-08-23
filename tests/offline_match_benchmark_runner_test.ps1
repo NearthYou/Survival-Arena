@@ -117,6 +117,28 @@ try {
         throw "유효한 offline match tick CSV가 거부됐습니다: $tickErrors"
     }
 
+    @(
+        [pscustomobject]@{ tick = 1; elapsed_ms = 0.01 }
+        [pscustomobject]@{ tick = 2; elapsed_ms = 0.02 }
+        [pscustomobject]@{ tick = 3; elapsed_ms = 0.03 }
+    ) | Export-Csv -LiteralPath $ticksPath -NoTypeInformation -Encoding utf8
+    if (@(Get-DxaOfflineMatchTickValidationErrors `
+            -TicksPath $ticksPath `
+            -ExpectedFinishedTick 3).Count -eq 0) {
+        throw 'Offline match benchmark 필수 tick 열 누락이 거부되지 않았습니다.'
+    }
+
+    @(
+        [pscustomobject]@{ tick = 1; elapsed_ms = 0.01; alive_contenders = 24; alive_neutrals = 100; event_count = $null }
+        [pscustomobject]@{ tick = 2; elapsed_ms = 0.02; alive_contenders = 24; alive_neutrals = 100; event_count = 1 }
+        [pscustomobject]@{ tick = 3; elapsed_ms = 0.03; alive_contenders = 23; alive_neutrals = 99; event_count = 2 }
+    ) | Export-Csv -LiteralPath $ticksPath -NoTypeInformation -Encoding utf8
+    if (@(Get-DxaOfflineMatchTickValidationErrors `
+            -TicksPath $ticksPath `
+            -ExpectedFinishedTick 3).Count -eq 0) {
+        throw 'Offline match benchmark 빈 tick 값이 거부되지 않았습니다.'
+    }
+
     if (@(Get-DxaOfflineMatchBenchmarkValidationErrors `
             -Result $result `
             -CommitSha 'wrong-sha' `

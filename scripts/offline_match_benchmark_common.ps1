@@ -120,16 +120,48 @@ function Get-DxaOfflineMatchTickValidationErrors {
             "Offline match benchmark tick 행 수가 다릅니다. 예상: $ExpectedFinishedTick, 실제: $($rows.Count)")
     }
 
+    if ($rows.Count -gt 0) {
+        $requiredColumns = @(
+            'tick',
+            'elapsed_ms',
+            'alive_contenders',
+            'alive_neutrals',
+            'event_count')
+        $actualColumns = @($rows[0].PSObject.Properties.Name)
+        $missingColumns = @($requiredColumns | Where-Object { $_ -notin $actualColumns })
+        if ($missingColumns.Count -gt 0) {
+            $errors.Add(
+                "Offline match benchmark tick 필수 열이 없습니다: $($missingColumns -join ', ')")
+            return $errors
+        }
+    }
+
     for ($index = 0; $index -lt $rows.Count; ++$index) {
         $row = $rows[$index]
         $expectedTick = $index + 1
-        try {
-            $actualTick = [uint32]$row.tick
-            $aliveContenders = [uint32]$row.alive_contenders
-            $aliveNeutrals = [uint32]$row.alive_neutrals
-            $eventCount = [uint32]$row.event_count
-        }
-        catch {
+        $actualTick = 0U
+        $aliveContenders = 0U
+        $aliveNeutrals = 0U
+        $eventCount = 0U
+        $integerStyle = [Globalization.NumberStyles]::None
+        $culture = [Globalization.CultureInfo]::InvariantCulture
+        if (-not [uint32]::TryParse(
+                [string]$row.tick, $integerStyle, $culture, [ref]$actualTick) -or
+            -not [uint32]::TryParse(
+                [string]$row.alive_contenders,
+                $integerStyle,
+                $culture,
+                [ref]$aliveContenders) -or
+            -not [uint32]::TryParse(
+                [string]$row.alive_neutrals,
+                $integerStyle,
+                $culture,
+                [ref]$aliveNeutrals) -or
+            -not [uint32]::TryParse(
+                [string]$row.event_count,
+                $integerStyle,
+                $culture,
+                [ref]$eventCount)) {
             $errors.Add("Offline match benchmark tick 행 숫자를 읽지 못했습니다: $expectedTick")
             continue
         }
