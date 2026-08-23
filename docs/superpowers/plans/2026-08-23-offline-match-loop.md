@@ -121,8 +121,9 @@ TEST(MatchConfig, LocksTheCanonicalPopulationAndTiming)
     EXPECT_EQ(14400U, config.suddenDeathTick);
     EXPECT_EQ(18000U, config.hardTimeoutTick);
     EXPECT_EQ(20260823U, config.seed);
-    EXPECT_FLOAT_EQ(20.0F, config.contenderSpawnInnerRadius);
-    EXPECT_FLOAT_EQ(26.0F, config.contenderSpawnOuterRadius);
+    EXPECT_FLOAT_EQ(128.0F, config.arenaHalfExtent);
+    EXPECT_FLOAT_EQ(80.0F, config.contenderSpawnInnerRadius);
+    EXPECT_FLOAT_EQ(104.0F, config.contenderSpawnOuterRadius);
 }
 
 TEST(MatchConfig, RejectsInvalidPopulationAndTiming)
@@ -197,8 +198,9 @@ struct MatchConfig
     float pickupRadius = 1.0F;
     float contenderSpawnSpacing = 3.0F;
     float neutralSpawnSpacing = 0.75F;
-    float contenderSpawnInnerRadius = 20.0F;
-    float contenderSpawnOuterRadius = 26.0F;
+    float arenaHalfExtent = 128.0F;
+    float contenderSpawnInnerRadius = 80.0F;
+    float contenderSpawnOuterRadius = 104.0F;
 };
 
 struct MatchEvent
@@ -247,7 +249,7 @@ struct MatchSnapshot
     MatchPhase phase = MatchPhase::Waiting;
     SafeZoneStage safeZoneStage = SafeZoneStage::Stage1;
     Vec2 safeZoneCenter;
-    float safeZoneRadius = 32.0F;
+    float safeZoneRadius = 128.0F;
     std::uint32_t aliveContenders = 0;
     std::vector<ActorSnapshot> actors;
     std::vector<LootSnapshot> loot;
@@ -258,7 +260,7 @@ struct MatchSnapshot
 
 Lock event field meaning: `CommandRejected.actor` is the sender; loot, weapon, and heal events use the affected actor; `DamageApplied.actor` is the damaged actor and `subject` is the optional attacker; `ActorDied.actor` is the dead actor and `subject` is the optional killer; `MatchFinished.actor` is the winner. Zone damage and zone death leave `subject` empty. `amount` is positive damage or healing, never a signed delta.
 
-Reject any tick rate other than 30, contender count below 2, decision interval other than 6, zero spawn attempts, sudden death other than 14,400, hard timeout other than 18,000, non-finite or non-positive speed, perception, pickup, and spacing values, or any count total that would overflow `ActorId` or `LootId`. Spawn radii must be finite, inner radius must be non-negative, and outer radius must be at least the inner radius. Custom smaller actor counts and smaller valid spawn radii remain available for focused tests; `DefaultMatchConfig` is the canonical 24 plus 100 contract.
+Reject any tick rate other than 30, contender count below 2, decision interval other than 6, zero spawn attempts, sudden death other than 14,400, hard timeout other than 18,000, non-finite or non-positive speed, perception, pickup, spacing, and arena extent values, or any count total that would overflow `ActorId` or `LootId`. Spawn radii must be finite, inner radius must be non-negative, outer radius must be at least the inner radius, and outer radius must not exceed arena half extent. Custom smaller actor counts and smaller valid spawn radii remain available for focused tests; `DefaultMatchConfig` is the canonical 24 plus 100 contract.
 
 - [ ] Step 4: Run GREEN
 
@@ -419,11 +421,11 @@ Interfaces:
 ```cpp
 TEST(SafeZone, InterpolatesEveryLockedBoundary)
 {
-    EXPECT_FLOAT_EQ(32.0F, EvaluateSafeZone(0U, 30U).radius);
-    EXPECT_FLOAT_EQ(24.0F, EvaluateSafeZone(3600U, 30U).radius);
-    EXPECT_FLOAT_EQ(16.0F, EvaluateSafeZone(7200U, 30U).radius);
-    EXPECT_FLOAT_EQ(8.0F, EvaluateSafeZone(10800U, 30U).radius);
-    EXPECT_FLOAT_EQ(2.0F, EvaluateSafeZone(14400U, 30U).radius);
+    EXPECT_FLOAT_EQ(128.0F, EvaluateSafeZone(0U, 30U).radius);
+    EXPECT_FLOAT_EQ(96.0F, EvaluateSafeZone(3600U, 30U).radius);
+    EXPECT_FLOAT_EQ(64.0F, EvaluateSafeZone(7200U, 30U).radius);
+    EXPECT_FLOAT_EQ(32.0F, EvaluateSafeZone(10800U, 30U).radius);
+    EXPECT_FLOAT_EQ(8.0F, EvaluateSafeZone(14400U, 30U).radius);
     EXPECT_FLOAT_EQ(0.0F, EvaluateSafeZone(18000U, 30U).radius);
 }
 
@@ -453,7 +455,7 @@ struct SafeZoneState
 {
     SafeZoneStage stage = SafeZoneStage::Stage1;
     Vec2 center{0.0F, 0.0F};
-    float radius = 32.0F;
+    float radius = 128.0F;
     std::int32_t damagePerSecond = 2;
 };
 ```
@@ -951,7 +953,7 @@ Expected: RED until bot commands and balance produce a bounded result.
 
 - [ ] Step 5: Diagnose a canonical-duration failure without weakening assertions
 
-The first implementation uses contender speed 6, neutral speed 4.5, perception radii 18 and 10, contender spawn spacing 3, and neutral spacing 0.75 from Task 1. If the canonical test is RED, invoke `superpowers:systematic-debugging` and trace whether the failure is an ordering bug, invalid target choice, or a real balance contradiction. Fix a confirmed implementation bug only. If the locked design itself cannot produce the 14,400 to 18,000 window, stop and return to design approval rather than adding an artificial delay or changing acceptance bounds.
+The first implementation used a 64×64 arena with contender speed 6, neutral speed 4.5, perception radii 18 and 10, contender spawn spacing 3, and neutral spacing 0.75. The canonical RED finished at tick 91; a diagnostic run without all neutral actors finished at tick 1,207. Event attribution showed 23 contender deaths, no zone deaths, 30 contender-sourced damage events, and 120 neutral-sourced damage events. This confirmed an encounter-density contradiction rather than an ordering bug. After user approval, scale the arena, contender ring, neutral and loot distribution, and safe-zone radii by four while leaving timing, movement, perception, health, damage, cooldown, and the 14,400 to 18,000 acceptance unchanged.
 
 - [ ] Step 6: Run GREEN and full suite
 
