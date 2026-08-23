@@ -11,6 +11,8 @@ add_library(
         src/NavMesh.cpp
         src/NavMeshGrid.cpp
         src/NavMeshPath.cpp
+        src/OfflineMatch.cpp
+        src/OfflineMatchSpawn.cpp
         src/SafeZone.cpp
         src/SpatialIndex.cpp
 )
