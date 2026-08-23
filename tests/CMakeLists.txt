@@ -46,6 +46,7 @@ if(WIN32)
             engine_gpu_frame_timer_test.cpp
             engine_hybrid_deferred_renderer_test.cpp
             engine_window_test.cpp
+            navigation_ground_pick_test.cpp
     )
     target_link_libraries(
         dxa_tests
@@ -53,6 +54,7 @@ if(WIN32)
             dxa_asset_importer
             dxa_asset_tool_options
             dxa_engine
+            dxa_navigation_demo_core
             dxa_texture_cooker
     )
     target_compile_definitions(

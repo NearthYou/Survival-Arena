@@ -76,6 +76,20 @@ try {
         -Result $result `
         -CommitSha $commitSha `
         -Seed $Seed)
+    $caseNames = @(
+        'nav_linear',
+        'nav_grid',
+        'spatial_linear_aabb',
+        'spatial_quadtree_aabb',
+        'spatial_linear_pick',
+        'spatial_quadtree_pick',
+        'ai_fsm',
+        'ai_behavior_tree'
+    )
+    $validationErrors += @(Get-DxaSimulationSampleValidationErrors `
+        -SamplesPath $samplesPath `
+        -ExpectedCases $caseNames `
+        -ExpectedSampleCount 5)
 
     $operatingSystem = Get-CimInstance Win32_OperatingSystem
     $processor = Get-CimInstance Win32_Processor | Select-Object -First 1

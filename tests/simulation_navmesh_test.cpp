@@ -234,4 +234,29 @@ TEST(NavMesh, RejectsNonFiniteGridQuery)
         (void)mesh.FindContainingTriangleGrid({0.0F, infinity}),
         std::invalid_argument);
 }
+
+TEST(NavMesh, GridCountsEveryCellCandidateItInspects)
+{
+    const NavMesh mesh = NavMesh::Build(
+        {
+            {0.0F, 0.0F},
+            {0.5F, 0.0F},
+            {0.0F, 0.5F},
+            {2.0F, 2.0F},
+            {2.5F, 2.0F},
+            {2.0F, 2.5F}
+        },
+        {
+            NavTriangleIndices{{0, 1, 2}},
+            NavTriangleIndices{{3, 4, 5}}
+        },
+        4.0F);
+
+    const NavQueryResult linear = mesh.FindContainingTriangleLinear({2.1F, 2.1F});
+    const NavQueryResult grid = mesh.FindContainingTriangleGrid({2.1F, 2.1F});
+
+    EXPECT_EQ(linear.triangle, grid.triangle);
+    EXPECT_EQ(2U, linear.candidatesTested);
+    EXPECT_EQ(2U, grid.candidatesTested);
+}
 } // namespace

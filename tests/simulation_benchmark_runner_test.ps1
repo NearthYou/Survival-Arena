@@ -88,6 +88,7 @@ try {
         bounds_tested = 10
         evaluations = 10
         checksum = 'abc123'
+        samples_ms = @(1.0, 1.1, 1.2, 1.3, 1.4)
     }
     $result = [pscustomobject]@{
         schema_version = 1
@@ -96,6 +97,8 @@ try {
         mismatch_count = 0
         sample_count = 5
         result_checksum = 'result123'
+        compiler = [pscustomobject]@{ id = 'MSVC'; version = 'test' }
+        cpu = [pscustomobject]@{ logical_processors = 8 }
         workload = [pscustomobject]@{
             nav_queries = 100000
             aabb_queries = 20000
@@ -119,6 +122,46 @@ try {
         -Seed 20260823)
     if ($validErrors.Count -ne 0) {
         throw "유효한 simulation benchmark 결과가 거부됐습니다: $validErrors"
+    }
+
+    $caseNames = @(
+        'nav_linear',
+        'nav_grid',
+        'spatial_linear_aabb',
+        'spatial_quadtree_aabb',
+        'spatial_linear_pick',
+        'spatial_quadtree_pick',
+        'ai_fsm',
+        'ai_behavior_tree'
+    )
+    $sampleRows = @(
+        foreach ($caseName in $caseNames) {
+            foreach ($sampleIndex in 1..5) {
+                [pscustomobject]@{
+                    case = $caseName
+                    sample_index = $sampleIndex
+                    elapsed_ms = 1.0 + ($sampleIndex / 10.0)
+                }
+            }
+        }
+    )
+    $samplesPath = Join-Path $resolvedTemporaryRoot 'samples.csv'
+    $sampleRows | Export-Csv -LiteralPath $samplesPath -NoTypeInformation -Encoding utf8
+    $sampleErrors = @(Get-DxaSimulationSampleValidationErrors `
+        -SamplesPath $samplesPath `
+        -ExpectedCases $caseNames `
+        -ExpectedSampleCount 5)
+    if ($sampleErrors.Count -ne 0) {
+        throw "유효한 simulation benchmark sample이 거부됐습니다: $sampleErrors"
+    }
+
+    $sampleRows[0..38] |
+        Export-Csv -LiteralPath $samplesPath -NoTypeInformation -Encoding utf8
+    if (@(Get-DxaSimulationSampleValidationErrors `
+            -SamplesPath $samplesPath `
+            -ExpectedCases $caseNames `
+            -ExpectedSampleCount 5).Count -eq 0) {
+        throw '잘린 simulation benchmark sample CSV가 거부되지 않았습니다.'
     }
 
     $result.mismatch_count = 1

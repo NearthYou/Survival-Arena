@@ -107,11 +107,11 @@ NavQueryResult NavMesh::FindContainingTriangleGrid(const Vec2 point) const
     NavQueryResult result;
     for (const TriangleId triangle : cell->second)
     {
+        ++result.candidatesTested;
         if (!triangles_[triangle].bounds.Contains(point))
         {
             continue;
         }
-        ++result.candidatesTested;
         if (TriangleContains(triangle, point))
         {
             result.triangle = triangle;

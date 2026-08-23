@@ -4,10 +4,10 @@
 #include <dxa/engine/InputState.hpp>
 #include <dxa/engine/Window.hpp>
 #include <dxa/engine/benchmark/StressScene.hpp>
+#include <dxa/navigation_demo/GroundPicking.hpp>
 #include <dxa/simulation/NavAgent.hpp>
 #include <dxa/simulation/NavMesh.hpp>
 
-#include <DirectXMath.h>
 #include <Windows.h>
 
 #include <array>
@@ -162,80 +162,6 @@ struct DemoOptions
         4.0F);
 }
 
-[[nodiscard]] std::optional<dxa::simulation::Vec2> PointerGroundDestination(
-    const dxa::engine::PointerPosition pointer,
-    const std::uint32_t width,
-    const std::uint32_t height,
-    const dxa::engine::benchmark::StressCamera& camera)
-{
-    using namespace DirectX;
-    const XMMATRIX view = XMMatrixLookAtLH(
-        XMVectorSet(camera.eye.x, camera.eye.y, camera.eye.z, 1.0F),
-        XMVectorSet(camera.target.x, camera.target.y, camera.target.z, 1.0F),
-        XMVectorSet(0.0F, 1.0F, 0.0F, 0.0F));
-    const XMMATRIX projection = XMMatrixPerspectiveFovLH(
-        XM_PIDIV4,
-        static_cast<float>(width) / static_cast<float>(height),
-        0.1F,
-        200.0F);
-    const XMMATRIX world = XMMatrixIdentity();
-    const XMVECTOR screenNear = XMVectorSet(
-        static_cast<float>(pointer.x),
-        static_cast<float>(pointer.y),
-        0.0F,
-        1.0F);
-    const XMVECTOR screenFar = XMVectorSet(
-        static_cast<float>(pointer.x),
-        static_cast<float>(pointer.y),
-        1.0F,
-        1.0F);
-    const XMVECTOR worldNear = XMVector3Unproject(
-        screenNear,
-        0.0F,
-        0.0F,
-        static_cast<float>(width),
-        static_cast<float>(height),
-        0.0F,
-        1.0F,
-        projection,
-        view,
-        world);
-    const XMVECTOR worldFar = XMVector3Unproject(
-        screenFar,
-        0.0F,
-        0.0F,
-        static_cast<float>(width),
-        static_cast<float>(height),
-        0.0F,
-        1.0F,
-        projection,
-        view,
-        world);
-
-    DirectX::XMFLOAT3 nearPoint;
-    DirectX::XMFLOAT3 direction;
-    XMStoreFloat3(&nearPoint, worldNear);
-    XMStoreFloat3(&direction, XMVector3Normalize(XMVectorSubtract(worldFar, worldNear)));
-    if (!std::isfinite(nearPoint.y)
-        || !std::isfinite(direction.y)
-        || std::fabs(direction.y) <= 1.0e-6F)
-    {
-        return std::nullopt;
-    }
-
-    const float distance = -nearPoint.y / direction.y;
-    if (!std::isfinite(distance) || distance < 0.0F)
-    {
-        return std::nullopt;
-    }
-    const dxa::simulation::Vec2 destination{
-        nearPoint.x + direction.x * distance,
-        nearPoint.z + direction.z * distance};
-    return dxa::simulation::IsFinite(destination)
-        ? std::optional<dxa::simulation::Vec2>{destination}
-        : std::nullopt;
-}
-
 int RunDemo(const DemoOptions& options)
 {
     const std::uint32_t width = options.hidden ? 320U : 1280U;
@@ -323,7 +249,7 @@ int RunDemo(const DemoOptions& options)
         }
         if (input.WasRightPointerPressed())
         {
-            const auto destination = PointerGroundDestination(
+            const auto destination = dxa::navigation_demo::PointerGroundDestination(
                 input.Pointer(),
                 width,
                 height,
