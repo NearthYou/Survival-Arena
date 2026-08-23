@@ -12,7 +12,9 @@
 #include <array>
 #include <cstdint>
 #include <filesystem>
+#include <limits>
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -93,6 +95,16 @@ TEST(HybridDeferredRenderer, RendersGBufferAndLightingOnWarp)
         graphics.BackBufferRenderTargetView(),
         dxa::engine::AssetSceneFrame{1, 0.0, 96.0F / 54.0F});
     const bool containsRenderedPixel = graphics.BackBufferContainsNonClearPixel(ClearColor);
+    graphics.EndFrame(false);
+
+    renderer.SetControlledPlayerPosition({20.0F, 0.0F, 10.0F});
+    graphics.BeginFrame(ClearColor);
+    const dxa::engine::RenderStatistics movedStatistics = renderer.Render(
+        graphics.Context(),
+        graphics.BackBufferRenderTargetView(),
+        dxa::engine::AssetSceneFrame{2, 1.0 / 60.0, 96.0F / 54.0F});
+    const bool movedFrameContainsRenderedPixel =
+        graphics.BackBufferContainsNonClearPixel(ClearColor);
     graphics.Context()->Flush();
     const std::vector<std::string> debugErrors = CollectDebugErrors(infoQueue.Get());
     graphics.EndFrame(false);
@@ -113,9 +125,20 @@ TEST(HybridDeferredRenderer, RendersGBufferAndLightingOnWarp)
     EXPECT_LT(statistics.gBufferDrawCalls, 2240U);
     EXPECT_EQ(1U, statistics.lightingDrawCalls);
     EXPECT_EQ(1U, statistics.transparentDrawCalls);
+    EXPECT_EQ(statistics.objectCount, movedStatistics.objectCount);
+    EXPECT_EQ(statistics.shadowDrawCalls, movedStatistics.shadowDrawCalls);
+    EXPECT_EQ(statistics.gBufferDrawCalls, movedStatistics.gBufferDrawCalls);
+    EXPECT_EQ(statistics.lightingDrawCalls, movedStatistics.lightingDrawCalls);
+    EXPECT_EQ(statistics.transparentDrawCalls, movedStatistics.transparentDrawCalls);
     EXPECT_TRUE(renderer.ShadowMapReady());
     EXPECT_TRUE(containsRenderedPixel);
+    EXPECT_TRUE(movedFrameContainsRenderedPixel);
     EXPECT_TRUE(debugErrors.empty())
         << (debugErrors.empty() ? std::string{} : debugErrors.front());
+
+    const float notANumber = std::numeric_limits<float>::quiet_NaN();
+    EXPECT_THROW(
+        renderer.SetControlledPlayerPosition({notANumber, 0.0F, 0.0F}),
+        std::invalid_argument);
 }
 } // namespace

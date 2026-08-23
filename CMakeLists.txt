@@ -26,6 +26,7 @@ endif()
 add_subdirectory(simulation)
 add_subdirectory(engine)
 add_subdirectory(apps/client)
+add_subdirectory(apps/navigation_demo)
 add_subdirectory(apps/asset_tool)
 
 if(DXA_BUILD_TESTS)

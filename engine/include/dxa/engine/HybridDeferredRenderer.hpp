@@ -38,6 +38,7 @@ public:
         ID3D11RenderTargetView* backBufferRenderTarget,
         const AssetSceneFrame& frame,
         const RenderPassCallback& passCompleted = {});
+    void SetControlledPlayerPosition(benchmark::SceneVector3 position);
     [[nodiscard]] bool ShadowMapReady() const noexcept;
 
 private:
