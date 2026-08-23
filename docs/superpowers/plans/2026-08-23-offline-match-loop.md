@@ -422,10 +422,10 @@ Interfaces:
 TEST(SafeZone, InterpolatesEveryLockedBoundary)
 {
     EXPECT_FLOAT_EQ(128.0F, EvaluateSafeZone(0U, 30U).radius);
-    EXPECT_FLOAT_EQ(96.0F, EvaluateSafeZone(3600U, 30U).radius);
-    EXPECT_FLOAT_EQ(64.0F, EvaluateSafeZone(7200U, 30U).radius);
-    EXPECT_FLOAT_EQ(32.0F, EvaluateSafeZone(10800U, 30U).radius);
-    EXPECT_FLOAT_EQ(8.0F, EvaluateSafeZone(14400U, 30U).radius);
+    EXPECT_FLOAT_EQ(112.0F, EvaluateSafeZone(3600U, 30U).radius);
+    EXPECT_FLOAT_EQ(96.0F, EvaluateSafeZone(7200U, 30U).radius);
+    EXPECT_FLOAT_EQ(80.0F, EvaluateSafeZone(10800U, 30U).radius);
+    EXPECT_FLOAT_EQ(64.0F, EvaluateSafeZone(14400U, 30U).radius);
     EXPECT_FLOAT_EQ(0.0F, EvaluateSafeZone(18000U, 30U).radius);
 }
 
@@ -953,7 +953,7 @@ Expected: RED until bot commands and balance produce a bounded result.
 
 - [ ] Step 5: Diagnose a canonical-duration failure without weakening assertions
 
-The first implementation used a 64×64 arena with contender speed 6, neutral speed 4.5, perception radii 18 and 10, contender spawn spacing 3, and neutral spacing 0.75. The canonical RED finished at tick 91; a diagnostic run without all neutral actors finished at tick 1,207. Event attribution showed 23 contender deaths, no zone deaths, 30 contender-sourced damage events, and 120 neutral-sourced damage events. This confirmed an encounter-density contradiction rather than an ordering bug. After user approval, scale the arena, contender ring, neutral and loot distribution, and safe-zone radii by four while leaving timing, movement, perception, health, damage, cooldown, and the 14,400 to 18,000 acceptance unchanged.
+The first implementation used a 64×64 arena with contender speed 6, neutral speed 4.5, perception radii 18 and 10, contender spawn spacing 3, and neutral spacing 0.75. The canonical RED finished at tick 91; a diagnostic run without all neutral actors finished at tick 1,207. Event attribution showed 23 contender deaths, no zone deaths, 30 contender-sourced damage events, and 120 neutral-sourced damage events. A four-times uniform arena and zone scale finished at tick 10,561, while a five-times scale finished at tick 10,560. This confirmed that uniform scaling preserved the relative convergence time. After user approval, keep the 256×256 arena and use zone radii 128, 112, 96, 80, 64, and 0 so wide play lasts through tick 14,400. Leave timing, movement, perception, health, damage, cooldown, and the 14,400 to 18,000 acceptance unchanged.
 
 - [ ] Step 6: Run GREEN and full suite
 
