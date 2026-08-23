@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "seed": 20260823,
+  "resolution": {"width": 1920, "height": 1080},
+  "warmup_frames": 120,
+  "measured_frames": 600,
+  "commit_sha": "80988ef71f21430fc6baabea7b3d5cb4beae71f0",
+  "adapter": "NVIDIA GeForce RTX 3050 Ti Laptop GPU",
+  "command": "\"C:\\\\Users\\\\siwon\\\\Documents\\\\Codex\\\\DX11-Survival-Arena\\\\out\\\\build\\\\windows-msvc-vs-release\\\\apps\\\\client\\\\Release\\\\dxa_client.exe\" \"--hidden\" \"--no-vsync\" \"--benchmark-output\" \"C:\\\\Users\\\\siwon\\\\Documents\\\\Codex\\\\DX11-Survival-Arena\\\\docs\\\\benchmarks\\\\forward-baseline\\\\20260823-033736-80988ef7-seed20260823\" \"--benchmark-warmup\" \"120\" \"--benchmark-frames\" \"600\" \"--benchmark-seed\" \"20260823\" \"--commit-sha\" \"80988ef71f21430fc6baabea7b3d5cb4beae71f0\" \"--width\" \"1920\" \"--height\" \"1080\"",
+  "started_at": "2026-08-22T18:37:36Z",
+  "sample_count": 600,
+  "gpu_sample_count": 600,
+  "gpu_missing_samples": 0,
+  "metrics": {
+    "cpu_frame_ms": {
+      "min": 0.905200,
+      "max": 5.579700,
+      "mean": 2.282931,
+      "p50": 2.006800,
+      "p95": 3.922700,
+      "p99": 4.640400
+    },
+    "gpu_forward_ms": {
+      "min": 1.255424,
+      "max": 4.978688,
+      "mean": 2.339987,
+      "p50": 2.085888,
+      "p95": 3.885056,
+      "p99": 4.455424
+    },
+    "draw_calls": {
+      "min": 2240.000000,
+      "max": 2240.000000,
+      "mean": 2240.000000,
+      "p50": 2240.000000,
+      "p95": 2240.000000,
+      "p99": 2240.000000
+    },
+    "triangle_count": {
+      "min": 944480.000000,
+      "max": 944480.000000,
+      "mean": 944480.000000,
+      "p50": 944480.000000,
+      "p95": 944480.000000,
+      "p99": 944480.000000
+    },
+    "object_count": {
+      "min": 1124.000000,
+      "max": 1124.000000,
+      "mean": 1124.000000,
+      "p50": 1124.000000,
+      "p95": 1124.000000,
+      "p99": 1124.000000
+    },
+    "working_set_bytes": {
+      "min": 182026240.000000,
+      "max": 238190592.000000,
+      "mean": 234695181.653333,
+      "p50": 237809664.000000,
+      "p95": 238190592.000000,
+      "p99": 238190592.000000
+    }
+  }
+}

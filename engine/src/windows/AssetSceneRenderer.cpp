@@ -14,6 +14,7 @@
 #include <cstring>
 #include <limits>
 #include <sstream>
+#include <span>
 #include <stdexcept>
 
 namespace dxa::engine
@@ -34,8 +35,22 @@ struct SkinConstants
     std::array<DirectX::XMFLOAT4X4, asset::MaximumSkinJoints> boneMatrices;
 };
 
+struct GpuPointLight
+{
+    DirectX::XMFLOAT4 positionAndRadius;
+    DirectX::XMFLOAT4 colorAndIntensity;
+};
+
+struct LightingConstants
+{
+    std::array<GpuPointLight, benchmark::DynamicLightCount> pointLights;
+    std::uint32_t pointLightCount = 0;
+    std::array<float, 3> padding{};
+};
+
 static_assert(sizeof(SceneConstants) % 16 == 0);
 static_assert(sizeof(SkinConstants) % 16 == 0);
+static_assert(sizeof(LightingConstants) % 16 == 0);
 static_assert(sizeof(asset::Vertex) == 56);
 static_assert(offsetof(asset::Vertex, jointIndices) == 32);
 static_assert(offsetof(asset::Vertex, jointWeights) == 40);
@@ -115,12 +130,36 @@ void RequireSuccess(const HRESULT result, const char* operation)
     return DirectX::XMMatrixScaling(scale, scale, scale)
         * DirectX::XMMatrixTranslation(0.0F, -minimumBounds.y * scale - 0.02F, 0.0F);
 }
+
+[[nodiscard]] DirectX::XMMATRIX PlaceInstance(
+    const DirectX::XMMATRIX baseWorld,
+    const benchmark::SceneInstance& instance)
+{
+    return baseWorld
+        * DirectX::XMMatrixScaling(
+            instance.uniformScale,
+            instance.uniformScale,
+            instance.uniformScale)
+        * DirectX::XMMatrixRotationY(instance.yawRadians)
+        * DirectX::XMMatrixTranslation(
+            instance.position.x,
+            instance.position.y,
+            instance.position.z);
+}
+
+void Accumulate(RenderStatistics& total, const RenderStatistics value)
+{
+    total.drawCalls += value.drawCalls;
+    total.triangleCount += value.triangleCount;
+    total.objectCount += value.objectCount;
+}
 } // namespace
 
 void AssetSceneRenderer::Initialize(
     ID3D11Device* const device,
     const std::filesystem::path& shaderPath,
-    const std::filesystem::path& assetRoot)
+    const std::filesystem::path& assetRoot,
+    const AssetSceneConfig config)
 {
     if (device == nullptr)
     {
@@ -181,6 +220,17 @@ void AssetSceneRenderer::Initialize(
             skinConstantBuffer_.ReleaseAndGetAddressOf()),
         "ID3D11Device::CreateBuffer(skin constants)");
 
+    D3D11_BUFFER_DESC lightingBufferDescription{};
+    lightingBufferDescription.ByteWidth = sizeof(LightingConstants);
+    lightingBufferDescription.Usage = D3D11_USAGE_DEFAULT;
+    lightingBufferDescription.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+    RequireSuccess(
+        device->CreateBuffer(
+            &lightingBufferDescription,
+            nullptr,
+            lightingConstantBuffer_.ReleaseAndGetAddressOf()),
+        "ID3D11Device::CreateBuffer(lighting constants)");
+
     D3D11_SAMPLER_DESC samplerDescription{};
     samplerDescription.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
     samplerDescription.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
@@ -193,6 +243,14 @@ void AssetSceneRenderer::Initialize(
 
     character_ = LoadModel(device, assetRoot / L"characters" / L"cyber-runner.dxam");
     floor_ = LoadModel(device, assetRoot / L"environment" / L"prototype-floor.dxam");
+    if (config.stressSceneSeed.has_value())
+    {
+        stressScene_ = benchmark::GenerateStressScene(*config.stressSceneSeed);
+    }
+    else
+    {
+        stressScene_.reset();
+    }
     ready_ = !character_.assetData.joints.empty()
         && !character_.assetData.animations.empty()
         && std::ranges::any_of(floor_.materials, [](const GpuMaterial& material) {
@@ -279,45 +337,115 @@ AssetSceneRenderer::GpuModel AssetSceneRenderer::LoadModel(
     return model;
 }
 
-void AssetSceneRenderer::Render(
+RenderStatistics AssetSceneRenderer::Render(
     ID3D11DeviceContext* const context,
-    const double totalSeconds,
-    const float aspectRatio) const
+    const AssetSceneFrame& frame) const
 {
     using namespace DirectX;
 
-    const XMMATRIX view = XMMatrixLookAtLH(
-        XMVectorSet(5.5F, 5.0F, -7.0F, 1.0F),
-        XMVectorSet(0.0F, 1.0F, 0.0F, 1.0F),
-        XMVectorSet(0.0F, 1.0F, 0.0F, 0.0F));
-    const XMMATRIX projection = XMMatrixPerspectiveFovLH(XM_PIDIV4, aspectRatio, 0.1F, 100.0F);
+    if (context == nullptr || frame.frameIndex == 0 || frame.aspectRatio <= 0.0F)
+    {
+        throw std::invalid_argument{
+            "asset scene frame requires a context, one-based frame index, and positive aspect ratio"};
+    }
+
+    const bool stressMode = stressScene_.has_value();
+    const double sceneSeconds = stressMode
+        ? benchmark::StressSceneSeconds(frame.frameIndex)
+        : frame.totalSeconds;
+    XMMATRIX view;
+    if (stressMode)
+    {
+        const benchmark::StressCamera camera =
+            benchmark::SampleStressCamera(frame.frameIndex);
+        view = XMMatrixLookAtLH(
+            XMVectorSet(camera.eye.x, camera.eye.y, camera.eye.z, 1.0F),
+            XMVectorSet(camera.target.x, camera.target.y, camera.target.z, 1.0F),
+            XMVectorSet(0.0F, 1.0F, 0.0F, 0.0F));
+    }
+    else
+    {
+        view = XMMatrixLookAtLH(
+            XMVectorSet(5.5F, 5.0F, -7.0F, 1.0F),
+            XMVectorSet(0.0F, 1.0F, 0.0F, 1.0F),
+            XMVectorSet(0.0F, 1.0F, 0.0F, 0.0F));
+    }
+    const XMMATRIX projection = XMMatrixPerspectiveFovLH(
+        XM_PIDIV4,
+        frame.aspectRatio,
+        0.1F,
+        stressMode ? 200.0F : 100.0F);
     const XMMATRIX viewProjection = view * projection;
     XMFLOAT4X4 viewProjectionStorage;
     XMStoreFloat4x4(&viewProjectionStorage, viewProjection);
+    UpdateLights(context, sceneSeconds);
 
-    const XMMATRIX floorWorld = FloorWorld(floor_.minimumBounds, floor_.maximumBounds);
-    XMFLOAT4X4 floorWorldStorage;
-    XMStoreFloat4x4(&floorWorldStorage, floorWorld);
-    RenderModel(
-        context,
-        floor_,
-        &floorWorldStorage._11,
-        &viewProjectionStorage._11,
-        totalSeconds);
-
-    const XMMATRIX characterWorld =
+    const XMMATRIX floorBase = FloorWorld(floor_.minimumBounds, floor_.maximumBounds);
+    const XMMATRIX characterBase =
         CharacterWorld(character_.minimumBounds, character_.maximumBounds);
-    XMFLOAT4X4 characterWorldStorage;
-    XMStoreFloat4x4(&characterWorldStorage, characterWorld);
-    RenderModel(
-        context,
-        character_,
-        &characterWorldStorage._11,
-        &viewProjectionStorage._11,
-        totalSeconds);
+    RenderStatistics statistics;
+
+    if (!stressMode)
+    {
+        XMFLOAT4X4 floorWorldStorage;
+        XMStoreFloat4x4(&floorWorldStorage, floorBase);
+        Accumulate(
+            statistics,
+            RenderModel(
+                context,
+                floor_,
+                &floorWorldStorage._11,
+                &viewProjectionStorage._11,
+                sceneSeconds));
+
+        XMFLOAT4X4 characterWorldStorage;
+        XMStoreFloat4x4(&characterWorldStorage, characterBase);
+        Accumulate(
+            statistics,
+            RenderModel(
+                context,
+                character_,
+                &characterWorldStorage._11,
+                &viewProjectionStorage._11,
+                sceneSeconds));
+        return statistics;
+    }
+
+    for (const benchmark::SceneInstance& instance : stressScene_->staticInstances)
+    {
+        XMFLOAT4X4 worldStorage;
+        XMStoreFloat4x4(&worldStorage, PlaceInstance(floorBase, instance));
+        Accumulate(
+            statistics,
+            RenderModel(
+                context,
+                floor_,
+                &worldStorage._11,
+                &viewProjectionStorage._11,
+                sceneSeconds));
+    }
+
+    const auto renderCharacters = [&](const std::span<const benchmark::SceneInstance> instances) {
+        for (const benchmark::SceneInstance& instance : instances)
+        {
+            XMFLOAT4X4 worldStorage;
+            XMStoreFloat4x4(&worldStorage, PlaceInstance(characterBase, instance));
+            Accumulate(
+                statistics,
+                RenderModel(
+                    context,
+                    character_,
+                    &worldStorage._11,
+                    &viewProjectionStorage._11,
+                    sceneSeconds + static_cast<double>(instance.animationPhaseSeconds)));
+        }
+    };
+    renderCharacters(stressScene_->players);
+    renderCharacters(stressScene_->ai);
+    return statistics;
 }
 
-void AssetSceneRenderer::RenderModel(
+RenderStatistics AssetSceneRenderer::RenderModel(
     ID3D11DeviceContext* const context,
     const GpuModel& model,
     const float* const worldMatrix,
@@ -362,6 +490,8 @@ void AssetSceneRenderer::RenderModel(
     context->PSSetConstantBuffers(0, 1, &sceneBuffer);
     context->PSSetSamplers(0, 1, &sampler);
 
+    RenderStatistics statistics;
+    statistics.objectCount = 1;
     for (const asset::MeshPart& part : model.assetData.meshParts)
     {
         const GpuMaterial& material = model.materials.at(part.materialIndex);
@@ -378,7 +508,40 @@ void AssetSceneRenderer::RenderModel(
         ID3D11ShaderResourceView* texture = material.texture.Get();
         context->PSSetShaderResources(0, 1, &texture);
         context->DrawIndexed(part.indexCount, part.firstIndex, 0);
+        ++statistics.drawCalls;
+        statistics.triangleCount += part.indexCount / 3U;
     }
+    return statistics;
+}
+
+void AssetSceneRenderer::UpdateLights(
+    ID3D11DeviceContext* const context,
+    const double sceneSeconds) const
+{
+    LightingConstants constants{};
+    if (stressScene_.has_value())
+    {
+        constants.pointLightCount = static_cast<std::uint32_t>(stressScene_->dynamicLights.size());
+        for (std::size_t index = 0; index < stressScene_->dynamicLights.size(); ++index)
+        {
+            const benchmark::DynamicPointLight& light = stressScene_->dynamicLights[index];
+            const float phase = light.phaseRadians + static_cast<float>(sceneSeconds) * 0.75F;
+            constants.pointLights[index].positionAndRadius = DirectX::XMFLOAT4{
+                light.position.x + std::cos(phase) * 1.5F,
+                light.position.y + std::sin(phase * 0.5F) * 0.75F,
+                light.position.z + std::sin(phase) * 1.5F,
+                light.radius};
+            constants.pointLights[index].colorAndIntensity = DirectX::XMFLOAT4{
+                light.color.x,
+                light.color.y,
+                light.color.z,
+                light.intensity};
+        }
+    }
+
+    context->UpdateSubresource(lightingConstantBuffer_.Get(), 0, nullptr, &constants, 0, 0);
+    ID3D11Buffer* lightingBuffer = lightingConstantBuffer_.Get();
+    context->PSSetConstantBuffers(2, 1, &lightingBuffer);
 }
 
 bool AssetSceneRenderer::AssetSceneReady() const noexcept

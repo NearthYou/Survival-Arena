@@ -1,0 +1,10 @@
+{
+  "reviewer": "testing",
+  "findings": [],
+  "residual_risks": [],
+  "testing_gaps": [
+    "PowerShell runner의 build 이후 dirty tree와 HEAD 변경 거부 경로를 자동 검증하는 테스트가 없다.",
+    "GPU 누락이나 adapter 불일치로 runner가 실패해도 environment.json이 남는지 검증하는 테스트가 없다.",
+    "RTX 검증은 clear 색 이외 픽셀만 확인하며 기준 이미지나 보이는 창의 presentation 경로는 비교하지 않는다."
+  ]
+}

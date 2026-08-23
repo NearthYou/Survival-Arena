@@ -12,6 +12,19 @@ cbuffer SkinConstants : register(b1)
     row_major float4x4 BoneMatrices[64];
 };
 
+struct PointLight
+{
+    float4 positionAndRadius;
+    float4 colorAndIntensity;
+};
+
+cbuffer LightingConstants : register(b2)
+{
+    PointLight PointLights[32];
+    uint PointLightCount;
+    float3 LightingPadding;
+};
+
 Texture2D BaseColorTexture : register(t0);
 SamplerState LinearSampler : register(s0);
 
@@ -29,6 +42,7 @@ struct VertexOutput
     float4 position : SV_POSITION;
     float3 normal : NORMAL;
     float2 texcoord : TEXCOORD0;
+    float3 worldPosition : TEXCOORD1;
 };
 
 VertexOutput VSMain(VertexInput input)
@@ -53,6 +67,7 @@ VertexOutput VSMain(VertexInput input)
     output.position = mul(localPosition, WorldViewProjection);
     output.normal = normalize(mul(float4(localNormal, 0.0F), World).xyz);
     output.texcoord = input.texcoord;
+    output.worldPosition = mul(localPosition, World).xyz;
     return output;
 }
 
@@ -64,7 +79,24 @@ float4 PSMain(VertexOutput input) : SV_TARGET
         albedo *= BaseColorTexture.Sample(LinearSampler, input.texcoord);
     }
 
-    const float3 lightDirection = normalize(float3(-0.45F, 0.8F, -0.35F));
-    const float lighting = 0.35F + 0.65F * saturate(dot(normalize(input.normal), lightDirection));
+    const float3 normal = normalize(input.normal);
+    const float3 sunDirection = normalize(float3(-0.45F, 0.8F, -0.35F));
+    float3 lighting = 0.20F + 0.55F * saturate(dot(normal, sunDirection));
+    [loop]
+    for (uint lightIndex = 0; lightIndex < PointLightCount; ++lightIndex)
+    {
+        const PointLight light = PointLights[lightIndex];
+        const float3 toLight = light.positionAndRadius.xyz - input.worldPosition;
+        const float distanceSquared = max(dot(toLight, toLight), 0.0001F);
+        const float distanceToLight = sqrt(distanceSquared);
+        const float attenuationBase = saturate(
+            1.0F - distanceToLight / light.positionAndRadius.w);
+        const float attenuation = attenuationBase * attenuationBase;
+        const float diffuse = saturate(dot(normal, toLight / distanceToLight));
+        lighting += light.colorAndIntensity.rgb
+            * light.colorAndIntensity.w
+            * diffuse
+            * attenuation;
+    }
     return float4(albedo.rgb * lighting, albedo.a);
 }

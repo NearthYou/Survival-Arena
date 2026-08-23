@@ -1,0 +1,27 @@
+{
+  "reviewer": "adversarial",
+  "findings": [
+    {
+      "title": "Build 중 변경된 소스를 이전 SHA로 기록",
+      "severity": "P2",
+      "file": "scripts/run_benchmark.ps1",
+      "line": 32,
+      "why_it_matters": "runner 시작 직후에는 clean이더라도 build가 진행되는 동안 다른 터미널에서 파일을 저장하면 변경 코드가 binary에 들어갈 수 있다. client는 최초 SHA를 summary에 기록해 guard가 성공한 것처럼 보이며 이후 비교가 잘못된 기준을 사용한다. 실행 직전 재검증이 이 TOCTOU 경로를 닫는다.",
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "suggested_fix": "client 실행 직전에 최초 commit SHA와 현재 HEAD를 비교하고 status가 비었는지 다시 확인한다. 둘 중 하나라도 다르면 output 디렉터리를 만들기 전에 종료한다.",
+      "confidence": 75,
+      "evidence": [
+        "scripts/run_benchmark.ps1:32 -- $status = @(& git status --porcelain=v1 --untracked-files=all)",
+        "scripts/run_benchmark.ps1:40-45 -- SHA와 branch도 build 전에 한 번만 읽는다.",
+        "scripts/run_benchmark.ps1:90 -- client 실행 직전에는 Git 상태 확인이 없다."
+      ],
+      "pre_existing": false
+    }
+  ],
+  "residual_risks": [
+    "채택한 실행은 hidden window였기 때문에 GPU forward query는 유효하지만 보이는 창의 presentation 비용과 최종 화면 일치는 기준선에 포함되지 않는다."
+  ],
+  "testing_gaps": []
+}

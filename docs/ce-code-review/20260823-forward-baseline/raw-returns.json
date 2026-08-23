@@ -1,0 +1,88 @@
+[
+  {
+    "reviewer": "correctness",
+    "findings": [
+      {
+        "title": "Build 중 변경된 소스를 이전 SHA로 기록",
+        "severity": "P2",
+        "file": "scripts/run_benchmark.ps1",
+        "line": 32,
+        "confidence": 75,
+        "autofix_class": "gated_auto",
+        "owner": "downstream-resolver",
+        "requires_verification": true,
+        "pre_existing": false,
+        "suggested_fix": "Release build 직후 git rev-parse HEAD와 git status --porcelain을 다시 읽고, 최초 SHA가 달라졌거나 변경 파일이 있으면 client를 시작하기 전에 실패시킨다.",
+        "first_evidence": "scripts/run_benchmark.ps1:32 -- $status = @(& git status --porcelain=v1 --untracked-files=all)"
+      }
+    ],
+    "residual_risks": [],
+    "testing_gaps": []
+  },
+  {
+    "reviewer": "testing",
+    "findings": [],
+    "residual_risks": [],
+    "testing_gaps": [
+      "PowerShell runner의 build 이후 dirty tree와 HEAD 변경 거부 경로를 자동 검증하는 테스트가 없다.",
+      "GPU 누락이나 adapter 불일치로 runner가 실패해도 environment.json이 남는지 검증하는 테스트가 없다.",
+      "RTX 검증은 clear 색 이외 픽셀만 확인하며 기준 이미지나 보이는 창의 presentation 경로는 비교하지 않는다."
+    ]
+  },
+  {
+    "reviewer": "maintainability",
+    "findings": [],
+    "residual_risks": [],
+    "testing_gaps": []
+  },
+  {
+    "reviewer": "performance",
+    "findings": [],
+    "residual_risks": [
+      "기본 600프레임은 검증됐지만 최대 10000프레임에서 query 객체 30000개 생성과 매 프레임 슬롯 순회 비용은 측정하지 않았다."
+    ],
+    "testing_gaps": []
+  },
+  {
+    "reviewer": "reliability",
+    "findings": [
+      {
+        "title": "검증 실패가 실행 환경 증거를 누락",
+        "severity": "P2",
+        "file": "scripts/run_benchmark.ps1",
+        "line": 117,
+        "confidence": 100,
+        "autofix_class": "gated_auto",
+        "owner": "downstream-resolver",
+        "requires_verification": true,
+        "pre_existing": false,
+        "suggested_fix": "summary JSON을 읽은 직후 시스템 환경을 수집해 environment.json을 먼저 쓰고, 그 다음 commit, adapter와 GPU 누락 검증을 수행한다. 실패 사유도 environment.json의 validation 상태에 기록한다.",
+        "first_evidence": "scripts/run_benchmark.ps1:117-119 -- GPU 누락이면 environment 수집 전에 throw한다."
+      }
+    ],
+    "residual_risks": [],
+    "testing_gaps": []
+  },
+  {
+    "reviewer": "adversarial",
+    "findings": [
+      {
+        "title": "Build 중 변경된 소스를 이전 SHA로 기록",
+        "severity": "P2",
+        "file": "scripts/run_benchmark.ps1",
+        "line": 32,
+        "confidence": 75,
+        "autofix_class": "gated_auto",
+        "owner": "downstream-resolver",
+        "requires_verification": true,
+        "pre_existing": false,
+        "suggested_fix": "client 실행 직전에 최초 commit SHA와 현재 HEAD를 비교하고 status가 비었는지 다시 확인한다. 둘 중 하나라도 다르면 output 디렉터리를 만들기 전에 종료한다.",
+        "first_evidence": "scripts/run_benchmark.ps1:32 -- $status = @(& git status --porcelain=v1 --untracked-files=all)"
+      }
+    ],
+    "residual_risks": [
+      "채택한 실행은 hidden window였기 때문에 GPU forward query는 유효하지만 보이는 창의 presentation 비용과 최종 화면 일치는 기준선에 포함되지 않는다."
+    ],
+    "testing_gaps": []
+  }
+]

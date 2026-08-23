@@ -1,0 +1,15 @@
+{
+  "verdicts": [
+    {
+      "#": 1,
+      "validated": true,
+      "reason": "수정 전 첫 실패 디렉터리에 environment.json이 없었고, 수정 후 실제 runner에 잘못된 adapter를 주자 실패하면서 validation.status=failed인 environment.json이 남았다."
+    },
+    {
+      "#": 2,
+      "validated": true,
+      "reason": "runner는 build 전에만 Git 상태를 확인했고 임시 Git 저장소 테스트에서 dirty 변경과 HEAD 이동이 재검증 없이는 통과했다."
+    }
+  ],
+  "independence": "degraded: 저장소 지침에 따라 별도 reviewer 또는 validator를 파견하지 않고 코드 인용과 실행 재현으로 검증"
+}

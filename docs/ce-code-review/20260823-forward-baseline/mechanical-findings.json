@@ -1,0 +1,38 @@
+{
+  "status": "complete",
+  "findings": [
+    {
+      "#": 1,
+      "title": "검증 실패가 실행 환경 증거를 누락",
+      "severity": "P2",
+      "file": "scripts/run_benchmark.ps1",
+      "line": 117,
+      "confidence": 100,
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "pre_existing": false,
+      "reviewers": ["reliability"],
+      "independent_reviewers": ["reliability"]
+    },
+    {
+      "#": 2,
+      "title": "Build 중 변경된 소스를 이전 SHA로 기록",
+      "severity": "P2",
+      "file": "scripts/run_benchmark.ps1",
+      "line": 32,
+      "confidence": 100,
+      "autofix_class": "gated_auto",
+      "owner": "downstream-resolver",
+      "requires_verification": true,
+      "pre_existing": false,
+      "reviewers": ["correctness", "adversarial"],
+      "independent_reviewers": ["correctness", "adversarial"]
+    }
+  ],
+  "pre_existing_findings": [],
+  "suppressed_findings": [],
+  "suppressed_by_confidence": {},
+  "malformed_findings": 0,
+  "malformed_returns": 0
+}

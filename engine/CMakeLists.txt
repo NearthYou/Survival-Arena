@@ -11,13 +11,31 @@ target_include_directories(
 )
 dxa_enable_project_warnings(dxa_engine_assets)
 
+add_library(
+    dxa_engine_benchmark
+    STATIC
+        src/benchmark/BenchmarkReport.cpp
+        src/benchmark/StressScene.cpp
+)
+target_include_directories(
+    dxa_engine_benchmark
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+dxa_enable_project_warnings(dxa_engine_benchmark)
+
 add_library(dxa_engine_core INTERFACE)
 target_include_directories(
     dxa_engine_core
     INTERFACE
         ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
-target_link_libraries(dxa_engine_core INTERFACE dxa_engine_assets)
+target_link_libraries(
+    dxa_engine_core
+    INTERFACE
+        dxa_engine_assets
+        dxa_engine_benchmark
+)
 
 if(WIN32)
     find_package(directxtk CONFIG REQUIRED)
@@ -28,7 +46,9 @@ if(WIN32)
             src/windows/AssetSceneRenderer.cpp
             src/windows/EngineApp.cpp
             src/windows/ForwardRenderer.cpp
+            src/windows/GpuFrameTimer.cpp
             src/windows/GraphicsDevice.cpp
+            src/windows/SystemMetrics.cpp
             src/windows/Window.cpp
     )
     target_include_directories(
@@ -53,6 +73,7 @@ if(WIN32)
             d3dcompiler
             dxgi
             Microsoft::DirectXTK
+            psapi
     )
     dxa_enable_project_warnings(dxa_engine)
 endif()
