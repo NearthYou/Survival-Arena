@@ -189,6 +189,8 @@ decision은 5Hz, 이동과 combat resolution은 30Hz로 수행한다.
 
 match 내부의 경쟁 봇 판단은 참가자 ID 1부터 23까지만 담당한다. 사용자 actor인 ID 0의 command는 외부에서 제출한다. visible mode에서는 실제 입력과 app의 자동 공격 선택을 사용하고, WARP 자동 검증과 benchmark에서는 같은 `DecideContender` 함수를 외부 controller로 호출해 ID 0도 자동 조작한다. 따라서 내부 AI가 사용자 이동 command를 덮어쓰지 않는다.
 
+`MatchConfig::enableInternalBots`의 기본값은 true다. 실제 offline match와 canonical 실행은 내부 AI를 사용한다. 수동 command, combat, zone 재현 fixture는 false로 설정해 같은 simulation을 bot 개입 없이 검증한다. runtime 사용자 옵션으로 노출하지 않는다.
+
 1. safe zone 밖이면 zone center로 이동
 2. 체력이 45 이하이고 가까운 MedKit이 있으면 회복 아이템으로 이동
 3. Blade만 들고 있고 가까운 Rifle 또는 ArcPulse가 있으면 weapon loot로 이동
@@ -235,7 +237,9 @@ zone 피해는 30 tick마다 한 번 정수 피해로 적용한다. 한 tick의 
 
 4배 확대 결과는 tick 10,561이었고 5배 확대 결과도 tick 10,560이었다. arena와 zone을 같은 비율로 키우면 초기 교전만 줄고 상대적인 zone 수렴 시점은 유지되어 추가 확대 효과가 없었다. 사용자 승인 후 arena는 256×256으로 유지하고 zone 수렴 곡선을 128, 112, 96, 80, 64, 0으로 변경했다. 8분까지 전장을 넓게 유지하고 sudden death에서만 64에서 0으로 집중한다.
 
-종료 tick acceptance는 바꾸지 않는다. 새 곡선에서 같은 seed를 다시 실행해 14,400에서 18,000 tick을 실제로 통과하는지 검증한다.
+종료 tick acceptance는 바꾸지 않았다. 새 곡선에서 같은 seed를 다시 실행해 14,400에서 18,000 tick을 통과하는지 검증했다.
+
+새 곡선의 canonical seed 결과는 tick 16,147, 약 538.2초였고 winner는 ActorId 2였다. 같은 입력 두 실행의 snapshot summary와 event checksum이 일치했으며 Windows Debug 전체 226개 테스트가 통과했다. 이 값은 Debug 자동 검증 결과이고 공식 성능 원본은 Release benchmark 단계에서 별도로 생성한다.
 
 ## 이벤트 순서
 

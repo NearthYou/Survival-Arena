@@ -187,6 +187,7 @@ struct MatchConfig
     std::uint32_t arcPulseLootCount = 12U;
     std::uint32_t medKitLootCount = 24U;
     std::uint32_t botDecisionIntervalTicks = 6U;
+    bool enableInternalBots = true;
     std::uint32_t maximumSpawnAttempts = 4096U;
     std::uint32_t suddenDeathTick = 14400U;
     std::uint32_t hardTimeoutTick = 18000U;
@@ -962,6 +963,8 @@ Run: `./scripts/build.ps1`
 Run: `./scripts/test.ps1`
 
 Expected: canonical result repeats and the full suite passes.
+
+Measured Debug result after the approved zone-curve revision: finished tick 16,147, about 538.2 seconds, winner ActorId 2, and 226 of 226 tests passed. Treat this as functional evidence only; Task 11 produces the official Release timing raw.
 
 - [ ] Step 7: Commit
 
