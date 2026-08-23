@@ -30,6 +30,7 @@ public:
 
     [[nodiscard]] ID3D11Device* Device() const noexcept;
     [[nodiscard]] ID3D11DeviceContext* Context() const noexcept;
+    [[nodiscard]] ID3D11RenderTargetView* BackBufferRenderTargetView() const noexcept;
     [[nodiscard]] bool DebugLayerEnabled() const noexcept;
 
 private:

@@ -30,6 +30,12 @@ struct RenderStatistics
     std::uint32_t drawCalls = 0;
     std::uint64_t triangleCount = 0;
     std::uint32_t objectCount = 0;
+    std::uint32_t shadowDrawCalls = 0;
+    std::uint32_t gBufferDrawCalls = 0;
+    std::uint32_t lightingDrawCalls = 0;
+    std::uint32_t transparentDrawCalls = 0;
+    std::uint32_t visibleObjectCount = 0;
+    std::uint32_t culledObjectCount = 0;
 };
 
 class AssetSceneRenderer

@@ -50,6 +50,7 @@ if(WIN32)
             src/windows/ForwardRenderer.cpp
             src/windows/GpuFrameTimer.cpp
             src/windows/GraphicsDevice.cpp
+            src/windows/HybridDeferredRenderer.cpp
             src/windows/SystemMetrics.cpp
             src/windows/Window.cpp
     )
