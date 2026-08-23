@@ -51,3 +51,17 @@ seed, 해상도, adapter, warmup frame, measured frame 중 하나라도 다르�
 각 case는 1회 준비 뒤 5회 측정한다. `samples.csv`에 모든 시간 sample을, `result.json`에 중앙값, 후보 또는 bounds 검사 수, checksum을 기록한다. `environment.json`에는 clean commit, CPU, compiler와 runner 검증 결과를 둔다.
 
 현재 채택한 원본은 [20260823-182453 실행](spatial-navigation/20260823-182453-5d318dea-seed20260823/RESULT.md)이다. behavior tree는 FSM보다 느렸으므로 성능 최적화 결과로 분류하지 않는다. 앞선 `20260823-180321` 실행은 grid 후보 계수 단위가 linear와 달라 비채택 원본으로 보존한다.
+
+## 오프라인 경기 tick
+
+플랫폼 중립 `OfflineMatch`의 결정성과 30Hz tick 비용은 별도 Release runner로 확인한다.
+
+```powershell
+./scripts/run_offline_match_benchmark.ps1
+```
+
+runner는 깨끗한 commit과 고정 seed를 확인한다. 같은 경기를 두 번 실행해 종료 tick, winner, 종료 이유, 생존 수와 event checksum이 같은지 먼저 비교한다. 두 결과가 다르면 측정과 출력 생성을 거부한다. 세 번째 경기에서는 매 tick의 `OfflineMatch::Step()` 시간, 생존 참가자 수, 생존 중립 AI 수와 event 수를 기록한다.
+
+`ticks.csv`는 tick별 원본, `result.json`은 경기 결과와 P50, P95, max, `environment.json`은 commit, compiler, OS, CPU와 runner 검증 상태를 보관한다. tick 시간에는 내부 bot, 이동, pickup, combat, zone과 결과 판정이 들어간다. 외부 actor 0 판단, snapshot 복사, event drain, 파일 쓰기와 이후 네트워크 처리는 측정하지 않는다.
+
+현재 채택한 원본은 [20260824-021115 실행](offline-match/20260824-021115-11abbe54-seed20260823/RESULT.md)이다. canonical 경기는 tick 16,147, 약 538.2초에 끝났고 repeat mismatch는 0건이었다. Release tick P95는 0.2219ms였다.
