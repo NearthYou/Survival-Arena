@@ -15,6 +15,7 @@ add_executable(
     simulation_math_test.cpp
     simulation_nav_agent_test.cpp
     simulation_navmesh_test.cpp
+    simulation_spatial_index_test.cpp
     foundation_test.cpp
 )
 target_link_libraries(
