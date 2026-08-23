@@ -14,7 +14,7 @@
 ./scripts/run_simulation_benchmark.ps1
 ```
 
-- commit: `e1d0ef0fe99b4b0ff36ff8e85fd8da25ab9d25d9`
+- commit: `5d318deab1b23e050d846b5321def30380d65adb`
 - Windows 11 Home 10.0.26200
 - AMD Ryzen 7 6800HS Creator Edition, 8 core, 16 logical processor
 - MSVC `194435228`, Release
@@ -26,13 +26,13 @@
 - AI decision 100,000건
 - case마다 준비 1회, 측정 5회, 중앙값 사용
 
-원본은 [20260823-180321 실행](../benchmarks/spatial-navigation/20260823-180321-e1d0ef0f-seed20260823/RESULT.md)에 있다. `samples.csv`에는 8개 case의 40개 시간 샘플이 있고 `result.json`에는 workload, checksum, 후보 수가 들어 있다.
+원본은 [20260823-182453 실행](../benchmarks/spatial-navigation/20260823-182453-5d318dea-seed20260823/RESULT.md)에 있다. `samples.csv`에는 8개 case의 40개 시간 샘플이 있고 `result.json`에는 workload, checksum, 후보 수가 들어 있다.
 
 ## 관찰
 
-첫 기준선은 모든 NavMesh 삼각형을 끝까지 확인했다. 경계에 걸린 점에서 가장 작은 ID를 선택해야 했기 때문에 첫 삼각형을 찾았다고 바로 끝내지도 않았다. 100,000개 point를 8,192개 삼각형에 대입한 후보 수는 819,200,000회였다. Release 중앙값은 6531.8967ms였다.
+첫 기준선은 모든 NavMesh 삼각형을 끝까지 확인했다. 경계에 걸린 점에서 가장 작은 ID를 선택해야 했기 때문에 첫 삼각형을 찾았다고 바로 끝내지도 않았다. 100,000개 point를 8,192개 삼각형에 대입한 후보 수는 819,200,000회였다. Release 중앙값은 7308.5022ms였다.
 
-일반 충돌과 picking도 객체 1,124개를 매 query마다 확인했다. AABB와 point query 모두 정확 판정 횟수가 22,480,000회였다. 중앙값은 각각 105.3028ms와 239.1861ms였다.
+일반 충돌과 picking도 객체 1,124개를 매 query마다 확인했다. AABB와 point query 모두 정확 판정 횟수가 22,480,000회였다. 중앙값은 각각 127.7082ms와 237.3660ms였다.
 
 이 숫자는 한 frame 시간이 아니다. 고정된 대량 query 묶음을 한 번 처리한 시간이다. 실제 게임 frame과 혼동하지 않도록 원본에도 query 수를 같이 기록했다.
 
@@ -65,22 +65,28 @@ Windows 데모에서는 우클릭 좌표를 곧바로 이동 좌표로 쓰지 �
 | Spatial linear와 quadtree picking | 20,000 | `2a4d6959cbae9df9` | 0 |
 | FSM과 behavior tree | 100,000 | `d82152856faf9747` | 0 |
 
-하나라도 다르면 benchmark는 종료 코드 3으로 끝나고 실행 디렉터리를 만들지 않는다. 이번 실행의 mismatch는 0건이고 전체 결과 checksum은 `8cf777ffee07e269`였다.
+하나라도 다르면 benchmark는 종료 코드 3으로 끝나고 실행 디렉터리를 만들지 않는다. 이번 실행의 mismatch는 0건이고 전체 결과 checksum은 `8e4984d98be95814`였다.
+
+## 리뷰에서 다시 셌다
+
+첫 공식 실행에서는 linear가 확인한 모든 triangle을 후보로 셌지만 grid는 AABB를 통과한 triangle만 셌다. 두 숫자의 단위가 달라 후보 감소율을 그대로 비교할 수 없었다. 같은 cell에 있지만 query point와 AABB가 겹치지 않는 triangle을 넣은 회귀 테스트에서 linear 2회, grid 1회가 나와 문제를 재현했다.
+
+`candidatesTested`를 실제 순회한 triangle 수로 통일하고 commit `5d318dea`에서 다시 측정했다. 첫 실행의 JSON과 CSV는 삭제하거나 덮어쓰지 않고 비채택 원본으로 남겼다. 아래 표와 대표 링크는 수정 뒤 실행만 사용한다.
 
 ## 측정
 
 | case | 중앙값 | 정확 검사 또는 평가 수 | 기준선 대비 시간 변화 |
 | --- | ---: | ---: | ---: |
-| Nav linear | 6531.8967ms | 819,200,000 | 기준 |
-| Nav grid | 31.7562ms | 118,612 | -99.513829% |
-| Spatial linear AABB | 105.3028ms | 22,480,000 | 기준 |
-| Loose quadtree AABB | 66.7800ms | 13,323,264 | -36.582883% |
-| Spatial linear picking | 239.1861ms | 22,480,000 | 기준 |
-| Loose quadtree picking | 117.9218ms | 13,138,396 | -50.698724% |
-| FSM | 3.0411ms | 100,000 | 기준 |
-| Behavior tree | 6.1247ms | 100,000 | +101.397521% |
+| Nav linear | 7308.5022ms | 819,200,000 | 기준 |
+| Nav grid | 36.4567ms | 2,499,032 | -99.501174% |
+| Spatial linear AABB | 127.7082ms | 22,480,000 | 기준 |
+| Loose quadtree AABB | 89.8673ms | 13,323,264 | -29.630752% |
+| Spatial linear picking | 237.3660ms | 22,480,000 | 기준 |
+| Loose quadtree picking | 132.2706ms | 13,138,396 | -44.275676% |
+| FSM | 2.8142ms | 100,000 | 기준 |
+| Behavior tree | 6.6890ms | 100,000 | +137.687442% |
 
-Nav grid의 후보 수는 99.985521% 줄었다. quadtree의 정확 AABB 판정 수는 범위 query에서 40.732811%, picking에서 41.555178% 줄었다. 세 공간 질의는 결과를 유지하면서 검사량과 시간이 같이 줄어 최적화 사례로 채택했다.
+Nav grid의 후보 수는 99.694942% 줄었다. quadtree의 정확 AABB 판정 수는 범위 query에서 40.732811%, picking에서 41.555178% 줄었다. 세 공간 질의는 결과를 유지하면서 검사량과 시간이 같이 줄어 최적화 사례로 채택했다.
 
 behavior tree는 반대였다. 같은 명령을 내지만 FSM보다 약 두 배 오래 걸렸다. virtual dispatch와 `std::function` 호출이 있는 현재 구조에서 예상할 수 있는 비용이다. 행동 트리를 속도 개선으로 설명하지 않고, 행동 우선순위를 node 단위로 분리한 구조 변경으로만 기록한다.
 
@@ -97,7 +103,7 @@ behavior tree는 반대였다. 같은 명령을 내지만 FSM보다 약 두 배 
 
 ## 검증
 
-공식 측정 전 Windows Debug 전체 CTest 132개와 MSVC Release 빌드를 통과했다. WARP navigation smoke는 120 frame 뒤 제어 캐릭터가 `(20, 10)`에 도착했고 non-clear pixel과 NavMesh 내부 위치를 확인했다.
+공식 측정 전 Windows Debug 전체 CTest 136개와 MSVC Release 빌드를 통과했다. WARP navigation smoke는 120 frame 뒤 제어 캐릭터가 `(20, 10)`에 도착했고 non-clear pixel과 NavMesh 내부 위치를 확인했다. screen ray 계산은 중앙 클릭, 지면과 평행한 ray, 0 크기 viewport를 별도 테스트했다.
 
 로컬에는 GCC와 Clang이 없었고 Docker Desktop 엔진도 실행 중이 아니었다. Linux 결과를 통과했다고 쓰지 않는다. PR의 Ubuntu CI를 Linux 검증 문턱으로 남겼다.
 

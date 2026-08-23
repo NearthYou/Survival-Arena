@@ -2,7 +2,7 @@
 
 C++20과 DirectX 11로 만드는 쿼터뷰 생존 아레나 포트폴리오다. 렌더링 엔진과 게임 클라이언트를 중심에 두고, 24인 방과 권위형 게임 서버를 같은 저장소에서 검증한다.
 
-현재 단계는 6주차 공간 탐색, NavMesh, 행동 트리까지 구현된 상태다. 고정 seed 장면의 하이브리드 렌더링에 플랫폼 중립 NavMesh, 결정적 A*, NavAgent, loose quadtree와 근접형 및 원거리형 AI 명령을 연결했다. 8,192 triangle Release 묶음 측정에서 point query 중앙값은 전수 탐색 6531.8967ms에서 공간 그리드 31.7562ms로 줄었고 결과 불일치는 0건이었다. 오프라인 전투와 네트워크는 아직 없다. 진행 상태와 검증 결과는 [프로젝트 계획](docs/PROJECT_PLAN.md)과 `docs/devlog/`에 남긴다.
+현재 단계는 6주차 공간 탐색, NavMesh, 행동 트리까지 구현된 상태다. 고정 seed 장면의 하이브리드 렌더링에 플랫폼 중립 NavMesh, 결정적 A*, NavAgent, loose quadtree와 근접형 및 원거리형 AI 명령을 연결했다. 8,192 triangle Release 묶음 측정에서 point query 중앙값은 전수 탐색 7308.5022ms에서 공간 그리드 36.4567ms로 줄었고 결과 불일치는 0건이었다. 오프라인 전투와 네트워크는 아직 없다. 진행 상태와 검증 결과는 [프로젝트 계획](docs/PROJECT_PLAN.md)과 `docs/devlog/`에 남긴다.
 
 ## 원칙
 

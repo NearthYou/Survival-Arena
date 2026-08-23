@@ -1,5 +1,7 @@
 # 공간 탐색과 AI Release 측정
 
+이 실행은 원본 보존용이며 대표 수치로 채택하지 않는다. 리뷰에서 `nav_grid.candidates`가 AABB 전필터를 통과한 triangle만 세고 `nav_linear.candidates`는 순회한 모든 triangle을 세는 단위 차이를 확인했다. [수정 뒤 실행](../20260823-182453-5d318dea-seed20260823/RESULT.md)을 현재 결과로 사용한다.
+
 ## 실행 조건
 
 - run ID: `20260823-180321-e1d0ef0f-seed20260823`

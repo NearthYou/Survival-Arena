@@ -34,20 +34,20 @@ point query와 일반 충돌을 하나의 uniform grid로 통일할 수도 있�
 
 A* 뒤에 funnel algorithm을 바로 붙이면 삼각형 중심을 지나는 꺾인 경로를 줄일 수 있다. 이번 질문은 경로 선택의 결정성과 이동량 소비였기 때문에 portal 계산과 smoothing은 남겼다.
 
-FSM만 유지하는 방법은 현재 행동 수에서는 가장 빠르고 단순하다. 실제 Release 측정에서도 100,000개 명령 중앙값이 FSM 3.0411ms, behavior tree 6.1247ms였다. behavior tree는 성능 최적화로 채택한 것이 아니다. 조건과 행동을 node 단위로 분리하고 기존 명령 동등성을 자동 검증할 수 있다는 구조적 이유로 추가했다.
+FSM만 유지하는 방법은 현재 행동 수에서는 가장 빠르고 단순하다. 실제 Release 측정에서도 100,000개 명령 중앙값이 FSM 2.8142ms, behavior tree 6.6890ms였다. behavior tree는 성능 최적화로 채택한 것이 아니다. 조건과 행동을 node 단위로 분리하고 기존 명령 동등성을 자동 검증할 수 있다는 구조적 이유로 추가했다.
 
 ## 결과
 
-깨끗한 commit `e1d0ef0fe99b4b0ff36ff8e85fd8da25ab9d25d9`에서 Windows 11, Ryzen 7 6800HS, MSVC Release, seed `20260823`으로 실행했다. 각 case는 1회 준비 뒤 5회 측정했고 중앙값을 사용했다. 측정 전에 NavMesh 100,000건, AABB 20,000건, picking 20,000건, AI 100,000건의 결과를 비교했다. mismatch는 0건이고 네 비교 쌍의 checksum이 각각 같았다.
+깨끗한 commit `5d318deab1b23e050d846b5321def30380d65adb`에서 Windows 11, Ryzen 7 6800HS, MSVC Release, seed `20260823`으로 실행했다. 각 case는 1회 준비 뒤 5회 측정했고 중앙값을 사용했다. 측정 전에 NavMesh 100,000건, AABB 20,000건, picking 20,000건, AI 100,000건의 결과를 비교했다. mismatch는 0건이고 네 비교 쌍의 checksum이 각각 같았다.
 
 | 비교 | 기준선 중앙값 | 가속 또는 대체 중앙값 | 검사량 변화 |
 | --- | ---: | ---: | ---: |
-| Nav point query | 6531.8967ms | 31.7562ms | 819,200,000에서 118,612, -99.985521% |
-| AABB query | 105.3028ms | 66.7800ms | 22,480,000에서 13,323,264, -40.732811% |
-| Point picking | 239.1861ms | 117.9218ms | 22,480,000에서 13,138,396, -41.555178% |
-| AI command | FSM 3.0411ms | Behavior tree 6.1247ms | 둘 다 100,000회 |
+| Nav point query | 7308.5022ms | 36.4567ms | 819,200,000에서 2,499,032, -99.694942% |
+| AABB query | 127.7082ms | 89.8673ms | 22,480,000에서 13,323,264, -40.732811% |
+| Point picking | 237.3660ms | 132.2706ms | 22,480,000에서 13,138,396, -41.555178% |
+| AI command | FSM 2.8142ms | Behavior tree 6.6890ms | 둘 다 100,000회 |
 
-공간 그리드는 이 고정 workload에서 전수 탐색보다 99.513829% 짧았다. loose quadtree는 AABB query 36.582883%, picking 50.698724% 짧았다. 반면 behavior tree는 FSM보다 101.397521% 오래 걸렸다. AI 결과는 구조 전환의 비용으로 기록하며 성능 개선 사례로 분류하지 않는다.
+공간 그리드는 이 고정 workload에서 전수 탐색보다 99.501174% 짧았다. loose quadtree는 AABB query 29.630752%, picking 44.275676% 짧았다. 반면 behavior tree는 FSM보다 137.687442% 오래 걸렸다. AI 결과는 구조 전환의 비용으로 기록하며 성능 개선 사례로 분류하지 않는다.
 
 ## 결과에 따른 제약
 
@@ -57,4 +57,4 @@ NavMesh 경계의 최저 ID 규칙과 A* 동률 순서는 네트워크 결정성
 
 behavior tree는 현재 memoryless synchronous tree다. 여러 tick에 걸친 행동, 중단 후 재개, blackboard 수명 관리가 필요해지면 `Running` 상태 저장 방식을 별도 ADR로 결정한다.
 
-측정 원본은 [공간 탐색 실행](../benchmarks/spatial-navigation/20260823-180321-e1d0ef0f-seed20260823/RESULT.md)에 둔다.
+측정 원본은 [공간 탐색 실행](../benchmarks/spatial-navigation/20260823-182453-5d318dea-seed20260823/RESULT.md)에 둔다.

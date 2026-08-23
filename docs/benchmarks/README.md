@@ -50,4 +50,4 @@ seed, 해상도, adapter, warmup frame, measured frame 중 하나라도 다르�
 
 각 case는 1회 준비 뒤 5회 측정한다. `samples.csv`에 모든 시간 sample을, `result.json`에 중앙값, 후보 또는 bounds 검사 수, checksum을 기록한다. `environment.json`에는 clean commit, CPU, compiler와 runner 검증 결과를 둔다.
 
-현재 채택한 원본은 [20260823-180321 실행](spatial-navigation/20260823-180321-e1d0ef0f-seed20260823/RESULT.md)이다. behavior tree는 FSM보다 느렸으므로 성능 최적화 결과로 분류하지 않는다.
+현재 채택한 원본은 [20260823-182453 실행](spatial-navigation/20260823-182453-5d318dea-seed20260823/RESULT.md)이다. behavior tree는 FSM보다 느렸으므로 성능 최적화 결과로 분류하지 않는다. 앞선 `20260823-180321` 실행은 grid 후보 계수 단위가 linear와 달라 비채택 원본으로 보존한다.
