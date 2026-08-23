@@ -32,6 +32,19 @@ struct VertexOutput
     float2 texcoord : TEXCOORD0;
 };
 
+struct InstancedVertexInput
+{
+    float3 position : POSITION;
+    float3 normal : NORMAL;
+    float2 texcoord : TEXCOORD0;
+    uint4 jointIndices : BLENDINDICES0;
+    float4 jointWeights : BLENDWEIGHT0;
+    float4 worldRow0 : INSTANCEWORLD0;
+    float4 worldRow1 : INSTANCEWORLD1;
+    float4 worldRow2 : INSTANCEWORLD2;
+    float4 worldRow3 : INSTANCEWORLD3;
+};
+
 struct GBufferOutput
 {
     float4 albedoRoughness : SV_TARGET0;
@@ -51,11 +64,17 @@ float2 EncodeOctahedralNormal(float3 normal)
     return normal.xy;
 }
 
-VertexOutput VSMain(VertexInput input)
+void SkinVertex(
+    float3 position,
+    float3 normal,
+    uint4 jointIndices,
+    float4 jointWeights,
+    out float4 localPosition,
+    out float3 localNormal)
 {
-    float4 localPosition = float4(input.position, 1.0F);
-    float3 localNormal = input.normal;
-    const float weightSum = dot(input.jointWeights, 1.0F);
+    localPosition = float4(position, 1.0F);
+    localNormal = normal;
+    const float weightSum = dot(jointWeights, 1.0F);
     if (weightSum > 0.0001F)
     {
         localPosition = 0.0F;
@@ -63,19 +82,56 @@ VertexOutput VSMain(VertexInput input)
         [unroll]
         for (uint influence = 0; influence < 4; ++influence)
         {
-            const float weight = input.jointWeights[influence];
+            const float weight = jointWeights[influence];
             localPosition += mul(
-                float4(input.position, 1.0F),
-                BoneMatrices[input.jointIndices[influence]]) * weight;
+                float4(position, 1.0F),
+                BoneMatrices[jointIndices[influence]]) * weight;
             localNormal += mul(
-                float4(input.normal, 0.0F),
-                BoneMatrices[input.jointIndices[influence]]).xyz * weight;
+                float4(normal, 0.0F),
+                BoneMatrices[jointIndices[influence]]).xyz * weight;
         }
     }
+}
+
+VertexOutput VSMain(VertexInput input)
+{
+    float4 localPosition;
+    float3 localNormal;
+    SkinVertex(
+        input.position,
+        input.normal,
+        input.jointIndices,
+        input.jointWeights,
+        localPosition,
+        localNormal);
 
     VertexOutput output;
     output.position = mul(localPosition, WorldViewProjection);
     output.normal = normalize(mul(float4(localNormal, 0.0F), World).xyz);
+    output.texcoord = input.texcoord;
+    return output;
+}
+
+VertexOutput VSInstanced(InstancedVertexInput input)
+{
+    float4 localPosition;
+    float3 localNormal;
+    SkinVertex(
+        input.position,
+        input.normal,
+        input.jointIndices,
+        input.jointWeights,
+        localPosition,
+        localNormal);
+    const row_major float4x4 instanceWorld = float4x4(
+        input.worldRow0,
+        input.worldRow1,
+        input.worldRow2,
+        input.worldRow3);
+
+    VertexOutput output;
+    output.position = mul(localPosition, mul(instanceWorld, WorldViewProjection));
+    output.normal = normalize(mul(float4(localNormal, 0.0F), instanceWorld).xyz);
     output.texcoord = input.texcoord;
     return output;
 }

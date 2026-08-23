@@ -101,10 +101,18 @@ TEST(HybridDeferredRenderer, RendersGBufferAndLightingOnWarp)
         dxa::engine::benchmark::PlayerCount
         + dxa::engine::benchmark::AiCount
         + dxa::engine::benchmark::StaticInstanceCount);
+    constexpr std::uint32_t ExpectedShadowDraws = static_cast<std::uint32_t>(
+        dxa::engine::benchmark::PlayerCount
+        + dxa::engine::benchmark::AiCount
+        + 1U);
     EXPECT_EQ(ExpectedObjects, statistics.objectCount);
-    EXPECT_EQ(ExpectedObjects, statistics.shadowDrawCalls);
+    EXPECT_EQ(ExpectedObjects, statistics.visibleObjectCount + statistics.culledObjectCount);
+    EXPECT_EQ(ExpectedShadowDraws, statistics.shadowDrawCalls);
+    EXPECT_GT(statistics.culledObjectCount, 0U);
     EXPECT_GT(statistics.gBufferDrawCalls, 0U);
+    EXPECT_LT(statistics.gBufferDrawCalls, 2240U);
     EXPECT_EQ(1U, statistics.lightingDrawCalls);
+    EXPECT_EQ(1U, statistics.transparentDrawCalls);
     EXPECT_TRUE(renderer.ShadowMapReady());
     EXPECT_TRUE(containsRenderedPixel);
     EXPECT_TRUE(debugErrors.empty())

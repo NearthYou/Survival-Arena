@@ -59,12 +59,30 @@ private:
         const float* worldMatrix,
         const float* viewProjectionMatrix,
         double totalSeconds) const;
+    [[nodiscard]] RenderStatistics RenderGeometryInstances(
+        ID3D11DeviceContext* context,
+        const GpuModel& model,
+        ID3D11Buffer* instanceBuffer,
+        std::uint32_t instanceCount,
+        const float* viewProjectionMatrix) const;
     [[nodiscard]] RenderStatistics RenderShadowModel(
         ID3D11DeviceContext* context,
         const GpuModel& model,
         const float* worldMatrix,
         const float* lightViewProjectionMatrix,
         double totalSeconds) const;
+    [[nodiscard]] RenderStatistics RenderShadowInstances(
+        ID3D11DeviceContext* context,
+        const GpuModel& model,
+        ID3D11Buffer* instanceBuffer,
+        std::uint32_t instanceCount,
+        const float* lightViewProjectionMatrix) const;
+    [[nodiscard]] RenderStatistics RenderTransparentMarkers(
+        ID3D11DeviceContext* context,
+        ID3D11RenderTargetView* backBufferRenderTarget,
+        ID3D11Buffer* instanceBuffer,
+        std::uint32_t instanceCount,
+        const float* viewProjectionMatrix) const;
     void UpdateLightingConstants(
         ID3D11DeviceContext* context,
         const float* inverseViewProjectionMatrix,
@@ -72,11 +90,16 @@ private:
         double sceneSeconds) const;
 
     Microsoft::WRL::ComPtr<ID3D11VertexShader> geometryVertexShader_;
+    Microsoft::WRL::ComPtr<ID3D11VertexShader> geometryInstancedVertexShader_;
     Microsoft::WRL::ComPtr<ID3D11PixelShader> geometryPixelShader_;
     Microsoft::WRL::ComPtr<ID3D11InputLayout> geometryInputLayout_;
+    Microsoft::WRL::ComPtr<ID3D11InputLayout> instancedInputLayout_;
     Microsoft::WRL::ComPtr<ID3D11VertexShader> lightingVertexShader_;
     Microsoft::WRL::ComPtr<ID3D11PixelShader> lightingPixelShader_;
     Microsoft::WRL::ComPtr<ID3D11VertexShader> shadowVertexShader_;
+    Microsoft::WRL::ComPtr<ID3D11VertexShader> shadowInstancedVertexShader_;
+    Microsoft::WRL::ComPtr<ID3D11VertexShader> transparentVertexShader_;
+    Microsoft::WRL::ComPtr<ID3D11PixelShader> transparentPixelShader_;
     Microsoft::WRL::ComPtr<ID3D11Buffer> sceneConstantBuffer_;
     Microsoft::WRL::ComPtr<ID3D11Buffer> skinConstantBuffer_;
     Microsoft::WRL::ComPtr<ID3D11Buffer> lightingConstantBuffer_;
@@ -84,6 +107,10 @@ private:
     Microsoft::WRL::ComPtr<ID3D11SamplerState> gBufferSampler_;
     Microsoft::WRL::ComPtr<ID3D11SamplerState> shadowSampler_;
     Microsoft::WRL::ComPtr<ID3D11RasterizerState> shadowRasterizerState_;
+    Microsoft::WRL::ComPtr<ID3D11BlendState> transparentBlendState_;
+    Microsoft::WRL::ComPtr<ID3D11DepthStencilState> transparentDepthState_;
+    Microsoft::WRL::ComPtr<ID3D11Buffer> staticInstanceBuffer_;
+    Microsoft::WRL::ComPtr<ID3D11Buffer> markerInstanceBuffer_;
     Microsoft::WRL::ComPtr<ID3D11Texture2D> albedoRoughnessTexture_;
     Microsoft::WRL::ComPtr<ID3D11RenderTargetView> albedoRoughnessRenderTarget_;
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> albedoRoughnessShaderResource_;

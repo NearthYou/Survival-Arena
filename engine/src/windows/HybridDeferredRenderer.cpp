@@ -1,6 +1,7 @@
 #include <dxa/engine/HybridDeferredRenderer.hpp>
 
 #include <dxa/engine/assets/AnimationPlayback.hpp>
+#include <dxa/engine/benchmark/PerspectiveFrustum.hpp>
 
 #include <DDSTextureLoader.h>
 #include <DirectXMath.h>
@@ -13,6 +14,7 @@
 #include <cstdint>
 #include <cstring>
 #include <limits>
+#include <numbers>
 #include <sstream>
 #include <span>
 #include <stdexcept>
@@ -22,6 +24,17 @@ namespace dxa::engine
 {
 namespace
 {
+inline constexpr std::uint32_t StaticInstanceCapacity =
+    static_cast<std::uint32_t>(benchmark::StaticInstanceCount);
+inline constexpr std::uint32_t MarkerInstanceCount = 64;
+
+struct InstanceTransform
+{
+    DirectX::XMFLOAT4X4 world;
+};
+
+static_assert(sizeof(InstanceTransform) == sizeof(float) * 16);
+
 struct SceneConstants
 {
     DirectX::XMFLOAT4X4 worldViewProjection;
@@ -221,6 +234,48 @@ void CreateShadowTarget(
         "ID3D11Device::CreateShaderResourceView(shadow map)");
 }
 
+void CreateInstanceBuffer(
+    ID3D11Device* const device,
+    const std::uint32_t capacity,
+    Microsoft::WRL::ComPtr<ID3D11Buffer>& buffer,
+    const char* operation)
+{
+    D3D11_BUFFER_DESC description{};
+    description.ByteWidth = static_cast<UINT>(sizeof(InstanceTransform) * capacity);
+    description.Usage = D3D11_USAGE_DYNAMIC;
+    description.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+    description.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+    RequireSuccess(
+        device->CreateBuffer(&description, nullptr, buffer.ReleaseAndGetAddressOf()),
+        operation);
+}
+
+void UploadInstanceTransforms(
+    ID3D11DeviceContext* const context,
+    ID3D11Buffer* const buffer,
+    const std::span<const InstanceTransform> transforms,
+    const std::uint32_t capacity)
+{
+    if (context == nullptr || buffer == nullptr || transforms.size() > capacity)
+    {
+        throw std::invalid_argument{"instance upload exceeds its reusable buffer capacity"};
+    }
+    if (transforms.empty())
+    {
+        return;
+    }
+
+    D3D11_MAPPED_SUBRESOURCE mapped{};
+    RequireSuccess(
+        context->Map(buffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped),
+        "ID3D11DeviceContext::Map(instance transforms)");
+    std::memcpy(
+        mapped.pData,
+        transforms.data(),
+        transforms.size_bytes());
+    context->Unmap(buffer, 0);
+}
+
 [[nodiscard]] DirectX::XMMATRIX LoadMatrix(const float* elements)
 {
     return DirectX::XMLoadFloat4x4(
@@ -297,6 +352,8 @@ void HybridDeferredRenderer::Initialize(
 
     const auto geometryVertexBytecode = CompileShader(
         config.shaderRoot / L"hybrid_geometry.hlsl", "VSMain", "vs_5_0");
+    const auto geometryInstancedVertexBytecode = CompileShader(
+        config.shaderRoot / L"hybrid_geometry.hlsl", "VSInstanced", "vs_5_0");
     const auto geometryPixelBytecode = CompileShader(
         config.shaderRoot / L"hybrid_geometry.hlsl", "PSMain", "ps_5_0");
     const auto lightingVertexBytecode = CompileShader(
@@ -305,6 +362,12 @@ void HybridDeferredRenderer::Initialize(
         config.shaderRoot / L"hybrid_lighting.hlsl", "PSMain", "ps_5_0");
     const auto shadowVertexBytecode = CompileShader(
         config.shaderRoot / L"hybrid_shadow.hlsl", "VSMain", "vs_5_0");
+    const auto shadowInstancedVertexBytecode = CompileShader(
+        config.shaderRoot / L"hybrid_shadow.hlsl", "VSInstanced", "vs_5_0");
+    const auto transparentVertexBytecode = CompileShader(
+        config.shaderRoot / L"hybrid_transparent.hlsl", "VSMain", "vs_5_0");
+    const auto transparentPixelBytecode = CompileShader(
+        config.shaderRoot / L"hybrid_transparent.hlsl", "PSMain", "ps_5_0");
 
     RequireSuccess(
         device->CreateVertexShader(
@@ -320,6 +383,13 @@ void HybridDeferredRenderer::Initialize(
             nullptr,
             geometryPixelShader_.ReleaseAndGetAddressOf()),
         "ID3D11Device::CreatePixelShader(hybrid geometry)");
+    RequireSuccess(
+        device->CreateVertexShader(
+            geometryInstancedVertexBytecode->GetBufferPointer(),
+            geometryInstancedVertexBytecode->GetBufferSize(),
+            nullptr,
+            geometryInstancedVertexShader_.ReleaseAndGetAddressOf()),
+        "ID3D11Device::CreateVertexShader(instanced geometry)");
     RequireSuccess(
         device->CreateVertexShader(
             lightingVertexBytecode->GetBufferPointer(),
@@ -341,6 +411,27 @@ void HybridDeferredRenderer::Initialize(
             nullptr,
             shadowVertexShader_.ReleaseAndGetAddressOf()),
         "ID3D11Device::CreateVertexShader(shadow)");
+    RequireSuccess(
+        device->CreateVertexShader(
+            shadowInstancedVertexBytecode->GetBufferPointer(),
+            shadowInstancedVertexBytecode->GetBufferSize(),
+            nullptr,
+            shadowInstancedVertexShader_.ReleaseAndGetAddressOf()),
+        "ID3D11Device::CreateVertexShader(instanced shadow)");
+    RequireSuccess(
+        device->CreateVertexShader(
+            transparentVertexBytecode->GetBufferPointer(),
+            transparentVertexBytecode->GetBufferSize(),
+            nullptr,
+            transparentVertexShader_.ReleaseAndGetAddressOf()),
+        "ID3D11Device::CreateVertexShader(transparent markers)");
+    RequireSuccess(
+        device->CreatePixelShader(
+            transparentPixelBytecode->GetBufferPointer(),
+            transparentPixelBytecode->GetBufferSize(),
+            nullptr,
+            transparentPixelShader_.ReleaseAndGetAddressOf()),
+        "ID3D11Device::CreatePixelShader(transparent markers)");
 
     constexpr D3D11_INPUT_ELEMENT_DESC InputElements[]{
         {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, static_cast<UINT>(offsetof(asset::Vertex, position)), D3D11_INPUT_PER_VERTEX_DATA, 0},
@@ -356,6 +447,25 @@ void HybridDeferredRenderer::Initialize(
             geometryVertexBytecode->GetBufferSize(),
             geometryInputLayout_.ReleaseAndGetAddressOf()),
         "ID3D11Device::CreateInputLayout(hybrid geometry)");
+
+    constexpr D3D11_INPUT_ELEMENT_DESC InstancedInputElements[]{
+        {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, static_cast<UINT>(offsetof(asset::Vertex, position)), D3D11_INPUT_PER_VERTEX_DATA, 0},
+        {"NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, static_cast<UINT>(offsetof(asset::Vertex, normal)), D3D11_INPUT_PER_VERTEX_DATA, 0},
+        {"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, static_cast<UINT>(offsetof(asset::Vertex, texcoord)), D3D11_INPUT_PER_VERTEX_DATA, 0},
+        {"BLENDINDICES", 0, DXGI_FORMAT_R16G16B16A16_UINT, 0, static_cast<UINT>(offsetof(asset::Vertex, jointIndices)), D3D11_INPUT_PER_VERTEX_DATA, 0},
+        {"BLENDWEIGHT", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, static_cast<UINT>(offsetof(asset::Vertex, jointWeights)), D3D11_INPUT_PER_VERTEX_DATA, 0},
+        {"INSTANCEWORLD", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, 0, D3D11_INPUT_PER_INSTANCE_DATA, 1},
+        {"INSTANCEWORLD", 1, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, 16, D3D11_INPUT_PER_INSTANCE_DATA, 1},
+        {"INSTANCEWORLD", 2, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, 32, D3D11_INPUT_PER_INSTANCE_DATA, 1},
+        {"INSTANCEWORLD", 3, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, 48, D3D11_INPUT_PER_INSTANCE_DATA, 1}};
+    RequireSuccess(
+        device->CreateInputLayout(
+            InstancedInputElements,
+            static_cast<UINT>(std::size(InstancedInputElements)),
+            geometryInstancedVertexBytecode->GetBufferPointer(),
+            geometryInstancedVertexBytecode->GetBufferSize(),
+            instancedInputLayout_.ReleaseAndGetAddressOf()),
+        "ID3D11Device::CreateInputLayout(instanced geometry)");
 
     const auto createConstantBuffer = [device](
                                           const UINT byteWidth,
@@ -430,6 +540,43 @@ void HybridDeferredRenderer::Initialize(
             &shadowRasterizerDescription,
             shadowRasterizerState_.ReleaseAndGetAddressOf()),
         "ID3D11Device::CreateRasterizerState(shadow bias)");
+
+    D3D11_BLEND_DESC transparentBlendDescription{};
+    transparentBlendDescription.RenderTarget[0].BlendEnable = TRUE;
+    transparentBlendDescription.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
+    transparentBlendDescription.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+    transparentBlendDescription.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
+    transparentBlendDescription.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_ONE;
+    transparentBlendDescription.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_ZERO;
+    transparentBlendDescription.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
+    transparentBlendDescription.RenderTarget[0].RenderTargetWriteMask =
+        D3D11_COLOR_WRITE_ENABLE_ALL;
+    RequireSuccess(
+        device->CreateBlendState(
+            &transparentBlendDescription,
+            transparentBlendState_.ReleaseAndGetAddressOf()),
+        "ID3D11Device::CreateBlendState(transparent markers)");
+
+    D3D11_DEPTH_STENCIL_DESC transparentDepthDescription{};
+    transparentDepthDescription.DepthEnable = TRUE;
+    transparentDepthDescription.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
+    transparentDepthDescription.DepthFunc = D3D11_COMPARISON_LESS_EQUAL;
+    RequireSuccess(
+        device->CreateDepthStencilState(
+            &transparentDepthDescription,
+            transparentDepthState_.ReleaseAndGetAddressOf()),
+        "ID3D11Device::CreateDepthStencilState(transparent markers)");
+
+    CreateInstanceBuffer(
+        device,
+        StaticInstanceCapacity,
+        staticInstanceBuffer_,
+        "ID3D11Device::CreateBuffer(static instances)");
+    CreateInstanceBuffer(
+        device,
+        MarkerInstanceCount,
+        markerInstanceBuffer_,
+        "ID3D11Device::CreateBuffer(marker instances)");
 
     CreateColorTarget(
         device,
@@ -604,6 +751,43 @@ RenderStatistics HybridDeferredRenderer::Render(
         CharacterWorld(character_.minimumBounds, character_.maximumBounds);
     RenderStatistics statistics;
 
+    const benchmark::PerspectiveFrustum frustum = benchmark::BuildPerspectiveFrustum(
+        camera,
+        std::numbers::pi_v<float> / 4.0F,
+        frame.aspectRatio,
+        0.1F,
+        200.0F);
+    std::vector<InstanceTransform> allStaticTransforms;
+    std::vector<InstanceTransform> visibleStaticTransforms;
+    allStaticTransforms.reserve(benchmark::StaticInstanceCount);
+    visibleStaticTransforms.reserve(benchmark::StaticInstanceCount);
+    for (const benchmark::SceneInstance& instance : stressScene_.staticInstances)
+    {
+        InstanceTransform transform;
+        XMStoreFloat4x4(&transform.world, PlaceInstance(floorBase, instance));
+        allStaticTransforms.push_back(transform);
+        if (frustum.IntersectsSphere(benchmark::BoundingSphere{
+                benchmark::SceneVector3{
+                    instance.position.x,
+                    instance.position.y + 0.5F,
+                    instance.position.z},
+                2.5F * instance.uniformScale / 0.25F}))
+        {
+            visibleStaticTransforms.push_back(transform);
+        }
+    }
+    const std::uint32_t visibleStaticCount =
+        static_cast<std::uint32_t>(visibleStaticTransforms.size());
+    statistics.objectCount += StaticInstanceCapacity;
+    statistics.visibleObjectCount += visibleStaticCount;
+    statistics.culledObjectCount += StaticInstanceCapacity - visibleStaticCount;
+
+    UploadInstanceTransforms(
+        context,
+        staticInstanceBuffer_.Get(),
+        allStaticTransforms,
+        StaticInstanceCapacity);
+
     constexpr std::array<ID3D11ShaderResourceView*, 1> NullShadowResource{};
     context->PSSetShaderResources(3, 1, NullShadowResource.data());
     context->OMSetRenderTargets(0, nullptr, shadowDepthStencilView_.Get());
@@ -611,19 +795,14 @@ RenderStatistics HybridDeferredRenderer::Render(
     context->RSSetState(shadowRasterizerState_.Get());
     context->ClearDepthStencilView(
         shadowDepthStencilView_.Get(), D3D11_CLEAR_DEPTH, 1.0F, 0);
-    for (const benchmark::SceneInstance& instance : stressScene_.staticInstances)
-    {
-        XMFLOAT4X4 worldStorage;
-        XMStoreFloat4x4(&worldStorage, PlaceInstance(floorBase, instance));
-        Accumulate(
-            statistics,
-            RenderShadowModel(
-                context,
-                floor_,
-                &worldStorage._11,
-                &lightViewProjectionStorage._11,
-                sceneSeconds));
-    }
+    Accumulate(
+        statistics,
+        RenderShadowInstances(
+            context,
+            floor_,
+            staticInstanceBuffer_.Get(),
+            StaticInstanceCapacity,
+            &lightViewProjectionStorage._11));
     const auto renderShadowCharacters = [&](
         const std::span<const benchmark::SceneInstance> instances) {
         for (const benchmark::SceneInstance& instance : instances)
@@ -659,23 +838,37 @@ RenderStatistics HybridDeferredRenderer::Render(
     context->ClearDepthStencilView(
         depthStencilView_.Get(), D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0F, 0);
 
-    for (const benchmark::SceneInstance& instance : stressScene_.staticInstances)
+    UploadInstanceTransforms(
+        context,
+        staticInstanceBuffer_.Get(),
+        visibleStaticTransforms,
+        StaticInstanceCapacity);
+    if (visibleStaticCount > 0)
     {
-        XMFLOAT4X4 worldStorage;
-        XMStoreFloat4x4(&worldStorage, PlaceInstance(floorBase, instance));
         Accumulate(
             statistics,
-            RenderGeometryModel(
+            RenderGeometryInstances(
                 context,
                 floor_,
-                &worldStorage._11,
-                &viewProjectionStorage._11,
-                sceneSeconds));
+                staticInstanceBuffer_.Get(),
+                visibleStaticCount,
+                &viewProjectionStorage._11));
     }
 
     const auto renderCharacters = [&](const std::span<const benchmark::SceneInstance> instances) {
         for (const benchmark::SceneInstance& instance : instances)
         {
+            if (!frustum.IntersectsSphere(benchmark::BoundingSphere{
+                    benchmark::SceneVector3{
+                        instance.position.x,
+                        instance.position.y + 1.1F,
+                        instance.position.z},
+                    1.6F * instance.uniformScale}))
+            {
+                ++statistics.objectCount;
+                ++statistics.culledObjectCount;
+                continue;
+            }
             XMFLOAT4X4 worldStorage;
             XMStoreFloat4x4(&worldStorage, PlaceInstance(characterBase, instance));
             Accumulate(
@@ -732,6 +925,42 @@ RenderStatistics HybridDeferredRenderer::Render(
         0,
         static_cast<UINT>(NullResources.size()),
         NullResources.data());
+
+    std::vector<InstanceTransform> markerTransforms;
+    markerTransforms.reserve(MarkerInstanceCount);
+    const float zoneRadius = 42.0F
+        - std::fmod(static_cast<float>(sceneSeconds) * 2.0F, 28.0F);
+    constexpr float TwoPi = std::numbers::pi_v<float> * 2.0F;
+    for (std::uint32_t index = 0; index < MarkerInstanceCount; ++index)
+    {
+        const float angle = static_cast<float>(index)
+            / static_cast<float>(MarkerInstanceCount)
+            * TwoPi;
+        InstanceTransform transform;
+        XMStoreFloat4x4(
+            &transform.world,
+            floorBase
+                * XMMatrixScaling(0.07F, 0.20F, 0.07F)
+                * XMMatrixRotationY(-angle)
+                * XMMatrixTranslation(
+                    std::cos(angle) * zoneRadius,
+                    0.08F,
+                    std::sin(angle) * zoneRadius));
+        markerTransforms.push_back(transform);
+    }
+    UploadInstanceTransforms(
+        context,
+        markerInstanceBuffer_.Get(),
+        markerTransforms,
+        MarkerInstanceCount);
+    Accumulate(
+        statistics,
+        RenderTransparentMarkers(
+            context,
+            backBufferRenderTarget,
+            markerInstanceBuffer_.Get(),
+            MarkerInstanceCount,
+            &viewProjectionStorage._11));
     return statistics;
 }
 
@@ -788,6 +1017,48 @@ RenderStatistics HybridDeferredRenderer::RenderShadowModel(
     statistics.drawCalls = 1;
     statistics.shadowDrawCalls = 1;
     statistics.triangleCount = indexCount / 3U;
+    return statistics;
+}
+
+RenderStatistics HybridDeferredRenderer::RenderShadowInstances(
+    ID3D11DeviceContext* const context,
+    const GpuModel& model,
+    ID3D11Buffer* const instanceBuffer,
+    const std::uint32_t instanceCount,
+    const float* const lightViewProjectionMatrix) const
+{
+    using namespace DirectX;
+
+    if (context == nullptr || instanceBuffer == nullptr || instanceCount == 0)
+    {
+        throw std::invalid_argument{"instanced shadow draw requires instances"};
+    }
+
+    SceneConstants constants{};
+    XMStoreFloat4x4(
+        &constants.worldViewProjection,
+        LoadMatrix(lightViewProjectionMatrix));
+    context->UpdateSubresource(sceneConstantBuffer_.Get(), 0, nullptr, &constants, 0, 0);
+
+    ID3D11Buffer* vertexBuffers[]{model.vertexBuffer.Get(), instanceBuffer};
+    constexpr UINT Strides[]{sizeof(asset::Vertex), sizeof(InstanceTransform)};
+    constexpr UINT Offsets[]{0, 0};
+    ID3D11Buffer* sceneBuffer = sceneConstantBuffer_.Get();
+    context->IASetInputLayout(instancedInputLayout_.Get());
+    context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    context->IASetVertexBuffers(0, 2, vertexBuffers, Strides, Offsets);
+    context->IASetIndexBuffer(model.indexBuffer.Get(), DXGI_FORMAT_R32_UINT, 0);
+    context->VSSetShader(shadowInstancedVertexShader_.Get(), nullptr, 0);
+    context->VSSetConstantBuffers(0, 1, &sceneBuffer);
+    context->PSSetShader(nullptr, nullptr, 0);
+
+    const UINT indexCount = static_cast<UINT>(model.assetData.indices.size());
+    context->DrawIndexedInstanced(indexCount, instanceCount, 0, 0, 0);
+    RenderStatistics statistics;
+    statistics.drawCalls = 1;
+    statistics.shadowDrawCalls = 1;
+    statistics.triangleCount = static_cast<std::uint64_t>(indexCount / 3U)
+        * instanceCount;
     return statistics;
 }
 
@@ -858,6 +1129,128 @@ RenderStatistics HybridDeferredRenderer::RenderGeometryModel(
         ++statistics.gBufferDrawCalls;
         statistics.triangleCount += part.indexCount / 3U;
     }
+    return statistics;
+}
+
+RenderStatistics HybridDeferredRenderer::RenderGeometryInstances(
+    ID3D11DeviceContext* const context,
+    const GpuModel& model,
+    ID3D11Buffer* const instanceBuffer,
+    const std::uint32_t instanceCount,
+    const float* const viewProjectionMatrix) const
+{
+    using namespace DirectX;
+
+    if (context == nullptr || instanceBuffer == nullptr || instanceCount == 0)
+    {
+        throw std::invalid_argument{"instanced G-Buffer draw requires instances"};
+    }
+
+    SkinConstants skinConstants{};
+    for (XMFLOAT4X4& matrix : skinConstants.boneMatrices)
+    {
+        XMStoreFloat4x4(&matrix, XMMatrixIdentity());
+    }
+    context->UpdateSubresource(skinConstantBuffer_.Get(), 0, nullptr, &skinConstants, 0, 0);
+
+    ID3D11Buffer* vertexBuffers[]{model.vertexBuffer.Get(), instanceBuffer};
+    constexpr UINT Strides[]{sizeof(asset::Vertex), sizeof(InstanceTransform)};
+    constexpr UINT Offsets[]{0, 0};
+    ID3D11Buffer* sceneBuffer = sceneConstantBuffer_.Get();
+    ID3D11Buffer* skinBuffer = skinConstantBuffer_.Get();
+    ID3D11SamplerState* materialSampler = materialSampler_.Get();
+    context->IASetInputLayout(instancedInputLayout_.Get());
+    context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    context->IASetVertexBuffers(0, 2, vertexBuffers, Strides, Offsets);
+    context->IASetIndexBuffer(model.indexBuffer.Get(), DXGI_FORMAT_R32_UINT, 0);
+    context->VSSetShader(geometryInstancedVertexShader_.Get(), nullptr, 0);
+    context->VSSetConstantBuffers(0, 1, &sceneBuffer);
+    context->VSSetConstantBuffers(1, 1, &skinBuffer);
+    context->PSSetShader(geometryPixelShader_.Get(), nullptr, 0);
+    context->PSSetConstantBuffers(0, 1, &sceneBuffer);
+    context->PSSetSamplers(0, 1, &materialSampler);
+
+    RenderStatistics statistics;
+    for (const asset::MeshPart& part : model.assetData.meshParts)
+    {
+        const GpuMaterial& material = model.materials.at(part.materialIndex);
+        SceneConstants constants{};
+        XMStoreFloat4x4(
+            &constants.worldViewProjection,
+            LoadMatrix(viewProjectionMatrix));
+        XMStoreFloat4x4(&constants.world, XMMatrixIdentity());
+        constants.baseColor = XMFLOAT4{
+            material.baseColor.x,
+            material.baseColor.y,
+            material.baseColor.z,
+            material.baseColor.w};
+        constants.hasTexture = material.texture != nullptr ? 1U : 0U;
+        context->UpdateSubresource(sceneConstantBuffer_.Get(), 0, nullptr, &constants, 0, 0);
+        ID3D11ShaderResourceView* texture = material.texture.Get();
+        context->PSSetShaderResources(0, 1, &texture);
+        context->DrawIndexedInstanced(
+            part.indexCount,
+            instanceCount,
+            part.firstIndex,
+            0,
+            0);
+        ++statistics.drawCalls;
+        ++statistics.gBufferDrawCalls;
+        statistics.triangleCount += static_cast<std::uint64_t>(part.indexCount / 3U)
+            * instanceCount;
+    }
+    return statistics;
+}
+
+RenderStatistics HybridDeferredRenderer::RenderTransparentMarkers(
+    ID3D11DeviceContext* const context,
+    ID3D11RenderTargetView* const backBufferRenderTarget,
+    ID3D11Buffer* const instanceBuffer,
+    const std::uint32_t instanceCount,
+    const float* const viewProjectionMatrix) const
+{
+    using namespace DirectX;
+
+    if (context == nullptr
+        || backBufferRenderTarget == nullptr
+        || instanceBuffer == nullptr
+        || instanceCount == 0)
+    {
+        throw std::invalid_argument{"transparent marker pass requires instances"};
+    }
+
+    SceneConstants constants{};
+    XMStoreFloat4x4(
+        &constants.worldViewProjection,
+        LoadMatrix(viewProjectionMatrix));
+    context->UpdateSubresource(sceneConstantBuffer_.Get(), 0, nullptr, &constants, 0, 0);
+
+    ID3D11Buffer* vertexBuffers[]{floor_.vertexBuffer.Get(), instanceBuffer};
+    constexpr UINT Strides[]{sizeof(asset::Vertex), sizeof(InstanceTransform)};
+    constexpr UINT Offsets[]{0, 0};
+    ID3D11Buffer* sceneBuffer = sceneConstantBuffer_.Get();
+    context->OMSetRenderTargets(1, &backBufferRenderTarget, depthStencilView_.Get());
+    context->OMSetBlendState(transparentBlendState_.Get(), nullptr, 0xFFFFFFFFU);
+    context->OMSetDepthStencilState(transparentDepthState_.Get(), 0);
+    context->RSSetViewports(1, &viewport_);
+    context->IASetInputLayout(instancedInputLayout_.Get());
+    context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    context->IASetVertexBuffers(0, 2, vertexBuffers, Strides, Offsets);
+    context->IASetIndexBuffer(floor_.indexBuffer.Get(), DXGI_FORMAT_R32_UINT, 0);
+    context->VSSetShader(transparentVertexShader_.Get(), nullptr, 0);
+    context->VSSetConstantBuffers(0, 1, &sceneBuffer);
+    context->PSSetShader(transparentPixelShader_.Get(), nullptr, 0);
+
+    const UINT indexCount = static_cast<UINT>(floor_.assetData.indices.size());
+    context->DrawIndexedInstanced(indexCount, instanceCount, 0, 0, 0);
+    context->OMSetBlendState(nullptr, nullptr, 0xFFFFFFFFU);
+    context->OMSetDepthStencilState(nullptr, 0);
+
+    RenderStatistics statistics;
+    statistics.drawCalls = 1;
+    statistics.transparentDrawCalls = 1;
+    statistics.triangleCount = static_cast<std::uint64_t>(indexCount / 3U)
+        * instanceCount;
     return statistics;
 }
 

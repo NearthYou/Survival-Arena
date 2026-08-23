@@ -46,6 +46,10 @@ if(WIN32)
             "${PROJECT_SOURCE_DIR}/assets/shaders/hybrid_shadow.hlsl"
             "$<TARGET_FILE_DIR:dxa_client>/shaders/hybrid_shadow.hlsl"
         COMMAND
+            ${CMAKE_COMMAND} -E copy_if_different
+            "${PROJECT_SOURCE_DIR}/assets/shaders/hybrid_transparent.hlsl"
+            "$<TARGET_FILE_DIR:dxa_client>/shaders/hybrid_transparent.hlsl"
+        COMMAND
             ${CMAKE_COMMAND} -E copy_directory
             "${PROJECT_SOURCE_DIR}/assets/runtime"
             "$<TARGET_FILE_DIR:dxa_client>/assets"
@@ -110,6 +114,15 @@ if(WIN32)
                 ${CMAKE_COMMAND}
                 "-DSOURCE_FILE=${PROJECT_SOURCE_DIR}/assets/shaders/hybrid_shadow.hlsl"
                 "-DDEPLOYED_FILE=$<TARGET_FILE_DIR:dxa_client>/shaders/hybrid_shadow.hlsl"
+                -P "${PROJECT_SOURCE_DIR}/cmake/VerifyFileMatch.cmake"
+        )
+
+        add_test(
+            NAME Client.HybridTransparentShaderDeployment
+            COMMAND
+                ${CMAKE_COMMAND}
+                "-DSOURCE_FILE=${PROJECT_SOURCE_DIR}/assets/shaders/hybrid_transparent.hlsl"
+                "-DDEPLOYED_FILE=$<TARGET_FILE_DIR:dxa_client>/shaders/hybrid_transparent.hlsl"
                 -P "${PROJECT_SOURCE_DIR}/cmake/VerifyFileMatch.cmake"
         )
 
