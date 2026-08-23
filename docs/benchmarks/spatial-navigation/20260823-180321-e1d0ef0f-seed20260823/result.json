@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "seed": 20260823,
+  "commit_sha": "e1d0ef0fe99b4b0ff36ff8e85fd8da25ab9d25d9",
+  "build_configuration": "Release",
+  "compiler": {"id": "MSVC", "version": "194435228"},
+  "cpu": {"logical_processors": 16},
+  "operating_system": "Windows",
+  "sample_count": 5,
+  "mismatch_count": 0,
+  "result_checksum": "8cf777ffee07e269",
+  "workload": {
+    "navmesh_cells": 4096,
+    "navmesh_triangles": 8192,
+    "nav_queries": 100000,
+    "spatial_entities": 1124,
+    "aabb_queries": 20000,
+    "pick_queries": 20000,
+    "ai_decisions": 100000
+  },
+  "cases": {
+    "nav_linear": {
+      "median_ms": 6531.896700,
+      "candidates": 819200000,
+      "checksum": "8995d4e2c5340501",
+      "samples_ms": [6535.761400, 6932.517600, 6378.101800, 6531.896700, 6288.364300]
+    },
+    "nav_grid": {
+      "median_ms": 31.756200,
+      "candidates": 118612,
+      "checksum": "8995d4e2c5340501",
+      "samples_ms": [31.527600, 30.682400, 31.756200, 36.221900, 35.115700]
+    },
+    "spatial_linear_aabb": {
+      "median_ms": 105.302800,
+      "bounds_tested": 22480000,
+      "checksum": "aa659a673b1def5c",
+      "samples_ms": [105.123300, 105.956600, 103.658400, 106.271200, 105.302800]
+    },
+    "spatial_quadtree_aabb": {
+      "median_ms": 66.780000,
+      "bounds_tested": 13323264,
+      "checksum": "aa659a673b1def5c",
+      "samples_ms": [66.780000, 66.259100, 66.786800, 65.938900, 69.590500]
+    },
+    "spatial_linear_pick": {
+      "median_ms": 239.186100,
+      "bounds_tested": 22480000,
+      "checksum": "2a4d6959cbae9df9",
+      "samples_ms": [237.144300, 230.043700, 239.186100, 263.801600, 241.534500]
+    },
+    "spatial_quadtree_pick": {
+      "median_ms": 117.921800,
+      "bounds_tested": 13138396,
+      "checksum": "2a4d6959cbae9df9",
+      "samples_ms": [128.702800, 126.518800, 117.412200, 116.547300, 117.921800]
+    },
+    "ai_fsm": {
+      "median_ms": 3.041100,
+      "evaluations": 100000,
+      "checksum": "d82152856faf9747",
+      "samples_ms": [2.951200, 3.041100, 2.875000, 3.221300, 3.137200]
+    },
+    "ai_behavior_tree": {
+      "median_ms": 6.124700,
+      "evaluations": 100000,
+      "checksum": "d82152856faf9747",
+      "samples_ms": [6.081800, 5.964300, 6.348900, 6.176300, 6.124700]
+    }
+
+  }
+}

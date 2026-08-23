@@ -5,6 +5,14 @@
 
 namespace dxa::engine
 {
+struct PointerPosition
+{
+    std::int32_t x = 0;
+    std::int32_t y = 0;
+
+    [[nodiscard]] bool operator==(const PointerPosition&) const = default;
+};
+
 class InputState
 {
 public:
@@ -12,6 +20,8 @@ public:
     {
         pressed_.fill(false);
         released_.fill(false);
+        rightPointerPressed_ = false;
+        rightPointerReleased_ = false;
     }
 
     void SetKey(const std::uint8_t key, const bool down) noexcept
@@ -42,6 +52,33 @@ public:
                 released_[index] = true;
             }
         }
+        if (rightPointerDown_)
+        {
+            rightPointerDown_ = false;
+            rightPointerReleased_ = true;
+        }
+    }
+
+    void SetPointerPosition(const std::int32_t x, const std::int32_t y) noexcept
+    {
+        pointer_ = PointerPosition{x, y};
+    }
+
+    void SetRightPointerButton(const bool down) noexcept
+    {
+        if (rightPointerDown_ == down)
+        {
+            return;
+        }
+        rightPointerDown_ = down;
+        if (down)
+        {
+            rightPointerPressed_ = true;
+        }
+        else
+        {
+            rightPointerReleased_ = true;
+        }
     }
 
     [[nodiscard]] bool IsDown(const std::uint8_t key) const noexcept
@@ -59,9 +96,33 @@ public:
         return released_[key];
     }
 
+    [[nodiscard]] PointerPosition Pointer() const noexcept
+    {
+        return pointer_;
+    }
+
+    [[nodiscard]] bool IsRightPointerDown() const noexcept
+    {
+        return rightPointerDown_;
+    }
+
+    [[nodiscard]] bool WasRightPointerPressed() const noexcept
+    {
+        return rightPointerPressed_;
+    }
+
+    [[nodiscard]] bool WasRightPointerReleased() const noexcept
+    {
+        return rightPointerReleased_;
+    }
+
 private:
     std::array<bool, 256> current_{};
     std::array<bool, 256> pressed_{};
     std::array<bool, 256> released_{};
+    PointerPosition pointer_;
+    bool rightPointerDown_ = false;
+    bool rightPointerPressed_ = false;
+    bool rightPointerReleased_ = false;
 };
 } // namespace dxa::engine

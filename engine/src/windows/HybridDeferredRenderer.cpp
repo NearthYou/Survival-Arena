@@ -881,6 +881,22 @@ RenderStatistics HybridDeferredRenderer::Render(
     return statistics;
 }
 
+void HybridDeferredRenderer::SetControlledPlayerPosition(
+    const benchmark::SceneVector3 position)
+{
+    if (!std::isfinite(position.x)
+        || !std::isfinite(position.y)
+        || !std::isfinite(position.z))
+    {
+        throw std::invalid_argument{"controlled player position must be finite"};
+    }
+    if (stressScene_.players.empty())
+    {
+        throw std::logic_error{"controlled player is unavailable before initialization"};
+    }
+    stressScene_.players.front().position = position;
+}
+
 bool HybridDeferredRenderer::ShadowMapReady() const noexcept
 {
     return shadowVertexShader_ != nullptr

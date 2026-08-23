@@ -1,5 +1,7 @@
 #include <dxa/engine/Window.hpp>
 
+#include <windowsx.h>
+
 #include <stdexcept>
 
 namespace dxa::engine
@@ -152,10 +154,51 @@ LRESULT Window::HandleMessage(
             inputState_->SetKey(static_cast<std::uint8_t>(wParam), false);
         }
         return DefWindowProcW(window, message, wParam, lParam);
+    case WM_MOUSEMOVE:
+        if (inputState_ != nullptr)
+        {
+            inputState_->SetPointerPosition(
+                static_cast<std::int32_t>(GET_X_LPARAM(lParam)),
+                static_cast<std::int32_t>(GET_Y_LPARAM(lParam)));
+        }
+        return 0;
+    case WM_RBUTTONDOWN:
+        if (inputState_ != nullptr)
+        {
+            inputState_->SetPointerPosition(
+                static_cast<std::int32_t>(GET_X_LPARAM(lParam)),
+                static_cast<std::int32_t>(GET_Y_LPARAM(lParam)));
+            inputState_->SetRightPointerButton(true);
+        }
+        SetCapture(window);
+        return 0;
+    case WM_RBUTTONUP:
+        if (inputState_ != nullptr)
+        {
+            inputState_->SetPointerPosition(
+                static_cast<std::int32_t>(GET_X_LPARAM(lParam)),
+                static_cast<std::int32_t>(GET_Y_LPARAM(lParam)));
+            inputState_->SetRightPointerButton(false);
+        }
+        if (GetCapture() == window)
+        {
+            ReleaseCapture();
+        }
+        return 0;
+    case WM_CAPTURECHANGED:
+        if (inputState_ != nullptr)
+        {
+            inputState_->SetRightPointerButton(false);
+        }
+        return 0;
     case WM_KILLFOCUS:
         if (inputState_ != nullptr)
         {
             inputState_->ReleaseAll();
+        }
+        if (GetCapture() == window)
+        {
+            ReleaseCapture();
         }
         return 0;
     case WM_CLOSE:

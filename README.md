@@ -2,7 +2,7 @@
 
 C++20과 DirectX 11로 만드는 쿼터뷰 생존 아레나 포트폴리오다. 렌더링 엔진과 게임 클라이언트를 중심에 두고, 24인 방과 권위형 게임 서버를 같은 저장소에서 검증한다.
 
-현재 단계는 5주차 하이브리드 디퍼드와 인스턴싱까지 구현된 상태다. 고정 seed 장면에 캐릭터 24명, AI 100개, 정적 객체 1,000개와 동적 광원 32개를 배치하고 포워드와 하이브리드 경로를 같은 camera path로 비교한다. RTX 3050 Ti의 1920×1080 Release 측정에서 GPU P95는 3.885056ms에서 2.174976ms, draw call P50은 2,240회에서 1,148회로 줄었다. 게임 로직과 네트워크는 아직 없다. 진행 상태와 검증 결과는 [프로젝트 계획](docs/PROJECT_PLAN.md)과 `docs/devlog/`에 남긴다.
+현재 단계는 6주차 공간 탐색, NavMesh, 행동 트리까지 구현된 상태다. 고정 seed 장면의 하이브리드 렌더링에 플랫폼 중립 NavMesh, 결정적 A*, NavAgent, loose quadtree와 근접형 및 원거리형 AI 명령을 연결했다. 8,192 triangle Release 묶음 측정에서 point query 중앙값은 전수 탐색 7308.5022ms에서 공간 그리드 36.4567ms로 줄었고 결과 불일치는 0건이었다. 오프라인 전투와 네트워크는 아직 없다. 진행 상태와 검증 결과는 [프로젝트 계획](docs/PROJECT_PLAN.md)과 `docs/devlog/`에 남긴다.
 
 ## 원칙
 
@@ -35,6 +35,14 @@ Linux 서버 빌드는 이후 마일스톤에서 Docker와 CI로 함께 검증�
 ./out/build/windows-msvc-vs-debug/apps/client/Debug/dxa_client.exe --warp --hidden --no-vsync --frames 3 --verify-render --verify-asset-scene --render-path hybrid-deferred
 ```
 
+NavMesh 이동 수직 기능은 별도 데모에서 확인한다. 창을 띄운 실행에서는 지면을 우클릭하고, 자동 검증에서는 같은 `NavAgent` 경로를 60Hz로 진행한다.
+
+```powershell
+./out/build/windows-msvc-vs-debug/apps/navigation_demo/Debug/dxa_navigation_demo.exe
+
+./out/build/windows-msvc-vs-debug/apps/navigation_demo/Debug/dxa_navigation_demo.exe --warp --hidden --frames 120 --auto-destination 20 10 --verify-render
+```
+
 원본 에셋을 다시 변환하려면 다음 명령을 사용한다.
 
 ```powershell
@@ -48,6 +56,12 @@ Linux 서버 빌드는 이후 마일스톤에서 Docker와 CI로 함께 검증�
 ./scripts/run_benchmark.ps1
 ```
 
+공간 탐색과 AI 비교는 별도 Release runner로 실행한다. 결과 동등성 검사를 통과한 뒤에만 5회 시간 sample을 기록한다.
+
+```powershell
+./scripts/run_simulation_benchmark.ps1
+```
+
 하이브리드 측정과 잠긴 포워드 원본 비교는 다음 순서로 실행한다.
 
 ```powershell
@@ -58,7 +72,7 @@ Linux 서버 빌드는 이후 마일스톤에서 Docker와 CI로 함께 검증�
   -HybridRun docs/benchmarks/hybrid-deferred/20260823-145749-54a54e5c-seed20260823
 ```
 
-첫 프레임에서 확인한 실패와 경계는 [첫 DX11 프레임 기록](docs/devlog/2026-08-22-first-dx11-frame.md)에, 에셋 파이프라인에서 확인한 문제는 [에셋 파이프라인 기록](docs/devlog/2026-08-23-asset-pipeline.md)에 적었다. GPU query 302개 누락 과정은 [포워드 기준선 기록](docs/devlog/2026-08-23-forward-baseline.md)에, 2,240 draw를 줄인 과정은 [하이브리드 디퍼드 기록](docs/devlog/2026-08-23-hybrid-deferred.md)에 남겼다.
+첫 프레임에서 확인한 실패와 경계는 [첫 DX11 프레임 기록](docs/devlog/2026-08-22-first-dx11-frame.md)에, 에셋 파이프라인에서 확인한 문제는 [에셋 파이프라인 기록](docs/devlog/2026-08-23-asset-pipeline.md)에 적었다. GPU query 302개 누락 과정은 [포워드 기준선 기록](docs/devlog/2026-08-23-forward-baseline.md)에, 2,240 draw를 줄인 과정은 [하이브리드 디퍼드 기록](docs/devlog/2026-08-23-hybrid-deferred.md)에 남겼다. 전수 탐색과 가속 구조를 같은 결과로 맞춘 과정은 [공간 탐색과 AI 기록](docs/devlog/2026-08-23-spatial-navigation-ai.md)에 정리했다.
 
 ## 라이선스
 

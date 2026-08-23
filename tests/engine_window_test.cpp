@@ -50,6 +50,44 @@ TEST(Window, FocusLossReleasesHeldKeysThroughMessageBoundary)
     EXPECT_TRUE(input.WasReleased('W'));
 }
 
+TEST(Window, PointerMessagesCrossTheWindowBoundary)
+{
+    DrainThreadMessages();
+
+    dxa::engine::InputState input;
+    dxa::engine::Window window;
+    window.Create(
+        dxa::engine::WindowConfig{L"Pointer message test", 320, 180, true},
+        input);
+
+    input.BeginFrame();
+    ASSERT_NE(
+        FALSE,
+        PostMessageW(window.NativeHandle(), WM_MOUSEMOVE, 0, MAKELPARAM(30, 40)));
+    ASSERT_NE(
+        FALSE,
+        PostMessageW(
+            window.NativeHandle(),
+            WM_RBUTTONDOWN,
+            MK_RBUTTON,
+            MAKELPARAM(30, 40)));
+    ASSERT_TRUE(window.PumpMessages());
+
+    EXPECT_EQ((dxa::engine::PointerPosition{30, 40}), input.Pointer());
+    EXPECT_TRUE(input.WasRightPointerPressed());
+    EXPECT_TRUE(input.IsRightPointerDown());
+
+    input.BeginFrame();
+    ASSERT_NE(
+        FALSE,
+        PostMessageW(window.NativeHandle(), WM_RBUTTONUP, 0, MAKELPARAM(35, 45)));
+    ASSERT_TRUE(window.PumpMessages());
+
+    EXPECT_EQ((dxa::engine::PointerPosition{35, 45}), input.Pointer());
+    EXPECT_FALSE(input.IsRightPointerDown());
+    EXPECT_TRUE(input.WasRightPointerReleased());
+}
+
 TEST(Window, OwnerTeardownDoesNotQuitTheNextWindow)
 {
     DrainThreadMessages();

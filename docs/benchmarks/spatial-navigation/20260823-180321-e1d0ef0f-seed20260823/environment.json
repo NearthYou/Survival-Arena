@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "run_id": "20260823-180321-e1d0ef0f-seed20260823",
+  "started_at": "2026-08-23T09:02:59.7389513+00:00",
+  "finished_at": "2026-08-23T09:04:09.7638041+00:00",
+  "elapsed_seconds": 70.025,
+  "git": {
+    "commit_sha": "e1d0ef0fe99b4b0ff36ff8e85fd8da25ab9d25d9",
+    "branch": "feat/spatial-navigation-ai",
+    "clean_before_run": true
+  },
+  "build": {
+    "preset": "windows-msvc-release",
+    "configuration": "Release",
+    "compiler_id": "MSVC",
+    "compiler_version": "194435228"
+  },
+  "operating_system": {
+    "caption": "Microsoft Windows 11 Home",
+    "version": "10.0.26200",
+    "build_number": "26200"
+  },
+  "processor": {
+    "name": "AMD Ryzen 7 6800HS Creator Edition             ",
+    "physical_cores": 8,
+    "logical_processors": 16
+  },
+  "validation": {
+    "status": "passed",
+    "errors": []
+  }
+}

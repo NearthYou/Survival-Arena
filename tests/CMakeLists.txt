@@ -12,6 +12,13 @@ add_executable(
     engine_frame_clock_test.cpp
     engine_input_state_test.cpp
     engine_resource_pool_test.cpp
+    simulation_ai_decision_test.cpp
+    simulation_behavior_tree_test.cpp
+    simulation_math_test.cpp
+    simulation_nav_agent_test.cpp
+    simulation_navmesh_test.cpp
+    simulation_benchmark_options_test.cpp
+    simulation_spatial_index_test.cpp
     foundation_test.cpp
 )
 target_link_libraries(
@@ -20,6 +27,8 @@ target_link_libraries(
         GTest::gtest_main
         dxa_client_options
         dxa_engine_core
+        dxa_simulation
+        dxa_simulation_benchmark_options
 )
 
 if(WIN32)
@@ -37,6 +46,7 @@ if(WIN32)
             engine_gpu_frame_timer_test.cpp
             engine_hybrid_deferred_renderer_test.cpp
             engine_window_test.cpp
+            navigation_ground_pick_test.cpp
     )
     target_link_libraries(
         dxa_tests
@@ -44,6 +54,7 @@ if(WIN32)
             dxa_asset_importer
             dxa_asset_tool_options
             dxa_engine
+            dxa_navigation_demo_core
             dxa_texture_cooker
     )
     target_compile_definitions(
@@ -70,6 +81,15 @@ if(WIN32)
             ${DXA_POWERSHELL_EXECUTABLE}
             -NoProfile
             -File "${PROJECT_SOURCE_DIR}/tests/benchmark_comparison_test.ps1"
+            -RepositoryRoot "${PROJECT_SOURCE_DIR}"
+    )
+
+    add_test(
+        NAME SimulationBenchmarkRunner.GuardsEvidenceBoundary
+        COMMAND
+            ${DXA_POWERSHELL_EXECUTABLE}
+            -NoProfile
+            -File "${PROJECT_SOURCE_DIR}/tests/simulation_benchmark_runner_test.ps1"
             -RepositoryRoot "${PROJECT_SOURCE_DIR}"
     )
 endif()

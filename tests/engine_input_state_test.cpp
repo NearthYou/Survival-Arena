@@ -5,6 +5,7 @@
 namespace
 {
 using dxa::engine::InputState;
+using dxa::engine::PointerPosition;
 
 constexpr std::uint8_t MoveForward = 0x57;
 
@@ -60,5 +61,40 @@ TEST(InputState, ReleasesHeldKeysWhenFocusIsLost)
 
     EXPECT_FALSE(input.IsDown(MoveForward));
     EXPECT_TRUE(input.WasReleased(MoveForward));
+}
+
+TEST(InputState, ReportsRightPointerButtonTransitionsAndPosition)
+{
+    InputState input;
+    input.SetPointerPosition(30, 40);
+    input.SetRightPointerButton(true);
+
+    EXPECT_EQ((PointerPosition{30, 40}), input.Pointer());
+    EXPECT_TRUE(input.WasRightPointerPressed());
+    EXPECT_TRUE(input.IsRightPointerDown());
+    EXPECT_FALSE(input.WasRightPointerReleased());
+
+    input.BeginFrame();
+    EXPECT_FALSE(input.WasRightPointerPressed());
+    EXPECT_TRUE(input.IsRightPointerDown());
+
+    input.SetRightPointerButton(false);
+    EXPECT_FALSE(input.IsRightPointerDown());
+    EXPECT_TRUE(input.WasRightPointerReleased());
+}
+
+TEST(InputState, ReleasesRightPointerButtonWithOtherHeldInput)
+{
+    InputState input;
+    input.SetKey(MoveForward, true);
+    input.SetRightPointerButton(true);
+    input.BeginFrame();
+
+    input.ReleaseAll();
+
+    EXPECT_FALSE(input.IsDown(MoveForward));
+    EXPECT_TRUE(input.WasReleased(MoveForward));
+    EXPECT_FALSE(input.IsRightPointerDown());
+    EXPECT_TRUE(input.WasRightPointerReleased());
 }
 } // namespace
