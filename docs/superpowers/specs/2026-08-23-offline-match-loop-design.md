@@ -165,6 +165,8 @@ cooldown은 float 시간이 아니라 남은 tick 수로 저장한다. 실제 pr
 
 같은 tick에 여러 attacker의 피해로 대상이 죽으면 그 tick에 가장 큰 피해를 준 actor가 처치자로 기록된다. 피해가 같으면 작은 ActorId를 선택한다. safe-zone 피해로 죽은 경우에는 처치자를 기록하지 않는다.
 
+combat batch로 남은 경쟁 참가자가 모두 죽는 경우에는 피해 적용 직전 체력, 기존 처치 수, 작은 ActorId 순으로 한 명을 선택해 체력 1로 남긴다. 보존된 actor의 `ActorDied` event는 만들지 않으며, 그 actor를 죽인 것으로 계산된 상대의 처치 수도 되돌린다. 같은 tick에 새로 얻은 다른 처치 기록은 유지한다.
+
 체력이 0 이하가 되면 한 번만 `ActorDied` event를 낸다. 죽은 actor는 이동, pickup, 공격, safe-zone 피해 대상에서 제외한다.
 
 ## 파밍 규칙

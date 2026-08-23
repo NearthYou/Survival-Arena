@@ -812,7 +812,7 @@ Expected: combat and result tests fail because the second half of the tick is ab
 
 - [ ] Step 3: Complete the authoritative tick
 
-Implement `SelectSurvivalWinner` as a total-order comparison over alive first, health descending, eliminations descending, and ActorId ascending. Reject empty input and duplicate IDs. Collect attack intents from validated commands after movement and pickup. Resolve attacks simultaneously. Then apply whole-second zone damage to every alive actor. Convert damage and death records to match events. For a zone wipe, rank the pre-zone contender states; for timeout, rank the current states. Leave the selected winner at health 1.
+Implement `SelectSurvivalWinner` as a total-order comparison over alive first, health descending, eliminations descending, and ActorId ascending. Reject empty input and duplicate IDs. Collect attack intents from validated commands after movement and pickup. Resolve attacks simultaneously. If the combat batch kills every remaining contender, rank the pre-combat states, restore one winner at health 1, remove that winner's death, and roll back only the elimination attributed to that death. Then apply whole-second zone damage to every alive actor. Convert damage and death records to match events. For a zone wipe, rank the pre-zone contender states; for timeout, rank the current states. Leave the selected winner at health 1.
 
 Finish immediately when one contender remains. At tick 14,400, phase becomes `SuddenDeath`. At tick 18,000, force the timeout ranking if more than one remains.
 
