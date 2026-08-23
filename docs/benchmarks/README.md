@@ -37,3 +37,17 @@ seed, 해상도, adapter, warmup frame, measured frame 중 하나라도 다르�
 
 - [Forward 기준선](forward-baseline/20260823-033736-80988ef7-seed20260823/RESULT.md)
 - [Hybrid deferred](hybrid-deferred/20260823-145749-54a54e5c-seed20260823/RESULT.md)
+
+## 공간 탐색과 AI
+
+플랫폼 중립 simulation 비교는 별도 Release 실행 파일로 측정한다.
+
+```powershell
+./scripts/run_simulation_benchmark.ps1
+```
+
+기본 workload는 8,192 triangle NavMesh point query 100,000건, 공간 객체 1,124개의 AABB와 picking query 각 20,000건, AI decision 100,000건이다. 전수 탐색과 가속 경로를 같은 입력에 실행해 mismatch가 0인지 먼저 확인한다. 불일치가 있으면 시간 측정과 출력 디렉터리 생성을 시작하지 않는다.
+
+각 case는 1회 준비 뒤 5회 측정한다. `samples.csv`에 모든 시간 sample을, `result.json`에 중앙값, 후보 또는 bounds 검사 수, checksum을 기록한다. `environment.json`에는 clean commit, CPU, compiler와 runner 검증 결과를 둔다.
+
+현재 채택한 원본은 [20260823-180321 실행](spatial-navigation/20260823-180321-e1d0ef0f-seed20260823/RESULT.md)이다. behavior tree는 FSM보다 느렸으므로 성능 최적화 결과로 분류하지 않는다.
