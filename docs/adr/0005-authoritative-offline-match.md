@@ -44,9 +44,9 @@ Windows demo가 simulation을 직접 소유하는 방법도 제외했다. render
 
 첫 64×64 arena 자동 경기는 tick 91, 약 3초에 끝났다. 중립 AI를 모두 빼도 tick 1,207, 약 40초였다. arena와 zone을 4배와 5배로 같은 비율로 키운 실행은 각각 tick 10,561과 10,560으로 차이가 없었다. 상대적인 zone 수렴 시점이 그대로였기 때문이다.
 
-256×256 arena를 유지하고 8분까지 zone을 128, 112, 96, 80, 64로 천천히 줄인 뒤 sudden death에서 0으로 수렴하도록 바꿨다. 공식 Release 실행은 tick 16,147, 약 538.2초에 winner 2로 끝났다. repeat mismatch는 0건이고 tick P95는 0.2219ms였다.
+256×256 arena를 유지하고 8분까지 zone을 128, 112, 96, 80, 64로 천천히 줄인 뒤 sudden death에서 0으로 수렴하도록 바꿨다. 병합 전 검토 수정 뒤의 공식 Release 실행은 tick 16,147, 약 538.2초에 winner 2로 끝났다. repeat mismatch는 0건이고 tick P95는 0.2292ms였다.
 
-원본은 [오프라인 경기 Release 측정](../benchmarks/offline-match/20260824-021115-11abbe54-seed20260823/RESULT.md)에 있다.
+원본은 [오프라인 경기 Release 측정](../benchmarks/offline-match/20260824-023134-1ede6a23-seed20260823/RESULT.md)에 있다.
 
 ## 결과에 따른 제약
 

@@ -64,4 +64,4 @@ runner는 깨끗한 commit과 고정 seed를 확인한다. 같은 경기를 두 
 
 `ticks.csv`는 tick별 원본, `result.json`은 경기 결과와 P50, P95, max, `environment.json`은 commit, compiler, OS, CPU와 runner 검증 상태를 보관한다. tick 시간에는 내부 bot, 이동, pickup, combat, zone과 결과 판정이 들어간다. 외부 actor 0 판단, snapshot 복사, event drain, 파일 쓰기와 이후 네트워크 처리는 측정하지 않는다.
 
-현재 채택한 원본은 [20260824-021115 실행](offline-match/20260824-021115-11abbe54-seed20260823/RESULT.md)이다. canonical 경기는 tick 16,147, 약 538.2초에 끝났고 repeat mismatch는 0건이었다. Release tick P95는 0.2219ms였다.
+현재 채택한 원본은 [20260824-023134 실행](offline-match/20260824-023134-1ede6a23-seed20260823/RESULT.md)이다. canonical 경기는 tick 16,147, 약 538.2초에 끝났고 repeat mismatch는 0건이었다. Release tick P95는 0.2292ms였다. 앞선 `20260824-021115` 실행은 병합 전 검토 수정 이전 원본으로 보존한다.

@@ -58,7 +58,11 @@ offline match complete: tick=16147, seconds=538.233, winner=2, reason=last_survi
 
 ## Release 측정
 
-공식 원본은 깨끗한 commit `11abbe5456c5f4984b5612bd1d4eb22819158502`에서 만들었다.
+병합 전 검토에서는 두 문제를 실제로 재현했다. 같은 tick에 actor 하나가 이동 뒤 공격 전용 command를 내면 마지막 유효 command 하나만 써야 하지만, 앞 이동 목적지가 `NavAgent`에 먼저 남았다. 목적지 적용을 command 선택 뒤로 옮기고 교차 유형 회귀 테스트를 추가했다.
+
+tick CSV에서 생존 수와 event 열을 빼도 PowerShell이 없는 값을 0으로 바꿔 validation이 통과했다. 필수 열 5개를 먼저 확인하고 정수 셀은 invariant unsigned integer로 파싱하도록 고쳤다. 누락 열과 빈 셀 fixture가 거부되는 테스트를 남겼다.
+
+공식 원본은 두 수정 뒤의 깨끗한 commit `1ede6a238192ffacd39b9e7a5b4f043a43ceb09c`에서 다시 만들었다. 이전 실행은 덮어쓰지 않았다.
 
 ```powershell
 ./scripts/run_offline_match_benchmark.ps1
@@ -71,17 +75,17 @@ runner는 같은 seed 두 경기의 summary를 먼저 비교하고 세 번째 �
 | 종료 tick | 16,147 |
 | simulation 시간 | 538.233초 |
 | winner | 2 |
-| tick P50 | 0.0439ms |
-| tick P95 | 0.2219ms |
-| tick max | 1.3238ms |
+| tick P50 | 0.0451ms |
+| tick P95 | 0.2292ms |
+| tick max | 1.0561ms |
 
 tick 시간은 `OfflineMatch::Step()`만 포함한다. 내부 bot, 이동, pickup, combat, zone과 결과 판정은 포함하지만 외부 actor 0 판단, snapshot 복사, event drain과 파일 쓰기는 제외한다. 전체 game frame이나 이후 네트워크 server 비용으로 바꿔 말하지 않는다.
 
-원본은 [20260824-021115 실행](../benchmarks/offline-match/20260824-021115-11abbe54-seed20260823/RESULT.md)에 있다.
+원본은 [20260824-023134 실행](../benchmarks/offline-match/20260824-023134-1ede6a23-seed20260823/RESULT.md)에 있다.
 
 ## 검증
 
-benchmark 코드 commit 전 Windows Debug 전체 232개 테스트와 MSVC Release 빌드를 통과했다. OfflineMatchDemo WARP는 약 16초에 한 경기를 진행하고 시작 및 결과 frame을 검증했다. benchmark option과 runner guard는 dirty tree, moved HEAD, 기존 output, 잘못된 SHA, repeat mismatch, winner와 checksum 누락, 종료 tick 범위, CSV 행 수와 NaN 시간을 거부했다.
+검토 수정 뒤 Windows Debug 전체 233개 테스트와 MSVC Release 빌드를 통과했다. OfflineMatchDemo WARP는 한 경기를 진행하고 시작 및 결과 frame을 검증했다. benchmark option과 runner guard는 dirty tree, moved HEAD, 기존 output, 잘못된 SHA, repeat mismatch, winner와 checksum 누락, 종료 tick 범위, CSV 행 수, 필수 열 누락, 빈 정수 셀과 NaN 시간을 거부했다.
 
 로컬 `g++`는 없었다. Docker CLI는 있었지만 daemon이 실행 중이 아니어서 Linux build를 통과했다고 쓰지 않는다. PR의 Ubuntu CI를 Linux 검증 문턱으로 남긴다.
 
