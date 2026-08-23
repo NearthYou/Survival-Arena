@@ -13,6 +13,8 @@
 #include <cstdint>
 #include <filesystem>
 #include <functional>
+#include <optional>
+#include <span>
 #include <vector>
 
 namespace dxa::engine
@@ -27,6 +29,14 @@ struct HybridDeferredConfig
     std::filesystem::path assetRoot;
 };
 
+struct SceneCharacterState
+{
+    benchmark::SceneVector3 position;
+    bool active = true;
+
+    [[nodiscard]] bool operator==(const SceneCharacterState&) const = default;
+};
+
 using RenderPassCallback = std::function<void(RenderPass)>;
 
 class HybridDeferredRenderer
@@ -39,6 +49,9 @@ public:
         const AssetSceneFrame& frame,
         const RenderPassCallback& passCompleted = {});
     void SetControlledPlayerPosition(benchmark::SceneVector3 position);
+    void SetPlayerStates(std::span<const SceneCharacterState> states);
+    void SetAiStates(std::span<const SceneCharacterState> states);
+    void SetZoneRadius(float radius);
     [[nodiscard]] bool ShadowMapReady() const noexcept;
 
 private:
@@ -115,10 +128,14 @@ private:
     detail::GpuSceneModel character_;
     detail::GpuSceneModel floor_;
     benchmark::StressScene stressScene_;
+    std::array<bool, benchmark::PlayerCount> playerActive_{};
+    std::array<bool, benchmark::AiCount> aiActive_{};
+    std::optional<float> zoneRadiusOverride_;
     std::vector<std::array<float, 16>> staticInstanceTransforms_;
     std::vector<std::array<float, 16>> visibleInstanceScratch_;
     std::vector<std::array<float, 16>> markerInstanceScratch_;
     D3D11_VIEWPORT viewport_{};
     D3D11_VIEWPORT shadowViewport_{};
+    bool initialized_ = false;
 };
 } // namespace dxa::engine

@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "commit_sha": "11abbe5456c5f4984b5612bd1d4eb22819158502",
+  "seed": 20260823,
+  "winner": 2,
+  "end_reason": "last_survivor",
+  "finished_tick": 16147,
+  "event_checksum": "17222440337191440965",
+  "repeat_mismatch_count": 0,
+  "tick_ms": {"p50": 0.0439, "p95": 0.2219, "max": 1.3238},
+  "population": {"contenders": 24, "neutrals": 100},
+  "compiler": {"id": "MSVC", "version": "194435228"},
+  "cpu": {"logical_processors": 16}
+}

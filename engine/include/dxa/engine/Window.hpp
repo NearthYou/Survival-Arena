@@ -27,6 +27,7 @@ public:
     Window& operator=(const Window&) = delete;
 
     void Create(const WindowConfig& config, InputState& inputState);
+    void SetTitle(const std::wstring& title);
     [[nodiscard]] bool PumpMessages() const noexcept;
     [[nodiscard]] HWND NativeHandle() const noexcept;
 

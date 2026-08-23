@@ -74,6 +74,22 @@ void Window::Create(const WindowConfig& config, InputState& inputState)
     }
 }
 
+void Window::SetTitle(const std::wstring& title)
+{
+    if (title.empty())
+    {
+        throw std::invalid_argument{"window title cannot be empty"};
+    }
+    if (window_ == nullptr)
+    {
+        throw std::logic_error{"window title is unavailable before creation"};
+    }
+    if (SetWindowTextW(window_, title.c_str()) == FALSE)
+    {
+        throw std::runtime_error{"SetWindowTextW failed"};
+    }
+}
+
 bool Window::PumpMessages() const noexcept
 {
     MSG message{};

@@ -35,36 +35,8 @@ if(WIN32)
     )
     dxa_enable_project_warnings(dxa_navigation_demo)
 
-    set(
-        DXA_NAVIGATION_SHADERS
-        hybrid_geometry.hlsl
-        hybrid_lighting.hlsl
-        hybrid_shadow.hlsl
-        hybrid_transparent.hlsl
-    )
-    foreach(shader IN LISTS DXA_NAVIGATION_SHADERS)
-        add_custom_command(
-            TARGET dxa_navigation_demo
-            POST_BUILD
-            COMMAND
-                ${CMAKE_COMMAND} -E make_directory
-                "$<TARGET_FILE_DIR:dxa_navigation_demo>/shaders"
-            COMMAND
-                ${CMAKE_COMMAND} -E copy_if_different
-                "${PROJECT_SOURCE_DIR}/assets/shaders/${shader}"
-                "$<TARGET_FILE_DIR:dxa_navigation_demo>/shaders/${shader}"
-            VERBATIM
-        )
-    endforeach()
-    add_custom_command(
-        TARGET dxa_navigation_demo
-        POST_BUILD
-        COMMAND
-            ${CMAKE_COMMAND} -E copy_directory
-            "${PROJECT_SOURCE_DIR}/assets/runtime"
-            "$<TARGET_FILE_DIR:dxa_navigation_demo>/assets"
-        VERBATIM
-    )
+    include(DeployHybridRuntime)
+    dxa_deploy_hybrid_runtime(dxa_navigation_demo)
 
     if(DXA_BUILD_TESTS)
         add_test(

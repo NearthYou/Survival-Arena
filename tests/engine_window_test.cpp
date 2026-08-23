@@ -5,6 +5,10 @@
 
 #include <Windows.h>
 
+#include <array>
+#include <stdexcept>
+#include <string>
+
 namespace
 {
 void DrainThreadMessages()
@@ -13,6 +17,20 @@ void DrainThreadMessages()
     while (PeekMessageW(&message, nullptr, 0, 0, PM_REMOVE) != FALSE)
     {
     }
+}
+
+[[nodiscard]] std::wstring NativeWindowTitle(const HWND window)
+{
+    std::array<wchar_t, 256> title{};
+    const int length = GetWindowTextW(
+        window,
+        title.data(),
+        static_cast<int>(title.size()));
+    if (length < 0)
+    {
+        throw std::runtime_error{"GetWindowTextW failed"};
+    }
+    return std::wstring{title.data(), static_cast<std::size_t>(length)};
 }
 
 TEST(Window, AltF4RequestsCloseThroughDefaultSystemKeyHandling)
@@ -110,5 +128,24 @@ TEST(Window, OwnerTeardownDoesNotQuitTheNextWindow)
     }
 
     DrainThreadMessages();
+}
+
+TEST(Window, UpdatesVisibleMatchStatusTitle)
+{
+    DrainThreadMessages();
+
+    dxa::engine::Window uncreated;
+    EXPECT_THROW(uncreated.SetTitle(L"Before create"), std::logic_error);
+
+    dxa::engine::InputState input;
+    dxa::engine::Window window;
+    window.Create(
+        dxa::engine::WindowConfig{L"Initial match title", 320, 180, true},
+        input);
+
+    window.SetTitle(L"Alive 7 | Rifle");
+
+    EXPECT_EQ(L"Alive 7 | Rifle", NativeWindowTitle(window.NativeHandle()));
+    EXPECT_THROW(window.SetTitle(L""), std::invalid_argument);
 }
 } // namespace

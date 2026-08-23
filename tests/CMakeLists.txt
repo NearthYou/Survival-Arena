@@ -14,12 +14,20 @@ add_executable(
     engine_resource_pool_test.cpp
     simulation_ai_decision_test.cpp
     simulation_behavior_tree_test.cpp
+    simulation_combat_test.cpp
+    simulation_loot_test.cpp
     simulation_math_test.cpp
+    simulation_match_types_test.cpp
+    simulation_match_resolution_test.cpp
+    simulation_offline_match_test.cpp
+    simulation_offline_match_bot_test.cpp
     simulation_nav_agent_test.cpp
     simulation_navmesh_test.cpp
+    simulation_safe_zone_test.cpp
     simulation_benchmark_options_test.cpp
     simulation_spatial_index_test.cpp
     foundation_test.cpp
+    offline_match_benchmark_options_test.cpp
 )
 target_link_libraries(
     dxa_tests
@@ -27,6 +35,7 @@ target_link_libraries(
         GTest::gtest_main
         dxa_client_options
         dxa_engine_core
+        dxa_offline_match_benchmark_options
         dxa_simulation
         dxa_simulation_benchmark_options
 )
@@ -90,6 +99,15 @@ if(WIN32)
             ${DXA_POWERSHELL_EXECUTABLE}
             -NoProfile
             -File "${PROJECT_SOURCE_DIR}/tests/simulation_benchmark_runner_test.ps1"
+            -RepositoryRoot "${PROJECT_SOURCE_DIR}"
+    )
+
+    add_test(
+        NAME OfflineMatchBenchmarkRunner.GuardsEvidenceBoundary
+        COMMAND
+            ${DXA_POWERSHELL_EXECUTABLE}
+            -NoProfile
+            -File "${PROJECT_SOURCE_DIR}/tests/offline_match_benchmark_runner_test.ps1"
             -RepositoryRoot "${PROJECT_SOURCE_DIR}"
     )
 endif()

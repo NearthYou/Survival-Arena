@@ -3,11 +3,20 @@ add_library(
     STATIC
         src/AiDecision.cpp
         src/BehaviorTree.cpp
+        src/Combat.cpp
+        src/Loot.cpp
+        src/MatchConfig.cpp
+        src/MatchResolution.cpp
         src/Math2.cpp
         src/NavAgent.cpp
         src/NavMesh.cpp
         src/NavMeshGrid.cpp
         src/NavMeshPath.cpp
+        src/OfflineMatch.cpp
+        src/OfflineMatchBots.cpp
+        src/OfflineMatchSpawn.cpp
+        src/OfflineMatchStep.cpp
+        src/SafeZone.cpp
         src/SpatialIndex.cpp
 )
 target_include_directories(

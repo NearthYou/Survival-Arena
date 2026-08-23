@@ -604,6 +604,10 @@ void HybridDeferredRenderer::Initialize(
     visibleInstanceScratch_.reserve(benchmark::StaticInstanceCount);
     markerInstanceScratch_.clear();
     markerInstanceScratch_.reserve(MarkerInstanceCount);
+    playerActive_.fill(true);
+    aiActive_.fill(true);
+    zoneRadiusOverride_.reset();
+    initialized_ = true;
 }
 
 RenderStatistics HybridDeferredRenderer::Render(
@@ -706,9 +710,19 @@ RenderStatistics HybridDeferredRenderer::Render(
             StaticInstanceCapacity,
             &lightViewProjectionStorage._11));
     const auto renderShadowCharacters = [&](
-        const std::span<const benchmark::SceneInstance> instances) {
-        for (const benchmark::SceneInstance& instance : instances)
+        const std::span<const benchmark::SceneInstance> instances,
+        const std::span<const bool> active) {
+        if (instances.size() != active.size())
         {
+            throw std::logic_error{"hybrid shadow character state size mismatch"};
+        }
+        for (std::size_t index = 0; index < instances.size(); ++index)
+        {
+            if (!active[index])
+            {
+                continue;
+            }
+            const benchmark::SceneInstance& instance = instances[index];
             XMFLOAT4X4 worldStorage;
             XMStoreFloat4x4(&worldStorage, PlaceInstance(characterBase, instance));
             Accumulate(
@@ -721,8 +735,8 @@ RenderStatistics HybridDeferredRenderer::Render(
                     sceneSeconds + static_cast<double>(instance.animationPhaseSeconds)));
         }
     };
-    renderShadowCharacters(stressScene_.players);
-    renderShadowCharacters(stressScene_.ai);
+    renderShadowCharacters(stressScene_.players, playerActive_);
+    renderShadowCharacters(stressScene_.ai, aiActive_);
     context->RSSetState(nullptr);
     if (passCompleted)
     {
@@ -761,9 +775,20 @@ RenderStatistics HybridDeferredRenderer::Render(
                 &viewProjectionStorage._11));
     }
 
-    const auto renderCharacters = [&](const std::span<const benchmark::SceneInstance> instances) {
-        for (const benchmark::SceneInstance& instance : instances)
+    const auto renderCharacters = [&](
+        const std::span<const benchmark::SceneInstance> instances,
+        const std::span<const bool> active) {
+        if (instances.size() != active.size())
         {
+            throw std::logic_error{"hybrid character state size mismatch"};
+        }
+        for (std::size_t index = 0; index < instances.size(); ++index)
+        {
+            if (!active[index])
+            {
+                continue;
+            }
+            const benchmark::SceneInstance& instance = instances[index];
             if (!frustum.IntersectsSphere(benchmark::BoundingSphere{
                     benchmark::SceneVector3{
                         instance.position.x,
@@ -787,8 +812,8 @@ RenderStatistics HybridDeferredRenderer::Render(
                     sceneSeconds + static_cast<double>(instance.animationPhaseSeconds)));
         }
     };
-    renderCharacters(stressScene_.players);
-    renderCharacters(stressScene_.ai);
+    renderCharacters(stressScene_.players, playerActive_);
+    renderCharacters(stressScene_.ai, aiActive_);
     if (passCompleted)
     {
         passCompleted(RenderPass::GBuffer);
@@ -841,8 +866,8 @@ RenderStatistics HybridDeferredRenderer::Render(
     }
 
     markerInstanceScratch_.clear();
-    const float zoneRadius = 42.0F
-        - std::fmod(static_cast<float>(sceneSeconds) * 2.0F, 28.0F);
+    const float zoneRadius = zoneRadiusOverride_.value_or(
+        42.0F - std::fmod(static_cast<float>(sceneSeconds) * 2.0F, 28.0F));
     constexpr float TwoPi = std::numbers::pi_v<float> * 2.0F;
     for (std::uint32_t index = 0; index < MarkerInstanceCount; ++index)
     {
@@ -895,6 +920,73 @@ void HybridDeferredRenderer::SetControlledPlayerPosition(
         throw std::logic_error{"controlled player is unavailable before initialization"};
     }
     stressScene_.players.front().position = position;
+}
+
+void HybridDeferredRenderer::SetPlayerStates(
+    const std::span<const SceneCharacterState> states)
+{
+    if (!initialized_)
+    {
+        throw std::logic_error{"player states are unavailable before initialization"};
+    }
+    if (states.size() != benchmark::PlayerCount)
+    {
+        throw std::invalid_argument{"player state count must match the fixed scene slots"};
+    }
+    for (const SceneCharacterState& state : states)
+    {
+        if (!std::isfinite(state.position.x)
+            || !std::isfinite(state.position.y)
+            || !std::isfinite(state.position.z))
+        {
+            throw std::invalid_argument{"player state position must be finite"};
+        }
+    }
+    for (std::size_t index = 0; index < states.size(); ++index)
+    {
+        stressScene_.players[index].position = states[index].position;
+        playerActive_[index] = states[index].active;
+    }
+}
+
+void HybridDeferredRenderer::SetAiStates(
+    const std::span<const SceneCharacterState> states)
+{
+    if (!initialized_)
+    {
+        throw std::logic_error{"AI states are unavailable before initialization"};
+    }
+    if (states.size() != benchmark::AiCount)
+    {
+        throw std::invalid_argument{"AI state count must match the fixed scene slots"};
+    }
+    for (const SceneCharacterState& state : states)
+    {
+        if (!std::isfinite(state.position.x)
+            || !std::isfinite(state.position.y)
+            || !std::isfinite(state.position.z))
+        {
+            throw std::invalid_argument{"AI state position must be finite"};
+        }
+    }
+    for (std::size_t index = 0; index < states.size(); ++index)
+    {
+        stressScene_.ai[index].position = states[index].position;
+        aiActive_[index] = states[index].active;
+    }
+}
+
+void HybridDeferredRenderer::SetZoneRadius(const float radius)
+{
+    if (!initialized_)
+    {
+        throw std::logic_error{"zone radius is unavailable before initialization"};
+    }
+    if (!std::isfinite(radius) || radius < 0.0F)
+    {
+        throw std::invalid_argument{"zone radius must be finite and non-negative"};
+    }
+    zoneRadiusOverride_ = radius;
 }
 
 bool HybridDeferredRenderer::ShadowMapReady() const noexcept
