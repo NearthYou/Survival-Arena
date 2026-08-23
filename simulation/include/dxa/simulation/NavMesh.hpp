@@ -25,6 +25,13 @@ struct NavQueryResult
     std::uint32_t candidatesTested = 0;
 };
 
+struct NavPath
+{
+    std::vector<TriangleId> triangles;
+    std::vector<Vec2> waypoints;
+    std::uint32_t expandedNodes = 0;
+};
+
 class NavMesh
 {
 public:
@@ -35,6 +42,9 @@ public:
 
     [[nodiscard]] NavQueryResult FindContainingTriangleLinear(Vec2 point) const;
     [[nodiscard]] NavQueryResult FindContainingTriangleGrid(Vec2 point) const;
+    [[nodiscard]] std::optional<NavPath> FindPath(
+        Vec2 start,
+        Vec2 destination) const;
     [[nodiscard]] std::span<const TriangleId> Neighbors(TriangleId triangle) const;
     [[nodiscard]] Vec2 TriangleCenter(TriangleId triangle) const;
     [[nodiscard]] std::size_t TriangleCount() const noexcept;
