@@ -127,7 +127,8 @@ seed `20260823`이 기본 canonical seed다. 별도 seed도 허용하지만 테�
 - 중립 AI 100마리는 이동 가능한 영역 안에 분산한다.
 - 참가자는 체력 100으로 시작한다.
 - 근접 중립 AI는 체력 60, 원거리 중립 AI는 체력 45로 시작한다.
-- 모든 참가자는 Blade를 들고 시작한다.
+- 경쟁 참가자는 모두 Blade를 들고 시작한다.
+- 근접 중립 AI는 Blade, 원거리 중립 AI는 Rifle을 사용한다.
 - Rifle pickup 24개, ArcPulse pickup 12개, MedKit 24개를 배치한다.
 - spawn과 loot 위치는 NavMesh point query를 통과해야 한다.
 - 최소 spawn 간격을 만족하지 못하면 정해진 시도 횟수 뒤 생성 실패를 반환한다.
@@ -162,13 +163,15 @@ cooldown은 float 시간이 아니라 남은 tick 수로 저장한다. 실제 pr
 
 공격 처리 순서는 attacker ID 순이다. 같은 tick에 들어온 공격은 먼저 모두 유효성을 판정하고 피해를 모은 뒤 한 번에 적용한다. 앞 ID가 먼저 대상을 죽여 뒤 ID의 공격을 없애는 편향을 피한다.
 
+같은 tick에 여러 attacker의 피해로 대상이 죽으면 그 tick에 가장 큰 피해를 준 actor가 처치자로 기록된다. 피해가 같으면 작은 ActorId를 선택한다. safe-zone 피해로 죽은 경우에는 처치자를 기록하지 않는다.
+
 체력이 0 이하가 되면 한 번만 `ActorDied` event를 낸다. 죽은 actor는 이동, pickup, 공격, safe-zone 피해 대상에서 제외한다.
 
 ## 파밍 규칙
 
 actor 중심에서 반경 1 안에 있는 가장 작은 `LootId` 하나를 자동 pickup한다.
 
-- Blade, Rifle, ArcPulse pickup은 현재 무기를 교체한다.
+- Rifle 또는 ArcPulse pickup은 현재 무기를 교체한다.
 - MedKit은 체력 35를 회복하며 최대 체력 100을 넘지 않는다.
 - 한 번 주운 loot는 다시 주울 수 없다.
 - 중립 AI는 loot를 줍지 않는다.
@@ -181,6 +184,8 @@ inventory 여러 칸과 탄약을 제외해 파밍의 첫 질문을 위치 선�
 ### 경쟁 봇 23명
 
 decision은 5Hz, 이동과 combat resolution은 30Hz로 수행한다.
+
+match 내부의 경쟁 봇 판단은 참가자 ID 1부터 23까지만 담당한다. 사용자 actor인 ID 0의 command는 외부에서 제출한다. visible mode에서는 실제 입력과 app의 자동 공격 선택을 사용하고, WARP 자동 검증과 benchmark에서는 같은 `DecideContender` 함수를 외부 controller로 호출해 ID 0도 자동 조작한다. 따라서 내부 AI가 사용자 이동 command를 덮어쓰지 않는다.
 
 1. safe zone 밖이면 zone center로 이동
 2. 체력이 45 이하이고 가까운 MedKit이 있으면 회복 아이템으로 이동
