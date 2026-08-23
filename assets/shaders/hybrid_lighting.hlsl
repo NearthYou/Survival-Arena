@@ -7,15 +7,19 @@ struct PointLight
 cbuffer LightingConstants : register(b0)
 {
     row_major float4x4 InverseViewProjection;
+    row_major float4x4 LightViewProjection;
     PointLight PointLights[32];
     uint PointLightCount;
-    float3 LightingPadding;
+    float ShadowTexelSize;
+    float2 LightingPadding;
 };
 
 Texture2D AlbedoRoughnessTexture : register(t0);
 Texture2D NormalTexture : register(t1);
 Texture2D DepthTexture : register(t2);
+Texture2D ShadowTexture : register(t3);
 SamplerState GBufferSampler : register(s0);
+SamplerComparisonState ShadowSampler : register(s1);
 
 struct VertexOutput
 {
@@ -34,6 +38,38 @@ float3 DecodeOctahedralNormal(float2 encoded)
         normal.xy = (1.0F - abs(normal.yx)) * signs;
     }
     return normalize(normal);
+}
+
+float SampleDirectionalShadow(float3 worldPosition)
+{
+    const float4 lightClip = mul(float4(worldPosition, 1.0F), LightViewProjection);
+    const float3 projected = lightClip.xyz / lightClip.w;
+    const float2 shadowTexcoord = float2(
+        projected.x * 0.5F + 0.5F,
+        0.5F - projected.y * 0.5F);
+    if (projected.z <= 0.0F
+        || projected.z >= 1.0F
+        || any(shadowTexcoord < 0.0F)
+        || any(shadowTexcoord > 1.0F))
+    {
+        return 1.0F;
+    }
+
+    float visibility = 0.0F;
+    [unroll]
+    for (int y = -1; y <= 1; ++y)
+    {
+        [unroll]
+        for (int x = -1; x <= 1; ++x)
+        {
+            const float2 offset = float2(x, y) * ShadowTexelSize;
+            visibility += ShadowTexture.SampleCmpLevelZero(
+                ShadowSampler,
+                shadowTexcoord + offset,
+                projected.z - 0.001F);
+        }
+    }
+    return visibility / 9.0F;
 }
 
 VertexOutput VSMain(uint vertexId : SV_VertexID)
@@ -75,7 +111,9 @@ float4 PSMain(VertexOutput input) : SV_TARGET
     worldPosition /= worldPosition.w;
 
     const float3 sunDirection = normalize(float3(-0.45F, 0.8F, -0.35F));
-    float3 lighting = 0.20F + 0.55F * saturate(dot(normal, sunDirection));
+    const float shadow = SampleDirectionalShadow(worldPosition.xyz);
+    float3 lighting = 0.20F
+        + 0.55F * saturate(dot(normal, sunDirection)) * shadow;
     [loop]
     for (uint lightIndex = 0; lightIndex < PointLightCount; ++lightIndex)
     {

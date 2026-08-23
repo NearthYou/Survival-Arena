@@ -31,6 +31,7 @@ public:
         ID3D11DeviceContext* context,
         ID3D11RenderTargetView* backBufferRenderTarget,
         const AssetSceneFrame& frame) const;
+    [[nodiscard]] bool ShadowMapReady() const noexcept;
 
 private:
     struct GpuMaterial
@@ -58,9 +59,16 @@ private:
         const float* worldMatrix,
         const float* viewProjectionMatrix,
         double totalSeconds) const;
+    [[nodiscard]] RenderStatistics RenderShadowModel(
+        ID3D11DeviceContext* context,
+        const GpuModel& model,
+        const float* worldMatrix,
+        const float* lightViewProjectionMatrix,
+        double totalSeconds) const;
     void UpdateLightingConstants(
         ID3D11DeviceContext* context,
         const float* inverseViewProjectionMatrix,
+        const float* lightViewProjectionMatrix,
         double sceneSeconds) const;
 
     Microsoft::WRL::ComPtr<ID3D11VertexShader> geometryVertexShader_;
@@ -68,11 +76,14 @@ private:
     Microsoft::WRL::ComPtr<ID3D11InputLayout> geometryInputLayout_;
     Microsoft::WRL::ComPtr<ID3D11VertexShader> lightingVertexShader_;
     Microsoft::WRL::ComPtr<ID3D11PixelShader> lightingPixelShader_;
+    Microsoft::WRL::ComPtr<ID3D11VertexShader> shadowVertexShader_;
     Microsoft::WRL::ComPtr<ID3D11Buffer> sceneConstantBuffer_;
     Microsoft::WRL::ComPtr<ID3D11Buffer> skinConstantBuffer_;
     Microsoft::WRL::ComPtr<ID3D11Buffer> lightingConstantBuffer_;
     Microsoft::WRL::ComPtr<ID3D11SamplerState> materialSampler_;
     Microsoft::WRL::ComPtr<ID3D11SamplerState> gBufferSampler_;
+    Microsoft::WRL::ComPtr<ID3D11SamplerState> shadowSampler_;
+    Microsoft::WRL::ComPtr<ID3D11RasterizerState> shadowRasterizerState_;
     Microsoft::WRL::ComPtr<ID3D11Texture2D> albedoRoughnessTexture_;
     Microsoft::WRL::ComPtr<ID3D11RenderTargetView> albedoRoughnessRenderTarget_;
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> albedoRoughnessShaderResource_;
@@ -82,9 +93,13 @@ private:
     Microsoft::WRL::ComPtr<ID3D11Texture2D> depthTexture_;
     Microsoft::WRL::ComPtr<ID3D11DepthStencilView> depthStencilView_;
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> depthShaderResource_;
+    Microsoft::WRL::ComPtr<ID3D11Texture2D> shadowTexture_;
+    Microsoft::WRL::ComPtr<ID3D11DepthStencilView> shadowDepthStencilView_;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> shadowShaderResource_;
     GpuModel character_;
     GpuModel floor_;
     benchmark::StressScene stressScene_;
     D3D11_VIEWPORT viewport_{};
+    D3D11_VIEWPORT shadowViewport_{};
 };
 } // namespace dxa::engine

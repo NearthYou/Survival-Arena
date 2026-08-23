@@ -46,9 +46,11 @@ struct GpuPointLight
 struct LightingConstants
 {
     DirectX::XMFLOAT4X4 inverseViewProjection;
+    DirectX::XMFLOAT4X4 lightViewProjection;
     std::array<GpuPointLight, benchmark::DynamicLightCount> pointLights;
     std::uint32_t pointLightCount = 0;
-    std::array<float, 3> padding{};
+    float shadowTexelSize = 0.0F;
+    std::array<float, 2> padding{};
 };
 
 static_assert(sizeof(SceneConstants) % 16 == 0);
@@ -178,6 +180,47 @@ void CreateDepthTarget(
         "ID3D11Device::CreateShaderResourceView(sampleable depth)");
 }
 
+void CreateShadowTarget(
+    ID3D11Device* const device,
+    const std::uint32_t size,
+    Microsoft::WRL::ComPtr<ID3D11Texture2D>& texture,
+    Microsoft::WRL::ComPtr<ID3D11DepthStencilView>& depthStencil,
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>& shaderResource)
+{
+    D3D11_TEXTURE2D_DESC textureDescription{};
+    textureDescription.Width = size;
+    textureDescription.Height = size;
+    textureDescription.MipLevels = 1;
+    textureDescription.ArraySize = 1;
+    textureDescription.Format = DXGI_FORMAT_R32_TYPELESS;
+    textureDescription.SampleDesc.Count = 1;
+    textureDescription.Usage = D3D11_USAGE_DEFAULT;
+    textureDescription.BindFlags = D3D11_BIND_DEPTH_STENCIL | D3D11_BIND_SHADER_RESOURCE;
+    RequireSuccess(
+        device->CreateTexture2D(
+            &textureDescription, nullptr, texture.ReleaseAndGetAddressOf()),
+        "ID3D11Device::CreateTexture2D(shadow map)");
+
+    D3D11_DEPTH_STENCIL_VIEW_DESC depthDescription{};
+    depthDescription.Format = DXGI_FORMAT_D32_FLOAT;
+    depthDescription.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+    RequireSuccess(
+        device->CreateDepthStencilView(
+            texture.Get(), &depthDescription, depthStencil.ReleaseAndGetAddressOf()),
+        "ID3D11Device::CreateDepthStencilView(shadow map)");
+
+    D3D11_SHADER_RESOURCE_VIEW_DESC shaderResourceDescription{};
+    shaderResourceDescription.Format = DXGI_FORMAT_R32_FLOAT;
+    shaderResourceDescription.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+    shaderResourceDescription.Texture2D.MipLevels = 1;
+    RequireSuccess(
+        device->CreateShaderResourceView(
+            texture.Get(),
+            &shaderResourceDescription,
+            shaderResource.ReleaseAndGetAddressOf()),
+        "ID3D11Device::CreateShaderResourceView(shadow map)");
+}
+
 [[nodiscard]] DirectX::XMMATRIX LoadMatrix(const float* elements)
 {
     return DirectX::XMLoadFloat4x4(
@@ -260,6 +303,8 @@ void HybridDeferredRenderer::Initialize(
         config.shaderRoot / L"hybrid_lighting.hlsl", "VSMain", "vs_5_0");
     const auto lightingPixelBytecode = CompileShader(
         config.shaderRoot / L"hybrid_lighting.hlsl", "PSMain", "ps_5_0");
+    const auto shadowVertexBytecode = CompileShader(
+        config.shaderRoot / L"hybrid_shadow.hlsl", "VSMain", "vs_5_0");
 
     RequireSuccess(
         device->CreateVertexShader(
@@ -289,6 +334,13 @@ void HybridDeferredRenderer::Initialize(
             nullptr,
             lightingPixelShader_.ReleaseAndGetAddressOf()),
         "ID3D11Device::CreatePixelShader(deferred lighting)");
+    RequireSuccess(
+        device->CreateVertexShader(
+            shadowVertexBytecode->GetBufferPointer(),
+            shadowVertexBytecode->GetBufferSize(),
+            nullptr,
+            shadowVertexShader_.ReleaseAndGetAddressOf()),
+        "ID3D11Device::CreateVertexShader(shadow)");
 
     constexpr D3D11_INPUT_ELEMENT_DESC InputElements[]{
         {"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, static_cast<UINT>(offsetof(asset::Vertex, position)), D3D11_INPUT_PER_VERTEX_DATA, 0},
@@ -350,6 +402,35 @@ void HybridDeferredRenderer::Initialize(
             &gBufferSamplerDescription, gBufferSampler_.ReleaseAndGetAddressOf()),
         "ID3D11Device::CreateSamplerState(G-Buffer)");
 
+    D3D11_SAMPLER_DESC shadowSamplerDescription{};
+    shadowSamplerDescription.Filter = D3D11_FILTER_COMPARISON_MIN_MAG_LINEAR_MIP_POINT;
+    shadowSamplerDescription.AddressU = D3D11_TEXTURE_ADDRESS_BORDER;
+    shadowSamplerDescription.AddressV = D3D11_TEXTURE_ADDRESS_BORDER;
+    shadowSamplerDescription.AddressW = D3D11_TEXTURE_ADDRESS_BORDER;
+    shadowSamplerDescription.BorderColor[0] = 1.0F;
+    shadowSamplerDescription.BorderColor[1] = 1.0F;
+    shadowSamplerDescription.BorderColor[2] = 1.0F;
+    shadowSamplerDescription.BorderColor[3] = 1.0F;
+    shadowSamplerDescription.ComparisonFunc = D3D11_COMPARISON_LESS_EQUAL;
+    shadowSamplerDescription.MaxLOD = D3D11_FLOAT32_MAX;
+    RequireSuccess(
+        device->CreateSamplerState(
+            &shadowSamplerDescription, shadowSampler_.ReleaseAndGetAddressOf()),
+        "ID3D11Device::CreateSamplerState(shadow comparison)");
+
+    D3D11_RASTERIZER_DESC shadowRasterizerDescription{};
+    shadowRasterizerDescription.FillMode = D3D11_FILL_SOLID;
+    shadowRasterizerDescription.CullMode = D3D11_CULL_BACK;
+    shadowRasterizerDescription.DepthClipEnable = TRUE;
+    shadowRasterizerDescription.DepthBias = 1200;
+    shadowRasterizerDescription.SlopeScaledDepthBias = 1.5F;
+    shadowRasterizerDescription.DepthBiasClamp = 0.01F;
+    RequireSuccess(
+        device->CreateRasterizerState(
+            &shadowRasterizerDescription,
+            shadowRasterizerState_.ReleaseAndGetAddressOf()),
+        "ID3D11Device::CreateRasterizerState(shadow bias)");
+
     CreateColorTarget(
         device,
         config.width,
@@ -373,11 +454,22 @@ void HybridDeferredRenderer::Initialize(
         depthTexture_,
         depthStencilView_,
         depthShaderResource_);
+    CreateShadowTarget(
+        device,
+        config.shadowMapSize,
+        shadowTexture_,
+        shadowDepthStencilView_,
+        shadowShaderResource_);
 
     viewport_.Width = static_cast<float>(config.width);
     viewport_.Height = static_cast<float>(config.height);
     viewport_.MinDepth = 0.0F;
     viewport_.MaxDepth = 1.0F;
+
+    shadowViewport_.Width = static_cast<float>(config.shadowMapSize);
+    shadowViewport_.Height = static_cast<float>(config.shadowMapSize);
+    shadowViewport_.MinDepth = 0.0F;
+    shadowViewport_.MaxDepth = 1.0F;
 
     character_ = LoadModel(
         device, config.assetRoot / L"characters" / L"cyber-runner.dxam");
@@ -492,6 +584,66 @@ RenderStatistics HybridDeferredRenderer::Render(
     XMFLOAT4X4 viewProjectionStorage;
     XMStoreFloat4x4(&viewProjectionStorage, viewProjection);
 
+    const XMVECTOR sunDirection = XMVector3Normalize(
+        XMVectorSet(-0.45F, 0.8F, -0.35F, 0.0F));
+    const XMMATRIX lightView = XMMatrixLookAtLH(
+        XMVectorScale(sunDirection, 80.0F),
+        XMVectorZero(),
+        XMVectorSet(0.0F, 1.0F, 0.0F, 0.0F));
+    const XMMATRIX lightProjection = XMMatrixOrthographicLH(
+        110.0F,
+        110.0F,
+        0.1F,
+        200.0F);
+    const XMMATRIX lightViewProjection = lightView * lightProjection;
+    XMFLOAT4X4 lightViewProjectionStorage;
+    XMStoreFloat4x4(&lightViewProjectionStorage, lightViewProjection);
+
+    const XMMATRIX floorBase = FloorWorld(floor_.minimumBounds, floor_.maximumBounds);
+    const XMMATRIX characterBase =
+        CharacterWorld(character_.minimumBounds, character_.maximumBounds);
+    RenderStatistics statistics;
+
+    constexpr std::array<ID3D11ShaderResourceView*, 1> NullShadowResource{};
+    context->PSSetShaderResources(3, 1, NullShadowResource.data());
+    context->OMSetRenderTargets(0, nullptr, shadowDepthStencilView_.Get());
+    context->RSSetViewports(1, &shadowViewport_);
+    context->RSSetState(shadowRasterizerState_.Get());
+    context->ClearDepthStencilView(
+        shadowDepthStencilView_.Get(), D3D11_CLEAR_DEPTH, 1.0F, 0);
+    for (const benchmark::SceneInstance& instance : stressScene_.staticInstances)
+    {
+        XMFLOAT4X4 worldStorage;
+        XMStoreFloat4x4(&worldStorage, PlaceInstance(floorBase, instance));
+        Accumulate(
+            statistics,
+            RenderShadowModel(
+                context,
+                floor_,
+                &worldStorage._11,
+                &lightViewProjectionStorage._11,
+                sceneSeconds));
+    }
+    const auto renderShadowCharacters = [&](
+        const std::span<const benchmark::SceneInstance> instances) {
+        for (const benchmark::SceneInstance& instance : instances)
+        {
+            XMFLOAT4X4 worldStorage;
+            XMStoreFloat4x4(&worldStorage, PlaceInstance(characterBase, instance));
+            Accumulate(
+                statistics,
+                RenderShadowModel(
+                    context,
+                    character_,
+                    &worldStorage._11,
+                    &lightViewProjectionStorage._11,
+                    sceneSeconds + static_cast<double>(instance.animationPhaseSeconds)));
+        }
+    };
+    renderShadowCharacters(stressScene_.players);
+    renderShadowCharacters(stressScene_.ai);
+    context->RSSetState(nullptr);
+
     ID3D11RenderTargetView* geometryTargets[]{
         albedoRoughnessRenderTarget_.Get(),
         normalRenderTarget_.Get()};
@@ -506,11 +658,6 @@ RenderStatistics HybridDeferredRenderer::Render(
     context->ClearRenderTargetView(normalRenderTarget_.Get(), NormalClear.data());
     context->ClearDepthStencilView(
         depthStencilView_.Get(), D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0F, 0);
-
-    const XMMATRIX floorBase = FloorWorld(floor_.minimumBounds, floor_.maximumBounds);
-    const XMMATRIX characterBase =
-        CharacterWorld(character_.minimumBounds, character_.maximumBounds);
-    RenderStatistics statistics;
 
     for (const benchmark::SceneInstance& instance : stressScene_.staticInstances)
     {
@@ -549,7 +696,10 @@ RenderStatistics HybridDeferredRenderer::Render(
     XMFLOAT4X4 inverseViewProjectionStorage;
     XMStoreFloat4x4(&inverseViewProjectionStorage, inverseViewProjection);
     UpdateLightingConstants(
-        context, &inverseViewProjectionStorage._11, sceneSeconds);
+        context,
+        &inverseViewProjectionStorage._11,
+        &lightViewProjectionStorage._11,
+        sceneSeconds);
 
     context->OMSetRenderTargets(1, &backBufferRenderTarget, nullptr);
     context->RSSetViewports(1, &viewport_);
@@ -562,23 +712,82 @@ RenderStatistics HybridDeferredRenderer::Render(
     ID3D11ShaderResourceView* gBufferResources[]{
         albedoRoughnessShaderResource_.Get(),
         normalShaderResource_.Get(),
-        depthShaderResource_.Get()};
+        depthShaderResource_.Get(),
+        shadowShaderResource_.Get()};
     context->PSSetShaderResources(
         0,
         static_cast<UINT>(std::size(gBufferResources)),
         gBufferResources);
     ID3D11SamplerState* gBufferSampler = gBufferSampler_.Get();
     context->PSSetSamplers(0, 1, &gBufferSampler);
+    ID3D11SamplerState* shadowSampler = shadowSampler_.Get();
+    context->PSSetSamplers(1, 1, &shadowSampler);
     context->Draw(3, 0);
     ++statistics.drawCalls;
     ++statistics.lightingDrawCalls;
     ++statistics.triangleCount;
 
-    constexpr std::array<ID3D11ShaderResourceView*, 3> NullResources{};
+    constexpr std::array<ID3D11ShaderResourceView*, 4> NullResources{};
     context->PSSetShaderResources(
         0,
         static_cast<UINT>(NullResources.size()),
         NullResources.data());
+    return statistics;
+}
+
+RenderStatistics HybridDeferredRenderer::RenderShadowModel(
+    ID3D11DeviceContext* const context,
+    const GpuModel& model,
+    const float* const worldMatrix,
+    const float* const lightViewProjectionMatrix,
+    const double totalSeconds) const
+{
+    using namespace DirectX;
+
+    const XMMATRIX world = LoadMatrix(worldMatrix);
+    const XMMATRIX lightViewProjection = LoadMatrix(lightViewProjectionMatrix);
+    SkinConstants skinConstants{};
+    for (XMFLOAT4X4& matrix : skinConstants.boneMatrices)
+    {
+        XMStoreFloat4x4(&matrix, XMMatrixIdentity());
+    }
+    const std::span<const asset::Matrix4> palette =
+        asset::SampleAnimationPalette(model.assetData, 0, totalSeconds);
+    for (std::size_t jointIndex = 0; jointIndex < palette.size(); ++jointIndex)
+    {
+        std::memcpy(
+            &skinConstants.boneMatrices[jointIndex],
+            palette[jointIndex].elements.data(),
+            sizeof(XMFLOAT4X4));
+    }
+    context->UpdateSubresource(skinConstantBuffer_.Get(), 0, nullptr, &skinConstants, 0, 0);
+
+    SceneConstants constants{};
+    XMStoreFloat4x4(
+        &constants.worldViewProjection,
+        world * lightViewProjection);
+    context->UpdateSubresource(sceneConstantBuffer_.Get(), 0, nullptr, &constants, 0, 0);
+
+    constexpr UINT Stride = sizeof(asset::Vertex);
+    constexpr UINT Offset = 0;
+    ID3D11Buffer* vertexBuffer = model.vertexBuffer.Get();
+    ID3D11Buffer* sceneBuffer = sceneConstantBuffer_.Get();
+    ID3D11Buffer* skinBuffer = skinConstantBuffer_.Get();
+    context->IASetInputLayout(geometryInputLayout_.Get());
+    context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    context->IASetVertexBuffers(0, 1, &vertexBuffer, &Stride, &Offset);
+    context->IASetIndexBuffer(model.indexBuffer.Get(), DXGI_FORMAT_R32_UINT, 0);
+    context->VSSetShader(shadowVertexShader_.Get(), nullptr, 0);
+    context->VSSetConstantBuffers(0, 1, &sceneBuffer);
+    context->VSSetConstantBuffers(1, 1, &skinBuffer);
+    context->PSSetShader(nullptr, nullptr, 0);
+
+    const UINT indexCount = static_cast<UINT>(model.assetData.indices.size());
+    context->DrawIndexed(indexCount, 0, 0);
+    RenderStatistics statistics;
+    statistics.drawCalls = 1;
+    statistics.shadowDrawCalls = 1;
+    statistics.triangleCount = indexCount / 3U;
     return statistics;
 }
 
@@ -655,6 +864,7 @@ RenderStatistics HybridDeferredRenderer::RenderGeometryModel(
 void HybridDeferredRenderer::UpdateLightingConstants(
     ID3D11DeviceContext* const context,
     const float* const inverseViewProjectionMatrix,
+    const float* const lightViewProjectionMatrix,
     const double sceneSeconds) const
 {
     LightingConstants constants{};
@@ -662,6 +872,11 @@ void HybridDeferredRenderer::UpdateLightingConstants(
         &constants.inverseViewProjection,
         inverseViewProjectionMatrix,
         sizeof(constants.inverseViewProjection));
+    std::memcpy(
+        &constants.lightViewProjection,
+        lightViewProjectionMatrix,
+        sizeof(constants.lightViewProjection));
+    constants.shadowTexelSize = 1.0F / shadowViewport_.Width;
     constants.pointLightCount = static_cast<std::uint32_t>(stressScene_.dynamicLights.size());
     for (std::size_t index = 0; index < stressScene_.dynamicLights.size(); ++index)
     {
@@ -679,5 +894,15 @@ void HybridDeferredRenderer::UpdateLightingConstants(
             light.intensity};
     }
     context->UpdateSubresource(lightingConstantBuffer_.Get(), 0, nullptr, &constants, 0, 0);
+}
+
+bool HybridDeferredRenderer::ShadowMapReady() const noexcept
+{
+    return shadowVertexShader_ != nullptr
+        && shadowTexture_ != nullptr
+        && shadowDepthStencilView_ != nullptr
+        && shadowShaderResource_ != nullptr
+        && shadowSampler_ != nullptr
+        && shadowRasterizerState_ != nullptr;
 }
 } // namespace dxa::engine
