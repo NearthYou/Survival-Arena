@@ -11,6 +11,14 @@
 
 namespace dxa::simulation
 {
+namespace
+{
+[[nodiscard]] bool IsActivePhase(const MatchPhase phase) noexcept
+{
+    return phase == MatchPhase::Running || phase == MatchPhase::SuddenDeath;
+}
+} // namespace
+
 OfflineMatch OfflineMatch::Create(const NavMesh& navMesh, MatchConfig config)
 {
     ValidateMatchConfig(config);
@@ -46,7 +54,7 @@ void OfflineMatch::Submit(MatchCommand command)
     {
         throw std::logic_error{"offline match has been moved from"};
     }
-    if (impl_->phase != MatchPhase::Running)
+    if (!IsActivePhase(impl_->phase))
     {
         throw std::logic_error{"offline match accepts commands only while running"};
     }
@@ -59,7 +67,7 @@ void OfflineMatch::Step()
     {
         throw std::logic_error{"offline match has been moved from"};
     }
-    if (impl_->phase != MatchPhase::Running)
+    if (!IsActivePhase(impl_->phase))
     {
         throw std::logic_error{"offline match can step only while running"};
     }

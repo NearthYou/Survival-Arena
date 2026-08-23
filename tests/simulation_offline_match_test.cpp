@@ -65,6 +65,22 @@ using dxa::simulation::WeaponType;
         0.1F);
 }
 
+[[nodiscard]] NavMesh MakeLargeNavMesh()
+{
+    return NavMesh::Build(
+        {
+            {-64.0F, -64.0F},
+            {64.0F, -64.0F},
+            {-64.0F, 64.0F},
+            {64.0F, 64.0F}
+        },
+        {
+            NavTriangleIndices{{0U, 1U, 2U}},
+            NavTriangleIndices{{1U, 3U, 2U}}
+        },
+        4.0F);
+}
+
 [[nodiscard]] std::size_t CountRole(
     const MatchSnapshot& snapshot,
     const ActorRole role)
@@ -165,6 +181,26 @@ using dxa::simulation::WeaponType;
     return match;
 }
 
+[[nodiscard]] MatchConfig CloseCombatConfig(const std::uint32_t contenderCount = 2U)
+{
+    MatchConfig config = SmallMatchConfig();
+    config.contenderCount = contenderCount;
+    config.contenderSpawnInnerRadius = 0.5F;
+    config.contenderSpawnOuterRadius = 0.6F;
+    config.contenderSpawnSpacing = 0.2F;
+    return config;
+}
+
+[[nodiscard]] OfflineMatch StartedCloseCombatMatch(
+    const std::uint32_t contenderCount = 2U)
+{
+    OfflineMatch match = OfflineMatch::Create(
+        MakeArenaNavMesh(),
+        CloseCombatConfig(contenderCount));
+    match.Start();
+    return match;
+}
+
 [[nodiscard]] const ActorSnapshot& ActorById(
     const MatchSnapshot& snapshot,
     const ActorId id)
@@ -211,6 +247,28 @@ using dxa::simulation::WeaponType;
     const dxa::simulation::Vec2 right) noexcept
 {
     return left.x * right.z - left.z * right.x;
+}
+
+void StepUntilActorDies(
+    OfflineMatch& match,
+    const ActorId attacker,
+    const ActorId target,
+    const std::uint32_t maximumTicks = 200U)
+{
+    for (std::uint32_t attempt = 0; attempt < maximumTicks; ++attempt)
+    {
+        const MatchSnapshot snapshot = match.Snapshot();
+        if (!ActorById(snapshot, target).alive)
+        {
+            return;
+        }
+        if (ActorById(snapshot, attacker).cooldownTicksRemaining == 0U)
+        {
+            match.Submit(AttackCommand(attacker, target));
+        }
+        match.Step();
+    }
+    throw std::runtime_error{"actor did not die within the test tick budget"};
 }
 
 TEST(OfflineMatch, StartsCanonicalPopulationOnNavMesh)
@@ -521,5 +579,302 @@ TEST(OfflineMatch, ClearsCommandQueueAndKeepsCumulativeEventChecksum)
     match.Step();
     EXPECT_TRUE(match.DrainEvents().empty());
     EXPECT_EQ(rejectedChecksum, match.Snapshot().eventChecksum);
+}
+
+TEST(OfflineMatch, AppliesAttackBeforeZoneAndStartsWeaponCooldown)
+{
+    OfflineMatch match = StartedCloseCombatMatch();
+    match.Submit(AttackCommand(0U, 1U));
+
+    match.Step();
+
+    const MatchSnapshot snapshot = match.Snapshot();
+    EXPECT_EQ(76, ActorById(snapshot, 1U).health);
+    EXPECT_EQ(21U, ActorById(snapshot, 0U).cooldownTicksRemaining);
+    const std::vector<MatchEvent> events = match.DrainEvents();
+    ASSERT_EQ(1U, events.size());
+    EXPECT_EQ(MatchEventType::DamageApplied, events[0].type);
+    EXPECT_EQ(1U, events[0].actor);
+    EXPECT_EQ(0U, events[0].subject);
+    EXPECT_EQ(24, events[0].amount);
+}
+
+TEST(OfflineMatch, CooldownBlocksConsecutiveAttackCommand)
+{
+    OfflineMatch match = StartedCloseCombatMatch();
+    match.Submit(AttackCommand(0U, 1U));
+    match.Step();
+    (void)match.DrainEvents();
+    match.Submit(AttackCommand(0U, 1U));
+
+    match.Step();
+
+    EXPECT_EQ(76, ActorById(match.Snapshot(), 1U).health);
+    EXPECT_EQ(20U, ActorById(match.Snapshot(), 0U).cooldownTicksRemaining);
+    EXPECT_TRUE(match.DrainEvents().empty());
+}
+
+TEST(OfflineMatch, FinishesImmediatelyWithOneLastSurvivor)
+{
+    OfflineMatch match = StartedCloseCombatMatch();
+
+    StepUntilActorDies(match, 0U, 1U);
+
+    const MatchSnapshot snapshot = match.Snapshot();
+    ASSERT_TRUE(snapshot.result.has_value());
+    EXPECT_EQ(MatchPhase::Finished, snapshot.phase);
+    EXPECT_EQ(1U, snapshot.aliveContenders);
+    EXPECT_EQ(0U, snapshot.result->winner);
+    EXPECT_EQ(dxa::simulation::MatchEndReason::LastSurvivor, snapshot.result->reason);
+    EXPECT_EQ(snapshot.tick, snapshot.result->finishedTick);
+    const std::vector<MatchEvent> events = match.DrainEvents();
+    EXPECT_EQ(1U, static_cast<std::size_t>(std::count_if(
+        events.begin(), events.end(), [](const MatchEvent& event) {
+            return event.type == MatchEventType::ActorDied && event.actor == 1U;
+        })));
+    EXPECT_EQ(1U, static_cast<std::size_t>(std::count_if(
+        events.begin(), events.end(), [](const MatchEvent& event) {
+            return event.type == MatchEventType::MatchFinished && event.actor == 0U;
+        })));
+    EXPECT_THROW(match.Step(), std::logic_error);
+}
+
+TEST(OfflineMatch, CreditsLowerIdForEqualLethalContributions)
+{
+    OfflineMatch match = StartedCloseCombatMatch(3U);
+    for (std::uint32_t tick = 0; tick < 200U && ActorById(match.Snapshot(), 2U).alive;
+         ++tick)
+    {
+        const MatchSnapshot snapshot = match.Snapshot();
+        if (ActorById(snapshot, 0U).cooldownTicksRemaining == 0U)
+        {
+            match.Submit(AttackCommand(0U, 2U));
+        }
+        if (ActorById(snapshot, 1U).cooldownTicksRemaining == 0U)
+        {
+            match.Submit(AttackCommand(1U, 2U));
+        }
+        match.Step();
+    }
+
+    const std::vector<MatchEvent> events = match.DrainEvents();
+    const auto death = std::find_if(
+        events.begin(), events.end(), [](const MatchEvent& event) {
+            return event.type == MatchEventType::ActorDied && event.actor == 2U;
+        });
+    ASSERT_NE(events.end(), death);
+    ASSERT_TRUE(death->subject.has_value());
+    EXPECT_EQ(0U, *death->subject);
+    EXPECT_EQ(1U, ActorById(match.Snapshot(), 0U).eliminations);
+    EXPECT_EQ(MatchPhase::Running, match.Snapshot().phase);
+}
+
+TEST(OfflineMatch, CombatWipePreservesRankedContender)
+{
+    OfflineMatch match = StartedCloseCombatMatch();
+    for (std::uint32_t tick = 0; tick < 200U && match.Snapshot().phase == MatchPhase::Running;
+         ++tick)
+    {
+        const MatchSnapshot snapshot = match.Snapshot();
+        if (ActorById(snapshot, 0U).cooldownTicksRemaining == 0U)
+        {
+            match.Submit(AttackCommand(0U, 1U));
+        }
+        if (ActorById(snapshot, 1U).cooldownTicksRemaining == 0U)
+        {
+            match.Submit(AttackCommand(1U, 0U));
+        }
+        match.Step();
+    }
+
+    const MatchSnapshot snapshot = match.Snapshot();
+    ASSERT_TRUE(snapshot.result.has_value());
+    EXPECT_EQ(0U, snapshot.result->winner);
+    EXPECT_TRUE(ActorById(snapshot, 0U).alive);
+    EXPECT_EQ(1, ActorById(snapshot, 0U).health);
+    EXPECT_FALSE(ActorById(snapshot, 1U).alive);
+}
+
+TEST(OfflineMatch, NeutralDeathDoesNotFinishContenderMatch)
+{
+    MatchConfig config = CloseCombatConfig();
+    config.meleeNeutralCount = 1U;
+    OfflineMatch match = OfflineMatch::Create(MakeArenaNavMesh(), config);
+    match.Start();
+    const dxa::simulation::Vec2 neutralPosition = ActorById(match.Snapshot(), 2U).position;
+    match.Submit(MoveCommand(0U, neutralPosition));
+    for (std::uint32_t tick = 0;
+         tick < 600U
+         && Distance(ActorById(match.Snapshot(), 0U).position, neutralPosition) > 2.0F;
+         ++tick)
+    {
+        match.Step();
+    }
+
+    StepUntilActorDies(match, 0U, 2U);
+
+    EXPECT_FALSE(ActorById(match.Snapshot(), 2U).alive);
+    EXPECT_EQ(2U, match.Snapshot().aliveContenders);
+    EXPECT_EQ(MatchPhase::Running, match.Snapshot().phase);
+    EXPECT_FALSE(match.Snapshot().result.has_value());
+}
+
+TEST(OfflineMatch, RejectsCommandFromDeadActor)
+{
+    OfflineMatch match = StartedCloseCombatMatch(3U);
+    StepUntilActorDies(match, 0U, 2U);
+    (void)match.DrainEvents();
+    const dxa::simulation::Vec2 before = ActorById(match.Snapshot(), 2U).position;
+    match.Submit(MoveCommand(2U, {0.0F, 0.0F}));
+
+    match.Step();
+
+    EXPECT_EQ(before, ActorById(match.Snapshot(), 2U).position);
+    const std::vector<MatchEvent> events = match.DrainEvents();
+    ASSERT_EQ(1U, events.size());
+    EXPECT_EQ(MatchEventType::CommandRejected, events[0].type);
+    EXPECT_EQ(2U, events[0].actor);
+}
+
+TEST(OfflineMatch, ArcPulseEmitsDamageForEveryAffectedTarget)
+{
+    MatchConfig config = CloseCombatConfig();
+    config.arcPulseLootCount = 1U;
+    OfflineMatch match = OfflineMatch::Create(MakeArenaNavMesh(), config);
+    match.Start();
+    const MatchSnapshot initial = match.Snapshot();
+    const auto closest = std::min_element(
+        initial.actors.begin(), initial.actors.end(), [&initial](
+            const ActorSnapshot& left, const ActorSnapshot& right) {
+            return Distance(left.position, initial.loot[0].position)
+                < Distance(right.position, initial.loot[0].position);
+        });
+    ASSERT_NE(initial.actors.end(), closest);
+    match.Submit(MoveCommand(closest->id, initial.loot[0].position));
+    for (std::uint32_t tick = 0;
+         tick < 600U && ActorById(match.Snapshot(), closest->id).weapon != WeaponType::ArcPulse;
+         ++tick)
+    {
+        match.Step();
+        (void)match.DrainEvents();
+    }
+    ASSERT_EQ(WeaponType::ArcPulse, ActorById(match.Snapshot(), closest->id).weapon);
+    const ActorId target = closest->id == 0U ? 1U : 0U;
+    match.Submit(MoveCommand(closest->id, ActorById(match.Snapshot(), target).position));
+    for (std::uint32_t tick = 0;
+         tick < 600U
+         && Distance(
+                ActorById(match.Snapshot(), closest->id).position,
+                ActorById(match.Snapshot(), target).position) > 10.0F;
+         ++tick)
+    {
+        match.Step();
+        (void)match.DrainEvents();
+    }
+    (void)match.DrainEvents();
+    match.Submit(AttackCommand(closest->id, target));
+
+    match.Step();
+
+    const std::vector<MatchEvent> events = match.DrainEvents();
+    const auto damage = std::find_if(
+        events.begin(), events.end(), [target](const MatchEvent& event) {
+            return event.type == MatchEventType::DamageApplied && event.actor == target;
+        });
+    ASSERT_NE(events.end(), damage);
+    EXPECT_EQ(18, damage->amount);
+    EXPECT_EQ(closest->id, damage->subject);
+}
+
+TEST(OfflineMatch, AppliesZoneDamageOncePerSecond)
+{
+    MatchConfig config = SmallMatchConfig();
+    config.contenderSpawnInnerRadius = 40.0F;
+    config.contenderSpawnOuterRadius = 41.0F;
+    OfflineMatch match = OfflineMatch::Create(MakeLargeNavMesh(), config);
+    match.Start();
+
+    for (std::uint32_t tick = 0; tick < 29U; ++tick)
+    {
+        match.Step();
+    }
+    EXPECT_EQ(100, ActorById(match.Snapshot(), 0U).health);
+    match.Step();
+
+    EXPECT_EQ(98, ActorById(match.Snapshot(), 0U).health);
+    EXPECT_EQ(98, ActorById(match.Snapshot(), 1U).health);
+    const std::vector<MatchEvent> events = match.DrainEvents();
+    EXPECT_EQ(2U, static_cast<std::size_t>(std::count_if(
+        events.begin(), events.end(), [](const MatchEvent& event) {
+            return event.type == MatchEventType::DamageApplied
+                && !event.subject.has_value()
+                && event.amount == 2;
+        })));
+}
+
+TEST(OfflineMatch, ZoneWipePreservesLowerIdContenderAtOneHealth)
+{
+    MatchConfig config = SmallMatchConfig();
+    config.contenderSpawnInnerRadius = 40.0F;
+    config.contenderSpawnOuterRadius = 41.0F;
+    OfflineMatch match = OfflineMatch::Create(MakeLargeNavMesh(), config);
+    match.Start();
+
+    for (std::uint32_t tick = 0;
+         tick < 2000U && match.Snapshot().phase == MatchPhase::Running;
+         ++tick)
+    {
+        match.Step();
+    }
+
+    const MatchSnapshot snapshot = match.Snapshot();
+    ASSERT_TRUE(snapshot.result.has_value());
+    EXPECT_EQ(0U, snapshot.result->winner);
+    EXPECT_EQ(dxa::simulation::MatchEndReason::LastSurvivor, snapshot.result->reason);
+    EXPECT_TRUE(ActorById(snapshot, 0U).alive);
+    EXPECT_EQ(1, ActorById(snapshot, 0U).health);
+    EXPECT_FALSE(ActorById(snapshot, 1U).alive);
+}
+
+TEST(OfflineMatch, EntersSuddenDeathAndForcesTimeoutWinner)
+{
+    OfflineMatch match = StartedCloseCombatMatch();
+    match.Submit(MoveCommand(0U, {0.0F, 0.0F}));
+    match.Submit(MoveCommand(1U, {0.0F, 0.0F}));
+
+    while (match.Snapshot().tick < 14400U)
+    {
+        match.Step();
+    }
+    EXPECT_EQ(MatchPhase::SuddenDeath, match.Snapshot().phase);
+    EXPECT_EQ(2U, match.Snapshot().aliveContenders);
+
+    while (match.Snapshot().tick < 18000U)
+    {
+        match.Step();
+    }
+
+    const MatchSnapshot snapshot = match.Snapshot();
+    ASSERT_TRUE(snapshot.result.has_value());
+    EXPECT_EQ(MatchPhase::Finished, snapshot.phase);
+    EXPECT_EQ(dxa::simulation::MatchEndReason::TimeLimit, snapshot.result->reason);
+    EXPECT_EQ(0U, snapshot.result->winner);
+    EXPECT_EQ(18000U, snapshot.result->finishedTick);
+    EXPECT_EQ(1U, snapshot.aliveContenders);
+    EXPECT_EQ(1, ActorById(snapshot, 0U).health);
+}
+
+TEST(OfflineMatch, RepeatsCombatEventsAndChecksumForSameInputs)
+{
+    OfflineMatch first = StartedCloseCombatMatch();
+    OfflineMatch repeated = StartedCloseCombatMatch();
+    first.Submit(AttackCommand(0U, 1U));
+    repeated.Submit(AttackCommand(0U, 1U));
+
+    first.Step();
+    repeated.Step();
+
+    EXPECT_EQ(first.Snapshot(), repeated.Snapshot());
+    EXPECT_EQ(first.DrainEvents(), repeated.DrainEvents());
 }
 } // namespace

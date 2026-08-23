@@ -1,5 +1,8 @@
 #include "OfflineMatchInternal.hpp"
 
+#include <dxa/simulation/MatchResolution.hpp>
+#include <dxa/simulation/SafeZone.hpp>
+
 #include <algorithm>
 #include <bit>
 #include <cstddef>
@@ -55,6 +58,226 @@ void AddRejectedEvent(
         tick,
         MatchEventType::CommandRejected,
         actor});
+}
+
+[[nodiscard]] std::vector<ContenderRankInput> BuildContenderRanks(
+    const std::vector<CombatActor>& actors)
+{
+    std::vector<ContenderRankInput> ranks;
+    for (const CombatActor& actor : actors)
+    {
+        if (actor.role == ActorRole::Contender)
+        {
+            ranks.push_back(ContenderRankInput{
+                actor.id,
+                actor.alive,
+                actor.health,
+                actor.eliminations});
+        }
+    }
+    if (ranks.empty())
+    {
+        throw std::logic_error{"offline match has no contenders"};
+    }
+    return ranks;
+}
+
+[[nodiscard]] std::uint32_t CountAliveContenders(
+    const std::vector<CombatActor>& actors) noexcept
+{
+    return static_cast<std::uint32_t>(std::count_if(
+        actors.begin(),
+        actors.end(),
+        [](const CombatActor& actor) {
+            return actor.role == ActorRole::Contender && actor.alive;
+        }));
+}
+
+[[nodiscard]] ActorId SoleAliveContender(const std::vector<CombatActor>& actors)
+{
+    std::optional<ActorId> winner;
+    for (const CombatActor& actor : actors)
+    {
+        if (actor.role != ActorRole::Contender || !actor.alive)
+        {
+            continue;
+        }
+        if (winner.has_value())
+        {
+            throw std::logic_error{"more than one contender remains alive"};
+        }
+        winner = actor.id;
+    }
+    if (!winner.has_value())
+    {
+        throw std::logic_error{"no contender remains alive"};
+    }
+    return *winner;
+}
+
+void PreserveCombatWipe(
+    std::vector<CombatActor>& actors,
+    const std::vector<ContenderRankInput>& preCombatRanks,
+    CombatResolution& resolution)
+{
+    if (CountAliveContenders(actors) != 0U)
+    {
+        return;
+    }
+
+    const ActorId protectedActor = SelectSurvivalWinner(preCombatRanks);
+    const std::optional<std::size_t> protectedIndex =
+        FindActorIndex(actors, protectedActor);
+    if (!protectedIndex.has_value())
+    {
+        throw std::logic_error{"combat wipe winner is missing"};
+    }
+
+    const auto death = std::find_if(
+        resolution.deaths.begin(),
+        resolution.deaths.end(),
+        [protectedActor](const DeathRecord& record) {
+            return record.victim == protectedActor;
+        });
+    if (death == resolution.deaths.end())
+    {
+        throw std::logic_error{"combat wipe winner has no death record"};
+    }
+    if (death->killer.has_value())
+    {
+        const std::optional<std::size_t> killerIndex =
+            FindActorIndex(actors, *death->killer);
+        if (!killerIndex.has_value() || actors[*killerIndex].eliminations == 0U)
+        {
+            throw std::logic_error{"combat wipe killer attribution is inconsistent"};
+        }
+        --actors[*killerIndex].eliminations;
+    }
+    resolution.deaths.erase(death);
+
+    const auto priorRank = std::find_if(
+        preCombatRanks.begin(),
+        preCombatRanks.end(),
+        [protectedActor](const ContenderRankInput& rank) {
+            return rank.id == protectedActor;
+        });
+    const auto damage = std::find_if(
+        resolution.damage.begin(),
+        resolution.damage.end(),
+        [protectedActor](const DamageRecord& record) {
+            return record.target == protectedActor;
+        });
+    if (priorRank == preCombatRanks.end() || damage == resolution.damage.end())
+    {
+        throw std::logic_error{"combat wipe damage record is inconsistent"};
+    }
+    if (priorRank->health <= 1)
+    {
+        resolution.damage.erase(damage);
+    }
+    else
+    {
+        damage->amount = priorRank->health - 1;
+    }
+    actors[*protectedIndex].health = 1;
+    actors[*protectedIndex].alive = true;
+}
+
+void AddCombatEvents(
+    const std::uint32_t tick,
+    const CombatResolution& resolution,
+    std::vector<MatchEvent>& events)
+{
+    for (const DamageRecord& damage : resolution.damage)
+    {
+        if (damage.amount <= 0)
+        {
+            throw std::logic_error{"combat emitted non-positive damage"};
+        }
+        events.push_back(MatchEvent{
+            tick,
+            MatchEventType::DamageApplied,
+            damage.target,
+            damage.primarySource,
+            std::nullopt,
+            damage.amount});
+    }
+    for (const DeathRecord& death : resolution.deaths)
+    {
+        events.push_back(MatchEvent{
+            tick,
+            MatchEventType::ActorDied,
+            death.victim,
+            death.killer});
+    }
+}
+
+void ApplySafeZoneDamage(
+    std::vector<CombatActor>& actors,
+    const std::uint32_t tick,
+    const std::uint32_t tickRate,
+    std::vector<MatchEvent>& events)
+{
+    const std::int32_t damage = SafeZoneDamageForTick(tick, tickRate);
+    if (damage == 0)
+    {
+        return;
+    }
+
+    const SafeZoneState zone = EvaluateSafeZone(tick, tickRate);
+    const std::vector<ContenderRankInput> preZoneRanks = BuildContenderRanks(actors);
+    std::uint32_t rawContenderSurvivors = 0;
+    for (const CombatActor& actor : actors)
+    {
+        if (actor.role != ActorRole::Contender || !actor.alive)
+        {
+            continue;
+        }
+        if (!IsOutsideSafeZone(actor.position, zone) || actor.health > damage)
+        {
+            ++rawContenderSurvivors;
+        }
+    }
+
+    std::optional<ActorId> protectedActor;
+    if (rawContenderSurvivors == 0U)
+    {
+        protectedActor = SelectSurvivalWinner(preZoneRanks);
+    }
+
+    for (CombatActor& actor : actors)
+    {
+        if (!actor.alive || !IsOutsideSafeZone(actor.position, zone))
+        {
+            continue;
+        }
+        const std::int32_t targetHealth =
+            protectedActor.has_value()
+                && actor.role == ActorRole::Contender
+                && actor.id == *protectedActor
+            ? 1
+            : std::max(0, actor.health - damage);
+        const std::int32_t appliedDamage = actor.health - targetHealth;
+        actor.health = targetHealth;
+        if (appliedDamage > 0)
+        {
+            events.push_back(MatchEvent{
+                tick,
+                MatchEventType::DamageApplied,
+                actor.id,
+                std::nullopt,
+                std::nullopt,
+                appliedDamage});
+        }
+        if (actor.health == 0)
+        {
+            actor.alive = false;
+            events.push_back(MatchEvent{
+                tick,
+                MatchEventType::ActorDied,
+                actor.id});
+        }
+    }
 }
 
 void HashByte(std::uint64_t& hash, const std::uint8_t value) noexcept
@@ -238,6 +461,71 @@ void OfflineMatch::Impl::Step()
     }
 
     TickWeaponCooldowns(actors);
+
+    const std::vector<ContenderRankInput> preCombatRanks = BuildContenderRanks(actors);
+    std::vector<AttackIntent> attackIntents;
+    attackIntents.reserve(selectedCommands.size());
+    for (const auto& [actorId, command] : selectedCommands)
+    {
+        if (command.attackTarget.has_value())
+        {
+            attackIntents.push_back(AttackIntent{actorId, *command.attackTarget});
+        }
+    }
+    CombatResolution combat = ResolveAttacks(actors, attackIntents);
+    PreserveCombatWipe(actors, preCombatRanks, combat);
+    AddCombatEvents(tick, combat, tickEvents);
+    ApplySafeZoneDamage(actors, tick, config.tickRate, tickEvents);
+
+    const std::uint32_t aliveContenders = CountAliveContenders(actors);
+    if (aliveContenders == 0U)
+    {
+        throw std::logic_error{"offline match resolution left no contender alive"};
+    }
+    if (aliveContenders == 1U)
+    {
+        const ActorId winner = SoleAliveContender(actors);
+        result = MatchResult{winner, MatchEndReason::LastSurvivor, tick};
+        phase = MatchPhase::Finished;
+        tickEvents.push_back(MatchEvent{
+            tick,
+            MatchEventType::MatchFinished,
+            winner});
+    }
+    else if (tick >= config.hardTimeoutTick)
+    {
+        const ActorId winner = SelectSurvivalWinner(BuildContenderRanks(actors));
+        for (CombatActor& actor : actors)
+        {
+            if (actor.role != ActorRole::Contender || !actor.alive)
+            {
+                continue;
+            }
+            if (actor.id == winner)
+            {
+                actor.health = 1;
+                continue;
+            }
+            actor.health = 0;
+            actor.alive = false;
+            tickEvents.push_back(MatchEvent{
+                tick,
+                MatchEventType::ActorDied,
+                actor.id});
+        }
+        result = MatchResult{winner, MatchEndReason::TimeLimit, tick};
+        phase = MatchPhase::Finished;
+        tickEvents.push_back(MatchEvent{
+            tick,
+            MatchEventType::MatchFinished,
+            winner});
+    }
+    else
+    {
+        phase = tick >= config.suddenDeathTick
+            ? MatchPhase::SuddenDeath
+            : MatchPhase::Running;
+    }
     RecordEvents(std::move(tickEvents));
 }
 } // namespace dxa::simulation

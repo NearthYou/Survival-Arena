@@ -6,6 +6,7 @@ add_library(
         src/Combat.cpp
         src/Loot.cpp
         src/MatchConfig.cpp
+        src/MatchResolution.cpp
         src/Math2.cpp
         src/NavAgent.cpp
         src/NavMesh.cpp
