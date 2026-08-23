@@ -397,11 +397,6 @@ void OfflineMatch::Impl::Step()
             }
         }
 
-        if (command.moveDestination.has_value()
-            && !agents[*actorIndex].SetDestination(*command.moveDestination))
-        {
-            throw std::logic_error{"validated match destination was rejected by NavAgent"};
-        }
         selectedCommands.insert_or_assign(command.actor, command);
     };
     for (const MatchCommand& command : commands)
@@ -415,6 +410,20 @@ void OfflineMatch::Impl::Step()
         for (const MatchCommand& command : botCommands)
         {
             processCommand(command);
+        }
+    }
+
+    for (const auto& [actorId, command] : selectedCommands)
+    {
+        if (!command.moveDestination.has_value())
+        {
+            continue;
+        }
+        const std::optional<std::size_t> actorIndex = FindActorIndex(actors, actorId);
+        if (!actorIndex.has_value()
+            || !agents[*actorIndex].SetDestination(*command.moveDestination))
+        {
+            throw std::logic_error{"validated match destination was rejected by NavAgent"};
         }
     }
 

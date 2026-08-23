@@ -432,6 +432,20 @@ TEST(OfflineMatch, UsesLastValidCommandPerActorInTick)
     EXPECT_GT(std::abs(Cross(moved, firstDirection)), 0.01F);
 }
 
+TEST(OfflineMatch, LastAttackOnlyCommandDiscardsEarlierSameTickMovement)
+{
+    OfflineMatch match = StartedSmallMatch();
+    const dxa::simulation::Vec2 before = ActorById(match.Snapshot(), 0U).position;
+    match.Submit(MoveCommand(0U, {0.0F, 0.0F}));
+    match.Submit(AttackCommand(0U, 1U));
+
+    match.Step();
+
+    const dxa::simulation::Vec2 after = ActorById(match.Snapshot(), 0U).position;
+    EXPECT_FLOAT_EQ(before.x, after.x);
+    EXPECT_FLOAT_EQ(before.z, after.z);
+}
+
 TEST(OfflineMatch, KeepsEarlierValidCommandWhenLaterCommandIsInvalid)
 {
     OfflineMatch match = StartedSmallMatch();
