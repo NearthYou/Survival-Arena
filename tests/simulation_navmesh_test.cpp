@@ -2,8 +2,12 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
+#include <cstdint>
 #include <limits>
+#include <random>
 #include <stdexcept>
+#include <utility>
 #include <vector>
 
 namespace
@@ -19,6 +23,63 @@ using dxa::simulation::Vec2;
     return NavMesh::Build(
         {{0.0F, 0.0F}, {1.0F, 0.0F}, {0.0F, 1.0F}, {1.0F, 1.0F}},
         {NavTriangleIndices{{0, 1, 2}}, NavTriangleIndices{{1, 3, 2}}});
+}
+
+[[nodiscard]] NavMesh MakeGridNavMesh(
+    const std::uint32_t columns,
+    const std::uint32_t rows,
+    const float quadSize,
+    const float queryCellSize,
+    const Vec2 origin = {})
+{
+    std::vector<Vec2> vertices;
+    vertices.reserve(
+        static_cast<std::size_t>(columns + 1U)
+        * static_cast<std::size_t>(rows + 1U));
+    for (std::uint32_t row = 0; row <= rows; ++row)
+    {
+        for (std::uint32_t column = 0; column <= columns; ++column)
+        {
+            vertices.push_back({
+                origin.x + static_cast<float>(column) * quadSize,
+                origin.z + static_cast<float>(row) * quadSize});
+        }
+    }
+
+    const auto vertexId = [columns](
+                              const std::uint32_t column,
+                              const std::uint32_t row) {
+        return row * (columns + 1U) + column;
+    };
+
+    std::vector<NavTriangleIndices> triangles;
+    triangles.reserve(
+        static_cast<std::size_t>(columns)
+        * static_cast<std::size_t>(rows)
+        * 2U);
+    for (std::uint32_t row = 0; row < rows; ++row)
+    {
+        for (std::uint32_t column = 0; column < columns; ++column)
+        {
+            const std::uint32_t lowerLeft = vertexId(column, row);
+            const std::uint32_t lowerRight = vertexId(column + 1U, row);
+            const std::uint32_t upperLeft = vertexId(column, row + 1U);
+            const std::uint32_t upperRight = vertexId(column + 1U, row + 1U);
+            triangles.push_back(NavTriangleIndices{{
+                lowerLeft,
+                lowerRight,
+                upperLeft}});
+            triangles.push_back(NavTriangleIndices{{
+                lowerRight,
+                upperRight,
+                upperLeft}});
+        }
+    }
+
+    return NavMesh::Build(
+        std::move(vertices),
+        std::move(triangles),
+        queryCellSize);
 }
 
 [[nodiscard]] std::vector<TriangleId> CopyNeighbors(
@@ -108,6 +169,69 @@ TEST(NavMesh, RejectsNonFiniteLinearQuery)
 
     EXPECT_THROW(
         (void)mesh.FindContainingTriangleLinear({notANumber, 0.0F}),
+        std::invalid_argument);
+}
+
+TEST(NavMesh, GridMatchesLinearAtNegativeAndBoundaryCoordinates)
+{
+    const NavMesh mesh = MakeGridNavMesh(4U, 4U, 1.0F, 2.0F, {-4.0F, -4.0F});
+    const std::vector<Vec2> points{
+        {-3.75F, -3.75F},
+        {-3.5F, -3.5F},
+        {-2.0F, -2.5F},
+        {-2.0F, -2.0F},
+        {-0.001F, -0.001F},
+        {-4.1F, -4.1F},
+        {0.1F, 0.1F}};
+
+    for (const Vec2 point : points)
+    {
+        const NavQueryResult linear = mesh.FindContainingTriangleLinear(point);
+        const NavQueryResult grid = mesh.FindContainingTriangleGrid(point);
+        EXPECT_EQ(linear.triangle, grid.triangle)
+            << "point=(" << point.x << ", " << point.z << ')';
+    }
+
+    const NavQueryResult sharedEdge = mesh.FindContainingTriangleGrid(
+        {-3.5F, -3.5F});
+    ASSERT_TRUE(sharedEdge.triangle.has_value());
+    EXPECT_EQ(0U, *sharedEdge.triangle);
+}
+
+TEST(NavMesh, GridMatchesLinearForSeededQueriesAndReducesCandidates)
+{
+    const NavMesh mesh = MakeGridNavMesh(16U, 16U, 1.0F, 4.0F);
+    std::mt19937 random{20260823U};
+    std::uniform_real_distribution<float> coordinate{-2.0F, 18.0F};
+    std::vector<std::uint32_t> gridCandidates;
+    gridCandidates.reserve(100000U);
+
+    for (std::uint32_t index = 0; index < 100000U; ++index)
+    {
+        const Vec2 point{coordinate(random), coordinate(random)};
+        const NavQueryResult linear = mesh.FindContainingTriangleLinear(point);
+        const NavQueryResult grid = mesh.FindContainingTriangleGrid(point);
+        if (linear.triangle != grid.triangle)
+        {
+            FAIL() << "query " << index << " differs at point=("
+                   << point.x << ", " << point.z << ')';
+        }
+        gridCandidates.push_back(grid.candidatesTested);
+    }
+
+    const auto median = gridCandidates.begin()
+        + static_cast<std::ptrdiff_t>(gridCandidates.size() / 2U);
+    std::nth_element(gridCandidates.begin(), median, gridCandidates.end());
+    EXPECT_LT(*median, mesh.TriangleCount());
+}
+
+TEST(NavMesh, RejectsNonFiniteGridQuery)
+{
+    const NavMesh mesh = MakeTwoTriangleSquare();
+    const float infinity = std::numeric_limits<float>::infinity();
+
+    EXPECT_THROW(
+        (void)mesh.FindContainingTriangleGrid({0.0F, infinity}),
         std::invalid_argument);
 }
 } // namespace

@@ -130,7 +130,9 @@ NavMesh NavMesh::Build(
         std::ranges::sort(triangle.neighbors);
     }
 
-    return NavMesh{std::move(vertices), std::move(data), gridCellSize};
+    NavMesh mesh{std::move(vertices), std::move(data), gridCellSize};
+    mesh.BuildGridIndex();
+    return mesh;
 }
 
 NavMesh::NavMesh(
@@ -159,15 +161,25 @@ NavQueryResult NavMesh::FindContainingTriangleLinear(const Vec2 point) const
         {
             continue;
         }
-        const Vec2 first = vertices_[triangle.indices.vertices[0]];
-        const Vec2 second = vertices_[triangle.indices.vertices[1]];
-        const Vec2 third = vertices_[triangle.indices.vertices[2]];
-        if (ContainsPoint(point, first, second, third) && !result.triangle.has_value())
+        if (TriangleContains(static_cast<TriangleId>(index), point)
+            && !result.triangle.has_value())
         {
             result.triangle = static_cast<TriangleId>(index);
         }
     }
     return result;
+}
+
+bool NavMesh::TriangleContains(
+    const TriangleId triangle,
+    const Vec2 point) const noexcept
+{
+    const TriangleData& data = triangles_[triangle];
+    return ContainsPoint(
+        point,
+        vertices_[data.indices.vertices[0]],
+        vertices_[data.indices.vertices[1]],
+        vertices_[data.indices.vertices[2]]);
 }
 
 std::span<const TriangleId> NavMesh::Neighbors(const TriangleId triangle) const
