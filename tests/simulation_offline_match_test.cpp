@@ -233,16 +233,6 @@ using dxa::simulation::WeaponType;
     return command;
 }
 
-[[nodiscard]] bool ContainsEvent(
-    const std::vector<MatchEvent>& events,
-    const MatchEventType type)
-{
-    return std::any_of(
-        events.begin(),
-        events.end(),
-        [type](const MatchEvent& event) { return event.type == type; });
-}
-
 [[nodiscard]] float Cross(
     const dxa::simulation::Vec2 left,
     const dxa::simulation::Vec2 right) noexcept
