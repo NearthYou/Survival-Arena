@@ -1,0 +1,11 @@
+add_library(
+    dxa_simulation
+    STATIC
+        src/Math2.cpp
+)
+target_include_directories(
+    dxa_simulation
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+dxa_enable_project_warnings(dxa_simulation)

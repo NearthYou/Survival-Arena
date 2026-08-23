@@ -12,6 +12,7 @@ add_executable(
     engine_frame_clock_test.cpp
     engine_input_state_test.cpp
     engine_resource_pool_test.cpp
+    simulation_math_test.cpp
     foundation_test.cpp
 )
 target_link_libraries(
@@ -20,6 +21,7 @@ target_link_libraries(
         GTest::gtest_main
         dxa_client_options
         dxa_engine_core
+        dxa_simulation
 )
 
 if(WIN32)
