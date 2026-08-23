@@ -15,6 +15,7 @@ add_executable(
     simulation_ai_decision_test.cpp
     simulation_behavior_tree_test.cpp
     simulation_combat_test.cpp
+    simulation_loot_test.cpp
     simulation_math_test.cpp
     simulation_match_types_test.cpp
     simulation_nav_agent_test.cpp

@@ -4,6 +4,7 @@ add_library(
         src/AiDecision.cpp
         src/BehaviorTree.cpp
         src/Combat.cpp
+        src/Loot.cpp
         src/MatchConfig.cpp
         src/Math2.cpp
         src/NavAgent.cpp
