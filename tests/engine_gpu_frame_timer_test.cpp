@@ -3,6 +3,7 @@
 #include <dxa/engine/InputState.hpp>
 #include <dxa/engine/SystemMetrics.hpp>
 #include <dxa/engine/Window.hpp>
+#include <dxa/engine/RenderPass.hpp>
 
 #include <gtest/gtest.h>
 
@@ -109,5 +110,45 @@ TEST(GpuFrameTimer, AllocatesOnePendingSlotForEveryConfiguredMeasuredFrame)
 
     const auto results = timer.Drain(graphics.Context(), std::chrono::seconds{2});
     EXPECT_EQ(ConfiguredFrames, results.size());
+}
+
+TEST(GpuFrameTimer, ResolvesFourHybridPassMarkersOnWarp)
+{
+    dxa::engine::InputState input;
+    dxa::engine::Window window;
+    window.Create(dxa::engine::WindowConfig{L"DXA GPU pass timer test", 64, 64, true}, input);
+
+    dxa::engine::GraphicsDevice graphics;
+    graphics.Initialize(dxa::engine::GraphicsDeviceConfig{
+        window.NativeHandle(),
+        64,
+        64,
+        dxa::engine::GraphicsDriver::Warp,
+        false});
+
+    dxa::engine::GpuFrameTimer timer;
+    timer.Initialize(graphics.Device(), 1);
+    constexpr std::array ClearColor{0.0F, 0.0F, 0.0F, 1.0F};
+    graphics.BeginFrame(ClearColor);
+    ASSERT_TRUE(timer.BeginFrame(graphics.Context(), 1));
+    EXPECT_THROW(
+        timer.MarkPass(graphics.Context(), dxa::engine::RenderPass::GBuffer),
+        std::logic_error);
+    timer.MarkPass(graphics.Context(), dxa::engine::RenderPass::Shadow);
+    timer.MarkPass(graphics.Context(), dxa::engine::RenderPass::GBuffer);
+    timer.MarkPass(graphics.Context(), dxa::engine::RenderPass::DeferredLighting);
+    timer.MarkPass(graphics.Context(), dxa::engine::RenderPass::Transparent);
+    timer.EndFrame(graphics.Context());
+    graphics.EndFrame(false);
+
+    const auto results = timer.Drain(graphics.Context(), std::chrono::seconds{2});
+
+    ASSERT_EQ(1U, results.size());
+    EXPECT_TRUE(results.front().passDurations.totalMilliseconds.has_value());
+    EXPECT_TRUE(results.front().passDurations.shadowMilliseconds.has_value());
+    EXPECT_TRUE(results.front().passDurations.gBufferMilliseconds.has_value());
+    EXPECT_TRUE(results.front().passDurations.lightingMilliseconds.has_value());
+    EXPECT_TRUE(results.front().passDurations.transparentMilliseconds.has_value());
+    EXPECT_FALSE(results.front().passDurations.forwardMilliseconds.has_value());
 }
 } // namespace

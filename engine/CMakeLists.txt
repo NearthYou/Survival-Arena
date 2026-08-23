@@ -15,6 +15,7 @@ add_library(
     dxa_engine_benchmark
     STATIC
         src/benchmark/BenchmarkReport.cpp
+        src/benchmark/GpuPassTiming.cpp
         src/benchmark/PerspectiveFrustum.cpp
         src/benchmark/StressScene.cpp
 )

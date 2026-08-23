@@ -4,6 +4,7 @@ add_executable(
     dxa_tests
     client_options_test.cpp
     engine_benchmark_report_test.cpp
+    engine_gpu_pass_timing_test.cpp
     engine_perspective_frustum_test.cpp
     engine_stress_scene_test.cpp
     engine_animation_playback_test.cpp
