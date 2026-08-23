@@ -63,6 +63,15 @@ if(WIN32)
             -File "${PROJECT_SOURCE_DIR}/tests/benchmark_runner_test.ps1"
             -RepositoryRoot "${PROJECT_SOURCE_DIR}"
     )
+
+    add_test(
+        NAME BenchmarkComparison.ValidatesComparableRuns
+        COMMAND
+            ${DXA_POWERSHELL_EXECUTABLE}
+            -NoProfile
+            -File "${PROJECT_SOURCE_DIR}/tests/benchmark_comparison_test.ps1"
+            -RepositoryRoot "${PROJECT_SOURCE_DIR}"
+    )
 endif()
 
 dxa_enable_project_warnings(dxa_tests)
