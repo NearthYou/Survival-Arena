@@ -2,6 +2,8 @@
 
 #include <dxa/simulation/Math2.hpp>
 
+#include <memory>
+
 namespace dxa::simulation
 {
 enum class AiArchetype
@@ -38,5 +40,22 @@ public:
 
 private:
     AiArchetype archetype_;
+};
+
+class BehaviorNode;
+
+class BehaviorTreeAiController
+{
+public:
+    explicit BehaviorTreeAiController(AiArchetype archetype);
+    ~BehaviorTreeAiController();
+
+    BehaviorTreeAiController(const BehaviorTreeAiController&) = delete;
+    BehaviorTreeAiController& operator=(const BehaviorTreeAiController&) = delete;
+
+    [[nodiscard]] AiCommandType Tick(const AiBlackboard& blackboard) const;
+
+private:
+    std::unique_ptr<BehaviorNode> root_;
 };
 } // namespace dxa::simulation

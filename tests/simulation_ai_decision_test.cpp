@@ -2,14 +2,17 @@
 
 #include <gtest/gtest.h>
 
+#include <cstddef>
 #include <limits>
 #include <stdexcept>
+#include <vector>
 
 namespace
 {
 using dxa::simulation::AiArchetype;
 using dxa::simulation::AiBlackboard;
 using dxa::simulation::AiCommandType;
+using dxa::simulation::BehaviorTreeAiController;
 using dxa::simulation::FsmAiController;
 
 [[nodiscard]] AiBlackboard NoTarget()
@@ -24,6 +27,31 @@ using dxa::simulation::FsmAiController;
     blackboard.cooldownReady = true;
     blackboard.targetPosition = {distance, 0.0F};
     return blackboard;
+}
+
+[[nodiscard]] std::vector<AiBlackboard> AllDecisionScenarios()
+{
+    std::vector<AiBlackboard> scenarios;
+    scenarios.push_back(NoTarget());
+    scenarios.push_back(TargetAt(5.0F));
+    scenarios.push_back(TargetAt(1.0F));
+
+    AiBlackboard cooldownBlocked = TargetAt(1.0F);
+    cooldownBlocked.cooldownReady = false;
+    scenarios.push_back(cooldownBlocked);
+
+    AiBlackboard retreatBoundary = TargetAt(3.0F);
+    retreatBoundary.attackRange = 10.0F;
+    scenarios.push_back(retreatBoundary);
+
+    AiBlackboard attackOutsideRetreat = TargetAt(4.0F);
+    attackOutsideRetreat.attackRange = 10.0F;
+    scenarios.push_back(attackOutsideRetreat);
+
+    AiBlackboard closeAttack = TargetAt(1.0F);
+    closeAttack.retreatRange = 0.5F;
+    scenarios.push_back(closeAttack);
+    return scenarios;
 }
 
 TEST(AiFsm, MeleeBaselineChoosesIdleChaseAndAttack)
@@ -112,5 +140,22 @@ TEST(AiFsm, RejectsNonFinitePositionsAndInvalidRanges)
     input = TargetAt(2.0F);
     input.retreatRange = infinity;
     EXPECT_THROW((void)controller.Tick(input), std::invalid_argument);
+}
+
+TEST(AiBehaviorTree, MatchesFsmForMeleeAndRangedScenarios)
+{
+    const std::vector<AiBlackboard> scenarios = AllDecisionScenarios();
+    for (const AiArchetype archetype : {
+             AiArchetype::Melee,
+             AiArchetype::Ranged})
+    {
+        const FsmAiController fsm{archetype};
+        const BehaviorTreeAiController tree{archetype};
+        for (std::size_t index = 0; index < scenarios.size(); ++index)
+        {
+            EXPECT_EQ(fsm.Tick(scenarios[index]), tree.Tick(scenarios[index]))
+                << "scenario=" << index;
+        }
+    }
 }
 } // namespace
