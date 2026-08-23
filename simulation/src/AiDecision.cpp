@@ -43,13 +43,17 @@ AiCommandType FsmAiController::Tick(const AiBlackboard& blackboard) const
     {
         throw std::invalid_argument{"AI target distance must be finite"};
     }
+    if (archetype_ == AiArchetype::Ranged
+        && distanceToTarget < blackboard.retreatRange)
+    {
+        return AiCommandType::MoveAwayFromTarget;
+    }
     if (distanceToTarget <= blackboard.attackRange
         && blackboard.cooldownReady)
     {
         return AiCommandType::Attack;
     }
 
-    static_cast<void>(archetype_);
     return AiCommandType::MoveToTarget;
 }
 } // namespace dxa::simulation

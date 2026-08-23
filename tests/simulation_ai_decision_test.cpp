@@ -36,13 +36,15 @@ TEST(AiFsm, MeleeBaselineChoosesIdleChaseAndAttack)
     EXPECT_EQ(AiCommandType::Attack, controller.Tick(TargetAt(1.5F)));
 }
 
-TEST(AiFsm, RangedBaselineUsesTheSameThreeCommands)
+TEST(AiFsm, RangedUsesIdleChaseAndAttackOutsideRetreatRange)
 {
     const FsmAiController controller{AiArchetype::Ranged};
+    AiBlackboard attackInput = TargetAt(1.0F);
+    attackInput.retreatRange = 0.5F;
 
     EXPECT_EQ(AiCommandType::Idle, controller.Tick(NoTarget()));
     EXPECT_EQ(AiCommandType::MoveToTarget, controller.Tick(TargetAt(5.0F)));
-    EXPECT_EQ(AiCommandType::Attack, controller.Tick(TargetAt(1.0F)));
+    EXPECT_EQ(AiCommandType::Attack, controller.Tick(attackInput));
 }
 
 TEST(AiFsm, CooldownBlocksAttackWithoutStoppingChase)
@@ -53,6 +55,36 @@ TEST(AiFsm, CooldownBlocksAttackWithoutStoppingChase)
     EXPECT_EQ(
         AiCommandType::MoveToTarget,
         FsmAiController{AiArchetype::Melee}.Tick(input));
+}
+
+TEST(AiFsm, RangedRetreatsBeforeConsideringAttack)
+{
+    AiBlackboard input = TargetAt(1.0F);
+    input.retreatRange = 3.0F;
+    input.attackRange = 10.0F;
+
+    EXPECT_EQ(
+        AiCommandType::MoveAwayFromTarget,
+        FsmAiController{AiArchetype::Ranged}.Tick(input));
+    EXPECT_EQ(
+        AiCommandType::Attack,
+        FsmAiController{AiArchetype::Melee}.Tick(input));
+
+    input.cooldownReady = false;
+    EXPECT_EQ(
+        AiCommandType::MoveAwayFromTarget,
+        FsmAiController{AiArchetype::Ranged}.Tick(input));
+}
+
+TEST(AiFsm, RangedCanAttackAtRetreatBoundary)
+{
+    AiBlackboard input = TargetAt(3.0F);
+    input.retreatRange = 3.0F;
+    input.attackRange = 10.0F;
+
+    EXPECT_EQ(
+        AiCommandType::Attack,
+        FsmAiController{AiArchetype::Ranged}.Tick(input));
 }
 
 TEST(AiFsm, RejectsNonFinitePositionsAndInvalidRanges)
