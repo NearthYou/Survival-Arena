@@ -65,7 +65,8 @@ void ValidateMatchConfig(const MatchConfig& config)
         || !IsFinitePositive(config.neutralPerceptionRadius)
         || !IsFinitePositive(config.pickupRadius)
         || !IsFinitePositive(config.contenderSpawnSpacing)
-        || !IsFinitePositive(config.neutralSpawnSpacing))
+        || !IsFinitePositive(config.neutralSpawnSpacing)
+        || !IsFinitePositive(config.arenaHalfExtent))
     {
         throw std::invalid_argument{"match movement and query values must be finite and positive"};
     }
@@ -73,7 +74,8 @@ void ValidateMatchConfig(const MatchConfig& config)
     if (!std::isfinite(config.contenderSpawnInnerRadius)
         || !std::isfinite(config.contenderSpawnOuterRadius)
         || config.contenderSpawnInnerRadius < 0.0F
-        || config.contenderSpawnOuterRadius < config.contenderSpawnInnerRadius)
+        || config.contenderSpawnOuterRadius < config.contenderSpawnInnerRadius
+        || config.contenderSpawnOuterRadius > config.arenaHalfExtent)
     {
         throw std::invalid_argument{"contender spawn radii are invalid"};
     }

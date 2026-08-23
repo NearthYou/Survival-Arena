@@ -10,7 +10,7 @@ struct SafeZoneState
 {
     SafeZoneStage stage = SafeZoneStage::Stage1;
     Vec2 center{0.0F, 0.0F};
-    float radius = 32.0F;
+    float radius = 128.0F;
     std::int32_t damagePerSecond = 2;
 
     [[nodiscard]] bool operator==(const SafeZoneState&) const = default;

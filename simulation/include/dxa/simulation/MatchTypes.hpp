@@ -135,7 +135,7 @@ struct MatchSnapshot
     MatchPhase phase = MatchPhase::Waiting;
     SafeZoneStage safeZoneStage = SafeZoneStage::Stage1;
     Vec2 safeZoneCenter;
-    float safeZoneRadius = 32.0F;
+    float safeZoneRadius = 128.0F;
     std::uint32_t aliveContenders = 0;
     std::vector<ActorSnapshot> actors;
     std::vector<LootSnapshot> loot;

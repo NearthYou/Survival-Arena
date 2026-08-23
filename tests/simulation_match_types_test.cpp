@@ -34,6 +34,7 @@ TEST(MatchConfig, LocksCanonicalPopulationTimingAndMovementDefaults)
     EXPECT_EQ(12U, config.arcPulseLootCount);
     EXPECT_EQ(24U, config.medKitLootCount);
     EXPECT_EQ(6U, config.botDecisionIntervalTicks);
+    EXPECT_TRUE(config.enableInternalBots);
     EXPECT_EQ(4096U, config.maximumSpawnAttempts);
     EXPECT_EQ(14400U, config.suddenDeathTick);
     EXPECT_EQ(18000U, config.hardTimeoutTick);
@@ -45,8 +46,9 @@ TEST(MatchConfig, LocksCanonicalPopulationTimingAndMovementDefaults)
     EXPECT_FLOAT_EQ(1.0F, config.pickupRadius);
     EXPECT_FLOAT_EQ(3.0F, config.contenderSpawnSpacing);
     EXPECT_FLOAT_EQ(0.75F, config.neutralSpawnSpacing);
-    EXPECT_FLOAT_EQ(20.0F, config.contenderSpawnInnerRadius);
-    EXPECT_FLOAT_EQ(26.0F, config.contenderSpawnOuterRadius);
+    EXPECT_FLOAT_EQ(128.0F, config.arenaHalfExtent);
+    EXPECT_FLOAT_EQ(80.0F, config.contenderSpawnInnerRadius);
+    EXPECT_FLOAT_EQ(104.0F, config.contenderSpawnOuterRadius);
     EXPECT_NO_THROW(ValidateMatchConfig(config));
 }
 
@@ -155,6 +157,14 @@ TEST(MatchConfig, RejectsInvalidSpacingAndSpawnRadii)
     config = DefaultMatchConfig();
     config.contenderSpawnOuterRadius =
         std::numeric_limits<float>::quiet_NaN();
+    EXPECT_THROW(ValidateMatchConfig(config), std::invalid_argument);
+
+    config = DefaultMatchConfig();
+    config.arenaHalfExtent = 0.0F;
+    EXPECT_THROW(ValidateMatchConfig(config), std::invalid_argument);
+
+    config = DefaultMatchConfig();
+    config.contenderSpawnOuterRadius = config.arenaHalfExtent + 1.0F;
     EXPECT_THROW(ValidateMatchConfig(config), std::invalid_argument);
 }
 

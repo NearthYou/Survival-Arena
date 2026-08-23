@@ -363,18 +363,17 @@ void OfflineMatch::Impl::Step()
     std::vector<MatchCommand> commands;
     commands.swap(queuedCommands);
 
-    for (const MatchCommand& command : commands)
-    {
+    const auto processCommand = [&](const MatchCommand& command) {
         const std::optional<std::size_t> actorIndex = FindActorIndex(actors, command.actor);
         if (!actorIndex.has_value() || !actors[*actorIndex].alive)
         {
             AddRejectedEvent(tickEvents, tick, command.actor);
-            continue;
+            return;
         }
         if (!command.moveDestination.has_value() && !command.attackTarget.has_value())
         {
             AddRejectedEvent(tickEvents, tick, command.actor);
-            continue;
+            return;
         }
 
         const CombatActor& actor = actors[*actorIndex];
@@ -383,7 +382,7 @@ void OfflineMatch::Impl::Step()
                 || !navMesh.FindPath(actor.position, *command.moveDestination).has_value()))
         {
             AddRejectedEvent(tickEvents, tick, command.actor);
-            continue;
+            return;
         }
 
         if (command.attackTarget.has_value())
@@ -394,7 +393,7 @@ void OfflineMatch::Impl::Step()
                 || !CanAttackTarget(actor, actors[*targetIndex]))
             {
                 AddRejectedEvent(tickEvents, tick, command.actor);
-                continue;
+                return;
             }
         }
 
@@ -404,6 +403,19 @@ void OfflineMatch::Impl::Step()
             throw std::logic_error{"validated match destination was rejected by NavAgent"};
         }
         selectedCommands.insert_or_assign(command.actor, command);
+    };
+    for (const MatchCommand& command : commands)
+    {
+        processCommand(command);
+    }
+    if (config.enableInternalBots
+        && (tick - 1U) % config.botDecisionIntervalTicks == 0U)
+    {
+        const std::vector<MatchCommand> botCommands = BuildInternalBotCommands();
+        for (const MatchCommand& command : botCommands)
+        {
+            processCommand(command);
+        }
     }
 
     const float tickSeconds = 1.0F / static_cast<float>(config.tickRate);

@@ -3,10 +3,12 @@
 #include <dxa/simulation/Combat.hpp>
 #include <dxa/simulation/Loot.hpp>
 #include <dxa/simulation/NavAgent.hpp>
+#include <dxa/simulation/OfflineBotController.hpp>
 #include <dxa/simulation/OfflineMatch.hpp>
 
 #include <cstdint>
 #include <map>
+#include <memory>
 #include <optional>
 #include <utility>
 #include <vector>
@@ -24,6 +26,7 @@ struct OfflineMatch::Impl
     void Spawn();
     void Step();
     void RecordEvents(std::vector<MatchEvent> tickEvents);
+    [[nodiscard]] std::vector<MatchCommand> BuildInternalBotCommands() const;
 
     NavMesh navMesh;
     MatchConfig config;
@@ -32,6 +35,7 @@ struct OfflineMatch::Impl
     std::vector<CombatActor> actors;
     std::vector<NeutralArchetype> neutralArchetypes;
     std::vector<NavAgent> agents;
+    std::vector<std::unique_ptr<BehaviorTreeAiController>> neutralControllers;
     std::vector<LootItem> loot;
     std::vector<MatchCommand> queuedCommands;
     std::map<ActorId, MatchCommand> selectedCommands;

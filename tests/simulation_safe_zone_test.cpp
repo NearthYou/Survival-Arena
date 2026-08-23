@@ -15,21 +15,21 @@ using dxa::simulation::SafeZoneState;
 
 TEST(SafeZone, InterpolatesEveryLockedBoundary)
 {
-    EXPECT_FLOAT_EQ(32.0F, EvaluateSafeZone(0U, 30U).radius);
-    EXPECT_FLOAT_EQ(24.0F, EvaluateSafeZone(3600U, 30U).radius);
-    EXPECT_FLOAT_EQ(16.0F, EvaluateSafeZone(7200U, 30U).radius);
-    EXPECT_FLOAT_EQ(8.0F, EvaluateSafeZone(10800U, 30U).radius);
-    EXPECT_FLOAT_EQ(2.0F, EvaluateSafeZone(14400U, 30U).radius);
+    EXPECT_FLOAT_EQ(128.0F, EvaluateSafeZone(0U, 30U).radius);
+    EXPECT_FLOAT_EQ(112.0F, EvaluateSafeZone(3600U, 30U).radius);
+    EXPECT_FLOAT_EQ(96.0F, EvaluateSafeZone(7200U, 30U).radius);
+    EXPECT_FLOAT_EQ(80.0F, EvaluateSafeZone(10800U, 30U).radius);
+    EXPECT_FLOAT_EQ(64.0F, EvaluateSafeZone(14400U, 30U).radius);
     EXPECT_FLOAT_EQ(0.0F, EvaluateSafeZone(18000U, 30U).radius);
 }
 
 TEST(SafeZone, UsesLinearRadiusBetweenBoundaries)
 {
-    EXPECT_FLOAT_EQ(28.0F, EvaluateSafeZone(1800U, 30U).radius);
-    EXPECT_FLOAT_EQ(20.0F, EvaluateSafeZone(5400U, 30U).radius);
-    EXPECT_FLOAT_EQ(12.0F, EvaluateSafeZone(9000U, 30U).radius);
-    EXPECT_FLOAT_EQ(5.0F, EvaluateSafeZone(12600U, 30U).radius);
-    EXPECT_FLOAT_EQ(1.0F, EvaluateSafeZone(16200U, 30U).radius);
+    EXPECT_FLOAT_EQ(120.0F, EvaluateSafeZone(1800U, 30U).radius);
+    EXPECT_FLOAT_EQ(104.0F, EvaluateSafeZone(5400U, 30U).radius);
+    EXPECT_FLOAT_EQ(88.0F, EvaluateSafeZone(9000U, 30U).radius);
+    EXPECT_FLOAT_EQ(72.0F, EvaluateSafeZone(12600U, 30U).radius);
+    EXPECT_FLOAT_EQ(32.0F, EvaluateSafeZone(16200U, 30U).radius);
 }
 
 TEST(SafeZone, EntersTheNextStageAtEachBoundary)
@@ -46,7 +46,7 @@ TEST(SafeZone, ScalesTimeBoundariesWithTickRate)
 {
     const SafeZoneState atTwoMinutes = EvaluateSafeZone(7200U, 60U);
     EXPECT_EQ(SafeZoneStage::Stage2, atTwoMinutes.stage);
-    EXPECT_FLOAT_EQ(24.0F, atTwoMinutes.radius);
+    EXPECT_FLOAT_EQ(112.0F, atTwoMinutes.radius);
     EXPECT_EQ(4, atTwoMinutes.damagePerSecond);
 }
 

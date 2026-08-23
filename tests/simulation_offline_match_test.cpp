@@ -37,10 +37,10 @@ using dxa::simulation::WeaponType;
 {
     return NavMesh::Build(
         {
-            {-32.0F, -32.0F},
-            {32.0F, -32.0F},
-            {-32.0F, 32.0F},
-            {32.0F, 32.0F}
+            {-128.0F, -128.0F},
+            {128.0F, -128.0F},
+            {-128.0F, 128.0F},
+            {128.0F, 128.0F}
         },
         {
             NavTriangleIndices{{0U, 1U, 2U}},
@@ -69,10 +69,10 @@ using dxa::simulation::WeaponType;
 {
     return NavMesh::Build(
         {
-            {-64.0F, -64.0F},
-            {64.0F, -64.0F},
-            {-64.0F, 64.0F},
-            {64.0F, 64.0F}
+            {-256.0F, -256.0F},
+            {256.0F, -256.0F},
+            {-256.0F, 256.0F},
+            {256.0F, 256.0F}
         },
         {
             NavTriangleIndices{{0U, 1U, 2U}},
@@ -168,6 +168,7 @@ using dxa::simulation::WeaponType;
     config.rifleLootCount = 0U;
     config.arcPulseLootCount = 0U;
     config.medKitLootCount = 0U;
+    config.enableInternalBots = false;
     config.contenderSpawnInnerRadius = 8.0F;
     config.contenderSpawnOuterRadius = 10.0F;
     config.contenderSpawnSpacing = 3.0F;
@@ -282,6 +283,7 @@ TEST(OfflineMatch, StartsCanonicalPopulationOnNavMesh)
     EXPECT_EQ(MatchPhase::Running, snapshot.phase);
     EXPECT_EQ(0U, snapshot.tick);
     EXPECT_DOUBLE_EQ(0.0, snapshot.elapsedSeconds);
+    EXPECT_FLOAT_EQ(128.0F, snapshot.safeZoneRadius);
     EXPECT_EQ(24U, snapshot.aliveContenders);
     EXPECT_EQ(24U, CountRole(snapshot, ActorRole::Contender));
     EXPECT_EQ(100U, CountRole(snapshot, ActorRole::Neutral));
@@ -435,7 +437,7 @@ TEST(OfflineMatch, KeepsEarlierValidCommandWhenLaterCommandIsInvalid)
     OfflineMatch match = StartedSmallMatch();
     const dxa::simulation::Vec2 before = ActorById(match.Snapshot(), 0U).position;
     match.Submit(MoveCommand(0U, {0.0F, 0.0F}));
-    match.Submit(MoveCommand(0U, {100.0F, 100.0F}));
+    match.Submit(MoveCommand(0U, {200.0F, 200.0F}));
 
     match.Step();
 
@@ -450,7 +452,7 @@ TEST(OfflineMatch, KeepsEarlierValidCommandWhenLaterCommandIsInvalid)
 TEST(OfflineMatch, RejectsOffMeshAndNonFiniteMoveWithoutStoppingMatch)
 {
     OfflineMatch match = StartedSmallMatch();
-    match.Submit(MoveCommand(0U, {100.0F, 100.0F}));
+    match.Submit(MoveCommand(0U, {200.0F, 200.0F}));
     match.Submit(MoveCommand(
         1U,
         {std::numeric_limits<float>::quiet_NaN(), 0.0F}));
@@ -789,8 +791,10 @@ TEST(OfflineMatch, ArcPulseEmitsDamageForEveryAffectedTarget)
 TEST(OfflineMatch, AppliesZoneDamageOncePerSecond)
 {
     MatchConfig config = SmallMatchConfig();
-    config.contenderSpawnInnerRadius = 40.0F;
-    config.contenderSpawnOuterRadius = 41.0F;
+    config.arenaHalfExtent = 256.0F;
+    config.contenderSpawnInnerRadius = 160.0F;
+    config.contenderSpawnOuterRadius = 164.0F;
+    config.contenderSpeed = 0.001F;
     OfflineMatch match = OfflineMatch::Create(MakeLargeNavMesh(), config);
     match.Start();
 
@@ -812,11 +816,13 @@ TEST(OfflineMatch, AppliesZoneDamageOncePerSecond)
         })));
 }
 
-TEST(OfflineMatch, ZoneWipePreservesLowerIdContenderAtOneHealth)
+TEST(OfflineMatch, ZoneWipePreservesRankedContenderAtOneHealth)
 {
     MatchConfig config = SmallMatchConfig();
-    config.contenderSpawnInnerRadius = 40.0F;
-    config.contenderSpawnOuterRadius = 41.0F;
+    config.arenaHalfExtent = 256.0F;
+    config.contenderSpawnInnerRadius = 160.0F;
+    config.contenderSpawnOuterRadius = 164.0F;
+    config.contenderSpeed = 0.001F;
     OfflineMatch match = OfflineMatch::Create(MakeLargeNavMesh(), config);
     match.Start();
 
@@ -829,11 +835,15 @@ TEST(OfflineMatch, ZoneWipePreservesLowerIdContenderAtOneHealth)
 
     const MatchSnapshot snapshot = match.Snapshot();
     ASSERT_TRUE(snapshot.result.has_value());
-    EXPECT_EQ(0U, snapshot.result->winner);
     EXPECT_EQ(dxa::simulation::MatchEndReason::LastSurvivor, snapshot.result->reason);
-    EXPECT_TRUE(ActorById(snapshot, 0U).alive);
-    EXPECT_EQ(1, ActorById(snapshot, 0U).health);
-    EXPECT_FALSE(ActorById(snapshot, 1U).alive);
+    const auto survivor = std::find_if(
+        snapshot.actors.begin(), snapshot.actors.end(), [](const ActorSnapshot& actor) {
+            return actor.role == ActorRole::Contender && actor.alive;
+        });
+    ASSERT_NE(snapshot.actors.end(), survivor);
+    EXPECT_EQ(snapshot.result->winner, survivor->id);
+    EXPECT_EQ(1, survivor->health);
+    EXPECT_EQ(1U, snapshot.aliveContenders);
 }
 
 TEST(OfflineMatch, EntersSuddenDeathAndForcesTimeoutWinner)

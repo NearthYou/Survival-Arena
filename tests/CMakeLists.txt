@@ -20,6 +20,7 @@ add_executable(
     simulation_match_types_test.cpp
     simulation_match_resolution_test.cpp
     simulation_offline_match_test.cpp
+    simulation_offline_match_bot_test.cpp
     simulation_nav_agent_test.cpp
     simulation_navmesh_test.cpp
     simulation_safe_zone_test.cpp

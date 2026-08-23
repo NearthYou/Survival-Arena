@@ -13,6 +13,7 @@ add_library(
         src/NavMeshGrid.cpp
         src/NavMeshPath.cpp
         src/OfflineMatch.cpp
+        src/OfflineMatchBots.cpp
         src/OfflineMatchSpawn.cpp
         src/OfflineMatchStep.cpp
         src/SafeZone.cpp

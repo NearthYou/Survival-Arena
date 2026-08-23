@@ -14,6 +14,7 @@ struct MatchConfig
     std::uint32_t arcPulseLootCount = 12U;
     std::uint32_t medKitLootCount = 24U;
     std::uint32_t botDecisionIntervalTicks = 6U;
+    bool enableInternalBots = true;
     std::uint32_t maximumSpawnAttempts = 4096U;
     std::uint32_t suddenDeathTick = 14400U;
     std::uint32_t hardTimeoutTick = 18000U;
@@ -25,8 +26,9 @@ struct MatchConfig
     float pickupRadius = 1.0F;
     float contenderSpawnSpacing = 3.0F;
     float neutralSpawnSpacing = 0.75F;
-    float contenderSpawnInnerRadius = 20.0F;
-    float contenderSpawnOuterRadius = 26.0F;
+    float arenaHalfExtent = 128.0F;
+    float contenderSpawnInnerRadius = 80.0F;
+    float contenderSpawnOuterRadius = 104.0F;
 
     [[nodiscard]] bool operator==(const MatchConfig&) const = default;
 };

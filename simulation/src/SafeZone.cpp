@@ -20,15 +20,15 @@ struct SafeZoneStageDefinition
 };
 
 constexpr std::array SafeZoneStages{
-    SafeZoneStageDefinition{SafeZoneStage::Stage1, 0U, 120U, 32.0F, 24.0F, 2},
-    SafeZoneStageDefinition{SafeZoneStage::Stage2, 120U, 240U, 24.0F, 16.0F, 4},
-    SafeZoneStageDefinition{SafeZoneStage::Stage3, 240U, 360U, 16.0F, 8.0F, 8},
-    SafeZoneStageDefinition{SafeZoneStage::Stage4, 360U, 480U, 8.0F, 2.0F, 16},
+    SafeZoneStageDefinition{SafeZoneStage::Stage1, 0U, 120U, 128.0F, 112.0F, 2},
+    SafeZoneStageDefinition{SafeZoneStage::Stage2, 120U, 240U, 112.0F, 96.0F, 4},
+    SafeZoneStageDefinition{SafeZoneStage::Stage3, 240U, 360U, 96.0F, 80.0F, 8},
+    SafeZoneStageDefinition{SafeZoneStage::Stage4, 360U, 480U, 80.0F, 64.0F, 16},
     SafeZoneStageDefinition{
         SafeZoneStage::SuddenDeath,
         480U,
         600U,
-        2.0F,
+        64.0F,
         0.0F,
         32}};
 

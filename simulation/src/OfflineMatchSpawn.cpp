@@ -13,8 +13,6 @@ namespace dxa::simulation
 {
 namespace
 {
-constexpr float ArenaMinimum = -32.0F;
-constexpr float ArenaMaximum = 32.0F;
 constexpr float ContenderAngleJitter = 0.05F;
 constexpr float AgentStoppingDistance = 0.1F;
 
@@ -103,8 +101,8 @@ private:
     for (std::uint32_t attempt = 0; attempt < config.maximumSpawnAttempts; ++attempt)
     {
         const Vec2 candidate{
-            random.Range(ArenaMinimum, ArenaMaximum),
-            random.Range(ArenaMinimum, ArenaMaximum)};
+            random.Range(-config.arenaHalfExtent, config.arenaHalfExtent),
+            random.Range(-config.arenaHalfExtent, config.arenaHalfExtent)};
         if (IsOnNavMesh(navMesh, candidate)
             && HasSpacing(actors, candidate, config.neutralSpawnSpacing))
         {
@@ -122,8 +120,8 @@ private:
     for (std::uint32_t attempt = 0; attempt < config.maximumSpawnAttempts; ++attempt)
     {
         const Vec2 candidate{
-            random.Range(ArenaMinimum, ArenaMaximum),
-            random.Range(ArenaMinimum, ArenaMaximum)};
+            random.Range(-config.arenaHalfExtent, config.arenaHalfExtent),
+            random.Range(-config.arenaHalfExtent, config.arenaHalfExtent)};
         if (IsOnNavMesh(navMesh, candidate))
         {
             return candidate;
@@ -157,6 +155,7 @@ void OfflineMatch::Impl::Spawn()
     if (!actors.empty()
         || !neutralArchetypes.empty()
         || !agents.empty()
+        || !neutralControllers.empty()
         || !loot.empty())
     {
         throw std::logic_error{"offline match spawn state must be empty"};
@@ -173,10 +172,12 @@ void OfflineMatch::Impl::Spawn()
     std::vector<CombatActor> spawnedActors;
     std::vector<NeutralArchetype> spawnedArchetypes;
     std::vector<NavAgent> spawnedAgents;
+    std::vector<std::unique_ptr<BehaviorTreeAiController>> spawnedControllers;
     std::vector<LootItem> spawnedLoot;
     spawnedActors.reserve(actorCount);
     spawnedArchetypes.reserve(actorCount);
     spawnedAgents.reserve(actorCount);
+    spawnedControllers.reserve(actorCount);
     spawnedLoot.reserve(lootCount);
 
     for (std::uint32_t index = 0; index < config.contenderCount; ++index)
@@ -242,6 +243,19 @@ void OfflineMatch::Impl::Spawn()
             speed,
             AgentStoppingDistance);
     }
+    for (const NeutralArchetype archetype : spawnedArchetypes)
+    {
+        if (archetype == NeutralArchetype::None)
+        {
+            spawnedControllers.push_back(nullptr);
+            continue;
+        }
+        const AiArchetype aiArchetype = archetype == NeutralArchetype::Melee
+            ? AiArchetype::Melee
+            : AiArchetype::Ranged;
+        spawnedControllers.push_back(
+            std::make_unique<BehaviorTreeAiController>(aiArchetype));
+    }
 
     SpawnLootType(
         spawnedLoot,
@@ -268,6 +282,7 @@ void OfflineMatch::Impl::Spawn()
     actors.swap(spawnedActors);
     neutralArchetypes.swap(spawnedArchetypes);
     agents.swap(spawnedAgents);
+    neutralControllers.swap(spawnedControllers);
     loot.swap(spawnedLoot);
 }
 } // namespace dxa::simulation
