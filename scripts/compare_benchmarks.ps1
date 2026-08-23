@@ -116,6 +116,37 @@ if ([uint32]$forwardSummary.resolution.width -ne
 if ([string]$forwardSummary.adapter -ne [string]$hybridSummary.adapter) {
     throw 'Benchmark GPU adapter가 일치하지 않습니다.'
 }
+if ([uint32]$forwardSummary.warmup_frames -ne
+        [uint32]$hybridSummary.warmup_frames -or
+    [uint32]$forwardSummary.measured_frames -ne
+        [uint32]$hybridSummary.measured_frames) {
+    throw 'Benchmark 측정 구간이 일치하지 않습니다.'
+}
+
+$forwardSampleCount = [uint32]$forwardSummary.sample_count
+$hybridSampleCount = [uint32]$hybridSummary.sample_count
+if ($forwardSampleCount -eq 0 -or
+    $hybridSampleCount -eq 0 -or
+    $forwardSampleCount -ne [uint32]$forwardSummary.measured_frames -or
+    $hybridSampleCount -ne [uint32]$hybridSummary.measured_frames -or
+    [uint32]$forwardSummary.gpu_sample_count -ne $forwardSampleCount -or
+    [uint32]$hybridSummary.gpu_sample_count -ne $hybridSampleCount -or
+    [uint32]$forwardSummary.gpu_missing_samples -ne 0 -or
+    [uint32]$hybridSummary.gpu_missing_samples -ne 0) {
+    throw '누락된 GPU sample이 있는 benchmark는 비교할 수 없습니다.'
+}
+$hybridPassSampleCounts = @(
+    [uint32]$hybridSummary.gpu_total_sample_count,
+    [uint32]$hybridSummary.gpu_shadow_sample_count,
+    [uint32]$hybridSummary.gpu_gbuffer_sample_count,
+    [uint32]$hybridSummary.gpu_lighting_sample_count,
+    [uint32]$hybridSummary.gpu_transparent_sample_count
+)
+if (@($hybridPassSampleCounts | Where-Object {
+            $_ -ne $hybridSampleCount
+        }).Count -ne 0) {
+    throw '누락된 GPU sample이 있는 benchmark는 비교할 수 없습니다.'
+}
 
 $forwardGpuMetric = if ($forwardSchema -eq 1) {
     'gpu_forward_ms'
@@ -157,6 +188,8 @@ $comparison = [ordered]@{
         width = [uint32]$forwardSummary.resolution.width
         height = [uint32]$forwardSummary.resolution.height
         adapter = [string]$forwardSummary.adapter
+        warmup_frames = [uint32]$forwardSummary.warmup_frames
+        measured_frames = [uint32]$forwardSummary.measured_frames
     }
     metrics = [ordered]@{
         cpu_frame_p95_ms = New-DxaMetricComparison $cpuForward $cpuHybrid

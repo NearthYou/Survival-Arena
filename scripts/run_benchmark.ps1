@@ -114,6 +114,7 @@ try {
         -Seed $Seed `
         -Width $Width `
         -Height $Height `
+        -WarmupFrames $WarmupFrames `
         -MeasuredFrames $MeasuredFrames `
         -ExpectedAdapter $ExpectedAdapter `
         -RenderPath $RenderPath)

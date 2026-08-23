@@ -31,7 +31,7 @@ Debug 또는 WARP 결과는 동작 검증일 뿐 포트폴리오 수치로 사�
   -HybridRun docs/benchmarks/hybrid-deferred/20260823-145749-54a54e5c-seed20260823
 ```
 
-seed, 해상도, adapter 중 하나라도 다르면 `comparison.json`을 만들지 않는다. schema 1은 포워드 원본으로만, schema 2 hybrid는 `render_path`가 `hybrid-deferred`일 때만 받는다.
+seed, 해상도, adapter, warmup frame, measured frame 중 하나라도 다르면 `comparison.json`을 만들지 않는다. GPU sample이나 hybrid pass sample이 하나라도 누락된 run도 거부한다. schema 1은 포워드 원본으로만, schema 2 hybrid는 `render_path`가 `hybrid-deferred`일 때만 받는다.
 
 현재 채택한 원본은 다음과 같다.
 

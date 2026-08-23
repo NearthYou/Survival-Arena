@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-08-23T05:58:02.0789182+00:00",
+  "generated_at": "2026-08-23T06:51:25.2208823+00:00",
   "forward": {
     "run_id": "20260823-033736-80988ef7-seed20260823",
     "schema_version": 1,
@@ -17,7 +17,9 @@
     "seed": 20260823,
     "width": 1920,
     "height": 1080,
-    "adapter": "NVIDIA GeForce RTX 3050 Ti Laptop GPU"
+    "adapter": "NVIDIA GeForce RTX 3050 Ti Laptop GPU",
+    "warmup_frames": 120,
+    "measured_frames": 600
   },
   "metrics": {
     "cpu_frame_p95_ms": {

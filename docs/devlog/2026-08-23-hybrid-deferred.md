@@ -31,7 +31,7 @@
   -OutputRoot docs/benchmarks/hybrid-deferred
 ```
 
-비교 파일은 seed, 해상도, adapter가 모두 같을 때만 생성했다.
+비교 파일은 seed, 해상도, adapter, warmup과 measured frame이 모두 같고 GPU sample이 하나도 빠지지 않았을 때만 생성했다.
 
 ```powershell
 ./scripts/compare_benchmarks.ps1 `

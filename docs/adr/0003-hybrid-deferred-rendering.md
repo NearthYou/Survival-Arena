@@ -26,7 +26,7 @@ shadow map은 `R32_TYPELESS` texture에 `D32_FLOAT` DSV와 `R32_FLOAT` SRV를 �
 
 정적 객체 1,000개는 재사용하는 dynamic instance buffer로 묶는다. camera frustum과 보수적인 bounding sphere가 겹치는 정적 객체와 캐릭터만 G-Buffer에 보낸다. shadow에서는 정적 객체 전체를 한 번의 instanced draw로 보내고, 서로 다른 animation palette를 쓰는 캐릭터 124개는 개별 draw를 유지한다.
 
-GPU query는 frame 전체와 네 pass 끝에 timestamp를 남긴다. frame마다 기다리지 않는 기존 규칙은 유지한다.
+GPU query는 frame 전체와 네 pass 끝에 timestamp를 남긴다. frame마다 기다리지 않는 기존 규칙은 유지한다. 비교 도구는 두 run의 warmup과 measured 구간이 같고 GPU sample이 전부 채워진 경우만 결과를 만든다.
 
 ## 비교한 대안
 

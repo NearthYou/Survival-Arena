@@ -70,9 +70,12 @@ try {
     }
 
     $summary = [pscustomobject]@{
+        schema_version = 2
         commit_sha = $initial.commit_sha
         seed = 7
         resolution = [pscustomobject]@{ width = 320; height = 180 }
+        warmup_frames = 1
+        measured_frames = 2
         sample_count = 2
         adapter = 'Expected GPU'
         gpu_missing_samples = 1
@@ -84,6 +87,7 @@ try {
         -Seed 7 `
         -Width 320 `
         -Height 180 `
+        -WarmupFrames 1 `
         -MeasuredFrames 2 `
         -ExpectedAdapter 'Expected GPU')
     if ($validationErrors.Count -ne 1 -or
@@ -92,9 +96,12 @@ try {
     }
 
     $pathSummary = [pscustomobject]@{
+        schema_version = 2
         commit_sha = $initial.commit_sha
         seed = 7
         resolution = [pscustomobject]@{ width = 320; height = 180 }
+        warmup_frames = 1
+        measured_frames = 2
         sample_count = 2
         adapter = 'Expected GPU'
         gpu_missing_samples = 0
@@ -106,6 +113,7 @@ try {
         -Seed 7 `
         -Width 320 `
         -Height 180 `
+        -WarmupFrames 1 `
         -MeasuredFrames 2 `
         -ExpectedAdapter 'Expected GPU' `
         -RenderPath 'hybrid-deferred')
@@ -115,9 +123,12 @@ try {
     }
 
     $missingPassSummary = [pscustomobject]@{
+        schema_version = 2
         commit_sha = $initial.commit_sha
         seed = 7
         resolution = [pscustomobject]@{ width = 320; height = 180 }
+        warmup_frames = 1
+        measured_frames = 2
         sample_count = 2
         adapter = 'Expected GPU'
         gpu_missing_samples = 0
@@ -133,12 +144,35 @@ try {
         -Seed 7 `
         -Width 320 `
         -Height 180 `
+        -WarmupFrames 1 `
         -MeasuredFrames 2 `
         -ExpectedAdapter 'Expected GPU' `
         -RenderPath 'hybrid-deferred')
     if ($missingPassErrors.Count -ne 1 -or
         $missingPassErrors[0] -ne 'Hybrid GPU pass timestamp가 누락됐습니다.') {
         throw 'Hybrid pass 누락 검증 결과가 예상과 다릅니다.'
+    }
+
+    $windowSummary = $pathSummary.PSObject.Copy()
+    $windowSummary.render_path = 'hybrid-deferred'
+    $windowSummary.warmup_frames = 0
+    $windowSummary | Add-Member -NotePropertyName gpu_shadow_sample_count -NotePropertyValue 2
+    $windowSummary | Add-Member -NotePropertyName gpu_gbuffer_sample_count -NotePropertyValue 2
+    $windowSummary | Add-Member -NotePropertyName gpu_lighting_sample_count -NotePropertyValue 2
+    $windowSummary | Add-Member -NotePropertyName gpu_transparent_sample_count -NotePropertyValue 2
+    $windowErrors = @(Get-DxaBenchmarkValidationErrors `
+        -Summary $windowSummary `
+        -CommitSha $initial.commit_sha `
+        -Seed 7 `
+        -Width 320 `
+        -Height 180 `
+        -WarmupFrames 1 `
+        -MeasuredFrames 2 `
+        -ExpectedAdapter 'Expected GPU' `
+        -RenderPath 'hybrid-deferred')
+    if ($windowErrors.Count -ne 1 -or
+        $windowErrors[0] -ne 'Benchmark 요약이 실행 인자와 일치하지 않습니다.') {
+        throw 'Warmup frame 불일치 검증 결과가 예상과 다릅니다.'
     }
 }
 finally {

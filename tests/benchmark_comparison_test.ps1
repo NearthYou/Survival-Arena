@@ -42,6 +42,11 @@ try {
         resolution = @{ width = 1920; height = 1080 }
         adapter = 'Test GPU'
         commit_sha = 'forward-sha'
+        warmup_frames = 120
+        measured_frames = 600
+        sample_count = 600
+        gpu_sample_count = 600
+        gpu_missing_samples = 0
         metrics = @{
             cpu_frame_ms = @{ p95 = 4.0 }
             gpu_forward_ms = @{ p95 = 3.0 }
@@ -56,6 +61,16 @@ try {
         resolution = @{ width = 1920; height = 1080 }
         adapter = 'Test GPU'
         commit_sha = 'hybrid-sha'
+        warmup_frames = 120
+        measured_frames = 600
+        sample_count = 600
+        gpu_sample_count = 600
+        gpu_missing_samples = 0
+        gpu_total_sample_count = 600
+        gpu_shadow_sample_count = 600
+        gpu_gbuffer_sample_count = 600
+        gpu_lighting_sample_count = 600
+        gpu_transparent_sample_count = 600
         metrics = @{
             cpu_frame_ms = @{ p95 = 3.0 }
             gpu_total_ms = @{ p95 = 2.0 }
@@ -85,6 +100,16 @@ try {
         resolution = @{ width = 1920; height = 1080 }
         adapter = 'Test GPU'
         commit_sha = 'mismatch-sha'
+        warmup_frames = 120
+        measured_frames = 600
+        sample_count = 600
+        gpu_sample_count = 600
+        gpu_missing_samples = 0
+        gpu_total_sample_count = 600
+        gpu_shadow_sample_count = 600
+        gpu_gbuffer_sample_count = 600
+        gpu_lighting_sample_count = 600
+        gpu_transparent_sample_count = 600
         metrics = @{
             cpu_frame_ms = @{ p95 = 3.0 }
             gpu_total_ms = @{ p95 = 2.0 }
@@ -104,6 +129,80 @@ try {
     }
     if (Test-Path -LiteralPath (Join-Path $mismatchRun 'comparison.json')) {
         throw '검증 실패 run에 comparison 파일이 남았습니다.'
+    }
+
+    $windowMismatchRun = Join-Path $resolvedTemporaryRoot 'window-mismatch'
+    Write-TestSummary -Directory $windowMismatchRun -Summary @{
+        schema_version = 2
+        render_path = 'hybrid-deferred'
+        seed = 20260823
+        resolution = @{ width = 1920; height = 1080 }
+        adapter = 'Test GPU'
+        commit_sha = 'window-mismatch-sha'
+        warmup_frames = 0
+        measured_frames = 600
+        sample_count = 600
+        gpu_sample_count = 600
+        gpu_missing_samples = 0
+        gpu_total_sample_count = 600
+        gpu_shadow_sample_count = 600
+        gpu_gbuffer_sample_count = 600
+        gpu_lighting_sample_count = 600
+        gpu_transparent_sample_count = 600
+        metrics = @{
+            cpu_frame_ms = @{ p95 = 3.0 }
+            gpu_total_ms = @{ p95 = 2.0 }
+            draw_calls = @{ p50 = 500.0 }
+            working_set_bytes = @{ p95 = 2200.0 }
+        }
+    }
+    $windowMismatchRejected = $false
+    try {
+        & $comparisonScript -ForwardRun $forwardRun -HybridRun $windowMismatchRun
+    }
+    catch {
+        $windowMismatchRejected =
+            $_.Exception.Message -eq 'Benchmark 측정 구간이 일치하지 않습니다.'
+    }
+    if (-not $windowMismatchRejected) {
+        throw '다른 camera measurement window 비교가 거부되지 않았습니다.'
+    }
+
+    $incompleteRun = Join-Path $resolvedTemporaryRoot 'incomplete'
+    Write-TestSummary -Directory $incompleteRun -Summary @{
+        schema_version = 2
+        render_path = 'hybrid-deferred'
+        seed = 20260823
+        resolution = @{ width = 1920; height = 1080 }
+        adapter = 'Test GPU'
+        commit_sha = 'incomplete-sha'
+        warmup_frames = 120
+        measured_frames = 600
+        sample_count = 600
+        gpu_sample_count = 599
+        gpu_missing_samples = 1
+        gpu_total_sample_count = 599
+        gpu_shadow_sample_count = 599
+        gpu_gbuffer_sample_count = 599
+        gpu_lighting_sample_count = 599
+        gpu_transparent_sample_count = 599
+        metrics = @{
+            cpu_frame_ms = @{ p95 = 3.0 }
+            gpu_total_ms = @{ p95 = 2.0 }
+            draw_calls = @{ p50 = 500.0 }
+            working_set_bytes = @{ p95 = 2200.0 }
+        }
+    }
+    $incompleteRejected = $false
+    try {
+        & $comparisonScript -ForwardRun $forwardRun -HybridRun $incompleteRun
+    }
+    catch {
+        $incompleteRejected = $_.Exception.Message -eq
+            '누락된 GPU sample이 있는 benchmark는 비교할 수 없습니다.'
+    }
+    if (-not $incompleteRejected) {
+        throw '누락 sample benchmark 비교가 거부되지 않았습니다.'
     }
 }
 finally {

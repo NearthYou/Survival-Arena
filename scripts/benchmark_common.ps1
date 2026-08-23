@@ -65,6 +65,7 @@ function Get-DxaBenchmarkValidationErrors {
         [uint32]$Seed,
         [uint32]$Width,
         [uint32]$Height,
+        [uint32]$WarmupFrames,
         [uint32]$MeasuredFrames,
 
         [AllowEmptyString()]
@@ -75,10 +76,13 @@ function Get-DxaBenchmarkValidationErrors {
     )
 
     $errors = [Collections.Generic.List[string]]::new()
-    if ($Summary.commit_sha -ne $CommitSha -or
+    if ([uint32]$Summary.schema_version -ne 2 -or
+        $Summary.commit_sha -ne $CommitSha -or
         [uint32]$Summary.seed -ne $Seed -or
         [uint32]$Summary.resolution.width -ne $Width -or
         [uint32]$Summary.resolution.height -ne $Height -or
+        [uint32]$Summary.warmup_frames -ne $WarmupFrames -or
+        [uint32]$Summary.measured_frames -ne $MeasuredFrames -or
         [uint32]$Summary.sample_count -ne $MeasuredFrames) {
         $errors.Add('Benchmark 요약이 실행 인자와 일치하지 않습니다.')
     }
