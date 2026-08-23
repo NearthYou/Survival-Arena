@@ -703,7 +703,8 @@ HybridDeferredRenderer::GpuModel HybridDeferredRenderer::LoadModel(
 RenderStatistics HybridDeferredRenderer::Render(
     ID3D11DeviceContext* const context,
     ID3D11RenderTargetView* const backBufferRenderTarget,
-    const AssetSceneFrame& frame) const
+    const AssetSceneFrame& frame,
+    const RenderPassCallback& passCompleted) const
 {
     using namespace DirectX;
 
@@ -822,6 +823,10 @@ RenderStatistics HybridDeferredRenderer::Render(
     renderShadowCharacters(stressScene_.players);
     renderShadowCharacters(stressScene_.ai);
     context->RSSetState(nullptr);
+    if (passCompleted)
+    {
+        passCompleted(RenderPass::Shadow);
+    }
 
     ID3D11RenderTargetView* geometryTargets[]{
         albedoRoughnessRenderTarget_.Get(),
@@ -883,6 +888,10 @@ RenderStatistics HybridDeferredRenderer::Render(
     };
     renderCharacters(stressScene_.players);
     renderCharacters(stressScene_.ai);
+    if (passCompleted)
+    {
+        passCompleted(RenderPass::GBuffer);
+    }
 
     XMVECTOR determinant;
     const XMMATRIX inverseViewProjection = XMMatrixInverse(&determinant, viewProjection);
@@ -925,6 +934,10 @@ RenderStatistics HybridDeferredRenderer::Render(
         0,
         static_cast<UINT>(NullResources.size()),
         NullResources.data());
+    if (passCompleted)
+    {
+        passCompleted(RenderPass::DeferredLighting);
+    }
 
     std::vector<InstanceTransform> markerTransforms;
     markerTransforms.reserve(MarkerInstanceCount);
@@ -961,6 +974,10 @@ RenderStatistics HybridDeferredRenderer::Render(
             markerInstanceBuffer_.Get(),
             MarkerInstanceCount,
             &viewProjectionStorage._11));
+    if (passCompleted)
+    {
+        passCompleted(RenderPass::Transparent);
+    }
     return statistics;
 }
 

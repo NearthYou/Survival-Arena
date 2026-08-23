@@ -1,6 +1,7 @@
 #pragma once
 
 #include <dxa/engine/AssetSceneRenderer.hpp>
+#include <dxa/engine/RenderPass.hpp>
 #include <dxa/engine/assets/AssetFile.hpp>
 #include <dxa/engine/benchmark/StressScene.hpp>
 
@@ -9,6 +10,7 @@
 
 #include <cstdint>
 #include <filesystem>
+#include <functional>
 #include <vector>
 
 namespace dxa::engine
@@ -23,6 +25,8 @@ struct HybridDeferredConfig
     std::filesystem::path assetRoot;
 };
 
+using RenderPassCallback = std::function<void(RenderPass)>;
+
 class HybridDeferredRenderer
 {
 public:
@@ -30,7 +34,8 @@ public:
     [[nodiscard]] RenderStatistics Render(
         ID3D11DeviceContext* context,
         ID3D11RenderTargetView* backBufferRenderTarget,
-        const AssetSceneFrame& frame) const;
+        const AssetSceneFrame& frame,
+        const RenderPassCallback& passCompleted = {}) const;
     [[nodiscard]] bool ShadowMapReady() const noexcept;
 
 private:

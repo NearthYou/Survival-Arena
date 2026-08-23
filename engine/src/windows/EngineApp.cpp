@@ -5,6 +5,7 @@
 #include <dxa/engine/FrameClock.hpp>
 #include <dxa/engine/GpuFrameTimer.hpp>
 #include <dxa/engine/GraphicsDevice.hpp>
+#include <dxa/engine/HybridDeferredRenderer.hpp>
 #include <dxa/engine/InputState.hpp>
 #include <dxa/engine/SystemMetrics.hpp>
 #include <dxa/engine/Window.hpp>
@@ -79,7 +80,12 @@ void ApplyGpuResults(
         benchmark::FrameSample& sample = samples[static_cast<std::size_t>(offset)];
         if (sample.frameIndex == result.frameIndex)
         {
-            sample.gpuForwardMilliseconds = result.elapsedMilliseconds;
+            sample.gpuForwardMilliseconds = result.passDurations.forwardMilliseconds;
+            sample.gpuTotalMilliseconds = result.passDurations.totalMilliseconds;
+            sample.gpuShadowMilliseconds = result.passDurations.shadowMilliseconds;
+            sample.gpuGBufferMilliseconds = result.passDurations.gBufferMilliseconds;
+            sample.gpuLightingMilliseconds = result.passDurations.lightingMilliseconds;
+            sample.gpuTransparentMilliseconds = result.passDurations.transparentMilliseconds;
         }
     }
 }
@@ -118,9 +124,29 @@ int EngineApp::Run(
     }
 
     const bool useAssetScene = !assetRoot.empty();
+    const bool useHybridDeferred = options.renderPath == RenderPath::HybridDeferred;
+    if (useHybridDeferred && !useAssetScene)
+    {
+        throw std::runtime_error{"hybrid deferred renderer requires runtime assets"};
+    }
     ForwardRenderer fallbackRenderer;
     AssetSceneRenderer assetRenderer;
-    if (useAssetScene)
+    HybridDeferredRenderer hybridRenderer;
+    if (useHybridDeferred)
+    {
+        hybridRenderer.Initialize(
+            graphics.Device(),
+            HybridDeferredConfig{
+                options.width,
+                options.height,
+                2048,
+                options.benchmark.has_value()
+                    ? options.benchmark->seed
+                    : 20260823U,
+                shaderPath.parent_path(),
+                assetRoot});
+    }
+    else if (useAssetScene)
     {
         assetRenderer.Initialize(
             graphics.Device(),
@@ -135,7 +161,10 @@ int EngineApp::Run(
     {
         fallbackRenderer.Initialize(graphics.Device(), shaderPath);
     }
-    if (options.verifyAssetScene && (!useAssetScene || !assetRenderer.AssetSceneReady()))
+    const bool selectedAssetSceneReady = useHybridDeferred
+        ? hybridRenderer.ShadowMapReady()
+        : useAssetScene && assetRenderer.AssetSceneReady();
+    if (options.verifyAssetScene && !selectedAssetSceneReady)
     {
         throw std::runtime_error{"asset scene verification requirements were not met"};
     }
@@ -184,7 +213,25 @@ int EngineApp::Run(
             ++gpuBeginRejected;
         }
         RenderStatistics statistics;
-        if (useAssetScene)
+        if (useHybridDeferred)
+        {
+            RenderPassCallback passCompleted;
+            if (gpuTimingActive)
+            {
+                passCompleted = [&](const RenderPass pass) {
+                    gpuTimer.MarkPass(graphics.Context(), pass);
+                };
+            }
+            statistics = hybridRenderer.Render(
+                graphics.Context(),
+                graphics.BackBufferRenderTargetView(),
+                AssetSceneFrame{
+                    timing.frameIndex,
+                    timing.totalSeconds,
+                    static_cast<float>(options.width) / static_cast<float>(options.height)},
+                passCompleted);
+        }
+        else if (useAssetScene)
         {
             statistics = assetRenderer.Render(
                 graphics.Context(),
@@ -192,17 +239,32 @@ int EngineApp::Run(
                     timing.frameIndex,
                     timing.totalSeconds,
                     static_cast<float>(options.width) / static_cast<float>(options.height)});
-            if (options.benchmark.has_value())
+        }
+        if (options.benchmark.has_value() && useAssetScene)
+        {
+            if (statistics.objectCount != ExpectedStressObjects
+                || statistics.triangleCount <= statistics.drawCalls)
             {
-                if (statistics.objectCount != ExpectedStressObjects
-                    || statistics.drawCalls < statistics.objectCount
-                    || statistics.triangleCount <= statistics.drawCalls)
+                throw std::runtime_error{"stress scene render statistics are incomplete"};
+            }
+            if (useHybridDeferred)
+            {
+                if (statistics.visibleObjectCount + statistics.culledObjectCount
+                        != statistics.objectCount
+                    || statistics.shadowDrawCalls == 0
+                    || statistics.gBufferDrawCalls == 0
+                    || statistics.lightingDrawCalls != 1
+                    || statistics.transparentDrawCalls != 1)
                 {
-                    throw std::runtime_error{"stress scene render statistics are incomplete"};
+                    throw std::runtime_error{"hybrid pass statistics are incomplete"};
                 }
             }
+            else if (statistics.drawCalls < statistics.objectCount)
+            {
+                throw std::runtime_error{"forward stress scene draw statistics are incomplete"};
+            }
         }
-        else
+        if (!useAssetScene)
         {
             fallbackRenderer.Render(
                 graphics.Context(),
@@ -230,14 +292,21 @@ int EngineApp::Run(
         {
             const double cpuMilliseconds = std::chrono::duration<double, std::milli>(
                 cpuEnd - cpuStart).count();
-            samples.push_back(benchmark::FrameSample{
+            benchmark::FrameSample sample{
                 timing.frameIndex,
                 cpuMilliseconds,
                 std::nullopt,
                 statistics.drawCalls,
                 statistics.triangleCount,
                 statistics.objectCount,
-                GetCurrentProcessWorkingSetBytes()});
+                GetCurrentProcessWorkingSetBytes()};
+            sample.shadowDrawCalls = statistics.shadowDrawCalls;
+            sample.gBufferDrawCalls = statistics.gBufferDrawCalls;
+            sample.lightingDrawCalls = statistics.lightingDrawCalls;
+            sample.transparentDrawCalls = statistics.transparentDrawCalls;
+            sample.visibleObjectCount = statistics.visibleObjectCount;
+            sample.culledObjectCount = statistics.culledObjectCount;
+            samples.push_back(sample);
         }
         if (options.benchmark.has_value())
         {
@@ -308,7 +377,8 @@ int EngineApp::Run(
                 options.benchmark->commitSha,
                 adapterName,
                 options.benchmark->command,
-                options.benchmark->startedAt},
+                options.benchmark->startedAt,
+                options.renderPath},
             samples);
     }
 

@@ -82,7 +82,7 @@ int main(const int argc, const char* const* argv)
     const dxa::client::ClientOptions& options = *parsed.options;
     spdlog::set_pattern("[%H:%M:%S.%e] [%^%l%$] %v");
     spdlog::info(
-        "client start: adapter={}, size={}x{}, frames={}, hidden={}, vsync={}, asset_scene={}, benchmark={}",
+        "client start: adapter={}, size={}x{}, frames={}, hidden={}, vsync={}, asset_scene={}, benchmark={}, render_path={}",
         options.adapter == dxa::client::AdapterType::Warp ? "warp" : "hardware",
         options.width,
         options.height,
@@ -90,7 +90,8 @@ int main(const int argc, const char* const* argv)
         options.hidden,
         options.vsync,
         options.verifyAssetScene,
-        options.benchmark.has_value());
+        options.benchmark.has_value(),
+        dxa::engine::ToString(options.renderPath));
 
     std::optional<dxa::engine::BenchmarkRunOptions> engineBenchmark;
     if (options.benchmark.has_value())
@@ -116,7 +117,8 @@ int main(const int argc, const char* const* argv)
             ? dxa::engine::GraphicsDriver::Warp
             : dxa::engine::GraphicsDriver::Hardware,
         options.verifyAssetScene,
-        std::move(engineBenchmark)};
+        std::move(engineBenchmark),
+        options.renderPath};
 
     try
     {

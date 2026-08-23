@@ -68,7 +68,10 @@ function Get-DxaBenchmarkValidationErrors {
         [uint32]$MeasuredFrames,
 
         [AllowEmptyString()]
-        [string]$ExpectedAdapter
+        [string]$ExpectedAdapter,
+
+        [ValidateSet('forward', 'hybrid-deferred')]
+        [string]$RenderPath = 'forward'
     )
 
     $errors = [Collections.Generic.List[string]]::new()
@@ -85,6 +88,21 @@ function Get-DxaBenchmarkValidationErrors {
     }
     if ([uint32]$Summary.gpu_missing_samples -ne 0) {
         $errors.Add("GPU timestamp가 누락됐습니다: $($Summary.gpu_missing_samples)개")
+    }
+    if ($Summary.render_path -ne $RenderPath) {
+        $errors.Add('Benchmark render path가 실행 인자와 일치하지 않습니다.')
+    }
+    if ($RenderPath -eq 'hybrid-deferred' -and
+        $Summary.render_path -eq $RenderPath) {
+        $passSampleCounts = @(
+            [uint32]$Summary.gpu_shadow_sample_count,
+            [uint32]$Summary.gpu_gbuffer_sample_count,
+            [uint32]$Summary.gpu_lighting_sample_count,
+            [uint32]$Summary.gpu_transparent_sample_count
+        )
+        if (@($passSampleCounts | Where-Object { $_ -ne $MeasuredFrames }).Count -ne 0) {
+            $errors.Add('Hybrid GPU pass timestamp가 누락됐습니다.')
+        }
     }
     return $errors
 }

@@ -13,6 +13,9 @@ param(
     [ValidateRange(1, [uint32]::MaxValue)]
     [uint32]$MeasuredFrames = 600,
 
+    [ValidateSet('forward', 'hybrid-deferred')]
+    [string]$RenderPath = 'forward',
+
     [ValidateNotNullOrEmpty()]
     [string]$OutputRoot = 'docs/benchmarks/forward-baseline',
 
@@ -23,6 +26,10 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+$outputRootWasProvided = $PSBoundParameters.ContainsKey('OutputRoot')
+if (-not $outputRootWasProvided -and $RenderPath -eq 'hybrid-deferred') {
+    $OutputRoot = 'docs/benchmarks/hybrid-deferred'
+}
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
 $originalLocation = Get-Location
 $startedAt = [DateTimeOffset]::UtcNow
@@ -77,6 +84,7 @@ try {
         '--benchmark-frames', $MeasuredFrames,
         '--benchmark-seed', $Seed,
         '--commit-sha', $commitSha,
+        '--render-path', $RenderPath,
         '--width', $Width,
         '--height', $Height
     )
@@ -107,7 +115,8 @@ try {
         -Width $Width `
         -Height $Height `
         -MeasuredFrames $MeasuredFrames `
-        -ExpectedAdapter $ExpectedAdapter)
+        -ExpectedAdapter $ExpectedAdapter `
+        -RenderPath $RenderPath)
 
     $operatingSystem = Get-CimInstance Win32_OperatingSystem
     $processor = Get-CimInstance Win32_Processor | Select-Object -First 1
@@ -129,7 +138,7 @@ try {
     }
 
     $environment = [ordered]@{
-        schema_version = 1
+        schema_version = 2
         run_id = $runId
         started_at = $startedAt.ToString('o')
         finished_at = $finishedAt.ToString('o')
@@ -155,6 +164,7 @@ try {
             logical_processors = [uint32]$processor.NumberOfLogicalProcessors
         }
         selected_adapter = $summary.adapter
+        render_path = $RenderPath
         video_controllers = $videoControllers
         nvidia_smi = $nvidiaSmi
         validation = [ordered]@{
@@ -167,6 +177,7 @@ try {
             seed = $Seed
             warmup_frames = $WarmupFrames
             measured_frames = $MeasuredFrames
+            render_path = $RenderPath
         }
     }
     $environmentPath = Join-Path $outputDirectory 'environment.json'
@@ -182,7 +193,16 @@ try {
 
     Write-Output "Benchmark 완료: $outputDirectory"
     Write-Output "CPU frame P95: $($summary.metrics.cpu_frame_ms.p95) ms"
-    Write-Output "GPU forward P95: $($summary.metrics.gpu_forward_ms.p95) ms"
+    if ($RenderPath -eq 'hybrid-deferred') {
+        Write-Output "GPU total P95: $($summary.metrics.gpu_total_ms.p95) ms"
+        Write-Output "GPU shadow P95: $($summary.metrics.gpu_shadow_ms.p95) ms"
+        Write-Output "GPU G-Buffer P95: $($summary.metrics.gpu_gbuffer_ms.p95) ms"
+        Write-Output "GPU lighting P95: $($summary.metrics.gpu_lighting_ms.p95) ms"
+        Write-Output "GPU transparent P95: $($summary.metrics.gpu_transparent_ms.p95) ms"
+    }
+    else {
+        Write-Output "GPU forward P95: $($summary.metrics.gpu_forward_ms.p95) ms"
+    }
     Write-Output "Draw calls: $($summary.metrics.draw_calls.p50)"
     Write-Output "Working set P95: $($summary.metrics.working_set_bytes.p95) bytes"
 }

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <dxa/engine/GraphicsTypes.hpp>
+#include <dxa/engine/RenderPath.hpp>
 
 #include <cstdint>
 #include <filesystem>
@@ -31,6 +32,7 @@ struct EngineRunOptions
     GraphicsDriver driver = GraphicsDriver::Hardware;
     bool verifyAssetScene = false;
     std::optional<BenchmarkRunOptions> benchmark;
+    RenderPath renderPath = RenderPath::Forward;
 };
 
 class EngineApp
