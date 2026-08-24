@@ -5,6 +5,7 @@ add_library(
         src/ByteCodec.cpp
         src/LobbyMessageCodec.cpp
         src/TcpFrame.cpp
+        src/WorkerControlMessageCodec.cpp
 )
 find_package(boost_asio CONFIG REQUIRED)
 target_include_directories(
