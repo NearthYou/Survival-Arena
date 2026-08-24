@@ -1,6 +1,7 @@
 #include "support/game_network_fixture.hpp"
 
 #include <dxa/bot_client/BotCoordinator.hpp>
+#include <dxa/client/NetworkClientController.hpp>
 #include <dxa/game_common/ArenaFingerprint.hpp>
 #include <dxa/protocol/AsioFramedConnection.hpp>
 #include <dxa/protocol/GameTcpMessageCodec.hpp>
@@ -374,6 +375,29 @@ void WaitForThirdBotReady(
                 [](const auto& member) { return member.ready; });
     });
 }
+
+template <typename Condition>
+void PumpNetworkControllerUntil(
+    dxa::test::GameNetworkFixture& fixture,
+    dxa::client::NetworkClientController& controller,
+    Condition condition)
+{
+    const auto deadline = std::chrono::steady_clock::now() + 5s;
+    while (!condition())
+    {
+        fixture.BotIo().restart();
+        while (fixture.BotIo().poll_one() != 0U)
+        {
+        }
+        controller.FixedUpdate({});
+        if (std::chrono::steady_clock::now() >= deadline)
+        {
+            throw std::runtime_error{
+                "network controller integration test timed out"};
+        }
+        std::this_thread::sleep_for(1ms);
+    }
+}
 } // namespace
 
 TEST(GameServerIntegration, CompletesLobbyReservationAuthenticationAndDisconnectResult)
@@ -667,4 +691,52 @@ TEST(GameServerIntegration, PlayBotStopIsIdempotentBeforeWelcome)
 
     EXPECT_TRUE(bot.Done());
     EXPECT_EQ(3, bot.ExitCode());
+}
+
+TEST(GameServerIntegration, NetworkHostControllerRunsUntilGameResult)
+{
+    dxa::test::GameNetworkFixture fixture{BotPlayMatchConfig()};
+    fixture.StartLobbyAndWorker();
+    dxa::client::NetworkClientController controller{
+        dxa::client::NetworkClientOptions{
+            "127.0.0.1",
+            fixture.LobbyPort(),
+            2U}};
+    controller.Start();
+    PumpNetworkControllerUntil(
+        fixture,
+        controller,
+        [&controller] { return controller.Room().has_value(); });
+
+    dxa::bot_client::BotCoordinator bot{
+        fixture.BotIo(),
+        PlayOptions(fixture.LobbyPort(), *controller.Room())};
+    bot.Start();
+    PumpNetworkControllerUntil(
+        fixture,
+        controller,
+        [&] {
+            return bot.GameAuthenticated()
+                && bot.SnapshotCount() >= 2U
+                && controller.SnapshotCount() >= 2U;
+        });
+
+    const dxa::engine::RuntimeSceneFrame scene = controller.SampleScene();
+    EXPECT_GT(
+        std::count_if(
+            scene.players.begin(),
+            scene.players.end(),
+            [](const auto& player) { return player.active; }),
+        0U);
+    EXPECT_GT(scene.zoneRadius, 0.0F);
+
+    bot.Stop();
+    PumpNetworkControllerUntil(
+        fixture,
+        controller,
+        [&controller] { return controller.Result().has_value(); });
+
+    EXPECT_TRUE(controller.Result()->hasWinner);
+    EXPECT_NO_THROW(controller.FixedUpdate({}));
+    controller.Stop();
 }

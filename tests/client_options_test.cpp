@@ -221,4 +221,88 @@ TEST(ClientOptions, RejectsUnknownRenderPath)
     EXPECT_FALSE(result.options.has_value());
     EXPECT_EQ("--render-path must be forward or hybrid-deferred", result.error);
 }
+
+TEST(ClientOptions, ParsesNetworkCreateAndRequiresHybridPath)
+{
+    constexpr std::array validArguments{
+        std::string_view{"--render-path"},
+        std::string_view{"hybrid-deferred"},
+        std::string_view{"--network-create"},
+        std::string_view{"--expected-players"},
+        std::string_view{"2"},
+        std::string_view{"--lobby-host"},
+        std::string_view{"127.0.0.1"},
+        std::string_view{"--lobby-port"},
+        std::string_view{"7000"}};
+
+    const auto valid = ParseClientOptions(validArguments);
+
+    ASSERT_TRUE(valid.options.has_value()) << valid.error;
+    ASSERT_TRUE(valid.options->network.has_value());
+    EXPECT_EQ(2U, valid.options->network->expectedPlayers);
+    EXPECT_EQ("127.0.0.1", valid.options->network->lobbyHost);
+    EXPECT_EQ(7000U, valid.options->network->lobbyPort);
+
+    constexpr std::array invalidArguments{
+        std::string_view{"--network-create"}};
+    EXPECT_FALSE(ParseClientOptions(invalidArguments).options.has_value());
+}
+
+TEST(ClientOptions, EnforcesNetworkPlayerAndOptionBoundaries)
+{
+    constexpr std::array twoPlayers{
+        std::string_view{"--render-path"},
+        std::string_view{"hybrid-deferred"},
+        std::string_view{"--network-create"},
+        std::string_view{"--expected-players"},
+        std::string_view{"2"}};
+    constexpr std::array twentyFourPlayers{
+        std::string_view{"--render-path"},
+        std::string_view{"hybrid-deferred"},
+        std::string_view{"--network-create"},
+        std::string_view{"--expected-players"},
+        std::string_view{"24"}};
+    EXPECT_TRUE(ParseClientOptions(twoPlayers).options.has_value());
+    EXPECT_TRUE(ParseClientOptions(twentyFourPlayers).options.has_value());
+
+    constexpr std::array onePlayer{
+        std::string_view{"--render-path"},
+        std::string_view{"hybrid-deferred"},
+        std::string_view{"--network-create"},
+        std::string_view{"--expected-players"},
+        std::string_view{"1"}};
+    constexpr std::array twentyFivePlayers{
+        std::string_view{"--render-path"},
+        std::string_view{"hybrid-deferred"},
+        std::string_view{"--network-create"},
+        std::string_view{"--expected-players"},
+        std::string_view{"25"}};
+    constexpr std::array duplicateCreate{
+        std::string_view{"--render-path"},
+        std::string_view{"hybrid-deferred"},
+        std::string_view{"--network-create"},
+        std::string_view{"--network-create"}};
+    constexpr std::array networkWithoutCreate{
+        std::string_view{"--expected-players"},
+        std::string_view{"2"}};
+    EXPECT_FALSE(ParseClientOptions(onePlayer).options.has_value());
+    EXPECT_FALSE(ParseClientOptions(twentyFivePlayers).options.has_value());
+    EXPECT_FALSE(ParseClientOptions(duplicateCreate).options.has_value());
+    EXPECT_FALSE(ParseClientOptions(networkWithoutCreate).options.has_value());
+}
+
+TEST(ClientOptions, RejectsNetworkBenchmarkCombination)
+{
+    constexpr std::array arguments{
+        std::string_view{"--render-path"},
+        std::string_view{"hybrid-deferred"},
+        std::string_view{"--network-create"},
+        std::string_view{"--benchmark-output"},
+        std::string_view{"run-001"},
+        std::string_view{"--commit-sha"},
+        std::string_view{"abc1234"},
+        std::string_view{"--no-vsync"}};
+
+    EXPECT_FALSE(ParseClientOptions(arguments).options.has_value());
+}
 } // namespace

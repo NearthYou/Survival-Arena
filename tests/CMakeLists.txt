@@ -3,6 +3,7 @@ find_package(GTest CONFIG REQUIRED)
 add_executable(
     dxa_tests
     client_options_test.cpp
+    client_lobby_host_flow_test.cpp
     bot_client_options_test.cpp
     engine_benchmark_report_test.cpp
     engine_gpu_pass_timing_test.cpp
@@ -67,6 +68,7 @@ target_link_libraries(
         GTest::gtest_main
         dxa_bot_client_options
         dxa_client_options
+        dxa_client_network
         dxa_engine_core
         dxa_game_server_core
         dxa_game_client

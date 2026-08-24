@@ -6,6 +6,29 @@ target_include_directories(
 )
 target_link_libraries(dxa_client_options INTERFACE dxa_engine_core)
 
+add_library(
+    dxa_client_network
+    STATIC
+        src/LobbyHostFlow.cpp
+        src/NetworkClientController.cpp
+)
+target_include_directories(
+    dxa_client_network
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+target_link_libraries(
+    dxa_client_network
+    PUBLIC
+        dxa_client_options
+        dxa_game_client
+        dxa_game_common
+        dxa_lobby_client
+        dxa_protocol
+        dxa_simulation
+)
+dxa_enable_project_warnings(dxa_client_network)
+
 if(WIN32)
     find_package(spdlog CONFIG REQUIRED)
 
@@ -14,6 +37,7 @@ if(WIN32)
         dxa_client
         PRIVATE
             dxa_client_options
+            dxa_client_network
             dxa_engine
             spdlog::spdlog
     )
