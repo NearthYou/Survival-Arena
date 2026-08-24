@@ -4,6 +4,7 @@
 #include <dxa/protocol/LobbyMessageCodec.hpp>
 
 #include <boost/asio/socket_base.hpp>
+#include <boost/asio/post.hpp>
 
 #include <spdlog/spdlog.h>
 
@@ -199,6 +200,26 @@ struct LobbyTcpServer::State final
         return acceptor_.local_endpoint().port();
     }
 
+    void SetRuntimeActionHandler(LobbyRuntimeActionHandler handler)
+    {
+        actionHandler_ = std::move(handler);
+    }
+
+    void ApplyWorkerEvent(
+        WorkerEvent event,
+        const std::chrono::steady_clock::time_point now)
+    {
+        const auto self = shared_from_this();
+        boost::asio::post(
+            acceptor_.get_executor(),
+            [self, event = std::move(event), now] {
+                if (!self->stopping_)
+                {
+                    self->Route(self->service_.HandleWorkerEvent(event, now));
+                }
+            });
+    }
+
     void AcceptNext()
     {
         if (stopping_)
@@ -302,11 +323,28 @@ struct LobbyTcpServer::State final
         {
             LogAudit(event);
         }
+        for (const LobbyRuntimeAction& action : result.actions)
+        {
+            if (actionHandler_)
+            {
+                actionHandler_(action);
+                continue;
+            }
+            if (const auto* reserve = std::get_if<ReserveMatchAction>(&action))
+            {
+                Route(service_.HandleWorkerEvent(
+                    ReservationFailedEvent{
+                        reserve->reservation,
+                        reserve->match},
+                    std::chrono::steady_clock::now()));
+            }
+        }
     }
 
     LobbyService& service_;
     boost::asio::ip::tcp::acceptor acceptor_;
     std::map<ConnectionId, std::shared_ptr<Session>> sessions_;
+    LobbyRuntimeActionHandler actionHandler_;
     bool started_ = false;
     bool stopping_ = false;
 };
@@ -332,6 +370,19 @@ void LobbyTcpServer::Start()
 void LobbyTcpServer::Stop()
 {
     state_->Stop();
+}
+
+void LobbyTcpServer::SetRuntimeActionHandler(
+    LobbyRuntimeActionHandler handler)
+{
+    state_->SetRuntimeActionHandler(std::move(handler));
+}
+
+void LobbyTcpServer::ApplyWorkerEvent(
+    const WorkerEvent& event,
+    const std::chrono::steady_clock::time_point now)
+{
+    state_->ApplyWorkerEvent(event, now);
 }
 
 std::uint16_t LobbyTcpServer::LocalPort() const

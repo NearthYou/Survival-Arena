@@ -219,7 +219,7 @@ TEST(LobbyTcpIntegration, TwoClientsCreateReadyStartAndReceiveDistinctTickets)
     const auto* guestTicket = Latest<dxa::protocol::MatchTicket>(*guest);
     ASSERT_NE(nullptr, hostTicket);
     ASSERT_NE(nullptr, guestTicket);
-    EXPECT_NE(hostTicket->ticket, guestTicket->ticket);
+    EXPECT_TRUE(hostTicket->ticket != guestTicket->ticket);
     EXPECT_EQ(dxa::protocol::RoomState::InMatch,
         Latest<dxa::protocol::RoomSnapshot>(*host)->state);
     EXPECT_EQ(dxa::protocol::RoomState::InMatch,

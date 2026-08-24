@@ -18,28 +18,34 @@
 namespace
 {
 using dxa::lobby::ConnectionId;
-using dxa::lobby::GameEndpoint;
 using dxa::lobby::ITicketSource;
 using dxa::lobby::LobbyAuditEventType;
+using dxa::lobby::LobbyRuntimeAction;
 using dxa::lobby::LobbyService;
 using dxa::lobby::LobbyServiceConfig;
 using dxa::lobby::LobbyServiceResult;
+using dxa::lobby::MatchFinishedEvent;
+using dxa::lobby::MatchUnavailableEvent;
 using dxa::lobby::MatchTicketRegistry;
-using dxa::protocol::MatchTicketValue;
-using dxa::lobby::StaticGameWorkerAllocator;
+using dxa::lobby::ReservationFailedEvent;
+using dxa::lobby::ReservationReadyEvent;
+using dxa::lobby::ReserveMatchAction;
+using dxa::lobby::CancelReservationAction;
 using dxa::lobby::TicketConsumeResult;
-using dxa::lobby::UnavailableGameWorkerAllocator;
 using dxa::protocol::ClientHello;
 using dxa::protocol::ClientMessage;
 using dxa::protocol::CreateRoomRequest;
 using dxa::protocol::ErrorResponse;
+using dxa::protocol::GameEndpoint;
 using dxa::protocol::JoinRoomRequest;
 using dxa::protocol::LeaveRoomRequest;
 using dxa::protocol::ListRoomsRequest;
 using dxa::protocol::LobbyError;
 using dxa::protocol::MatchId;
 using dxa::protocol::MatchTicket;
+using dxa::protocol::MatchTicketValue;
 using dxa::protocol::PlayerId;
+using dxa::protocol::ReservationId;
 using dxa::protocol::RoomId;
 using dxa::protocol::RoomListResponse;
 using dxa::protocol::RoomSnapshot;
@@ -47,6 +53,7 @@ using dxa::protocol::RoomState;
 using dxa::protocol::ServerWelcome;
 using dxa::protocol::SetReadyRequest;
 using dxa::protocol::StartMatchRequest;
+using dxa::protocol::WorkerId;
 
 [[nodiscard]] std::chrono::steady_clock::time_point Time(
     const std::int64_t seconds)
@@ -54,12 +61,6 @@ using dxa::protocol::StartMatchRequest;
     return std::chrono::steady_clock::time_point{
         std::chrono::seconds{seconds}};
 }
-
-enum class WorkerMode
-{
-    Unavailable,
-    Static
-};
 
 class SequenceTicketSource final : public ITicketSource
 {
@@ -100,31 +101,16 @@ private:
 struct ServiceFixture
 {
     explicit ServiceFixture(
-        const WorkerMode mode = WorkerMode::Unavailable,
         const LobbyServiceConfig config = {},
-        const std::optional<std::size_t> failAtTicketCall = std::nullopt,
-        GameEndpoint endpoint = {"127.0.0.1", 41000U, 41001U})
+        const std::optional<std::size_t> failAtTicketCall = std::nullopt)
         : ticketSource{failAtTicketCall},
           tickets{ticketSource},
-          staticAllocator{std::move(endpoint)},
-          service{
-              mode == WorkerMode::Static
-                  ? static_cast<dxa::lobby::IGameWorkerAllocator&>(staticAllocator)
-                  : static_cast<dxa::lobby::IGameWorkerAllocator&>(unavailableAllocator),
-              tickets,
-              config}
-    {
-    }
-
-    explicit ServiceFixture(const LobbyServiceConfig config)
-        : ServiceFixture{WorkerMode::Unavailable, config}
+          service{tickets, config}
     {
     }
 
     SequenceTicketSource ticketSource;
     MatchTicketRegistry tickets;
-    UnavailableGameWorkerAllocator unavailableAllocator;
-    StaticGameWorkerAllocator staticAllocator;
     LobbyService service;
 };
 
@@ -178,6 +164,32 @@ template <typename Message>
         throw std::logic_error{"recipient message not found"};
     }
     return *found;
+}
+
+template <typename Action>
+[[nodiscard]] const Action& OnlyAction(const LobbyServiceResult& result)
+{
+    if (result.actions.size() != 1U)
+    {
+        throw std::logic_error{"expected exactly one runtime action"};
+    }
+    const auto* action = std::get_if<Action>(&result.actions.front());
+    if (action == nullptr)
+    {
+        throw std::logic_error{"unexpected runtime action type"};
+    }
+    return *action;
+}
+
+template <typename Message>
+[[nodiscard]] std::size_t CountMessages(const LobbyServiceResult& result)
+{
+    return static_cast<std::size_t>(std::count_if(
+        result.outbound.begin(),
+        result.outbound.end(),
+        [](const auto& outbound) {
+            return std::holds_alternative<Message>(outbound.message);
+        }));
 }
 
 [[nodiscard]] const ErrorResponse& OnlyError(const LobbyServiceResult& result)
@@ -613,24 +625,9 @@ TEST(LobbyService, ReportsMissingRoomMembership)
     EXPECT_EQ(LobbyError::NotInRoom, OnlyError(output).error);
 }
 
-TEST(GameWorkerAllocator, ValidatesStaticEndpoint)
-{
-    StaticGameWorkerAllocator valid{GameEndpoint{"127.0.0.1", 41000U, 41001U}};
-    const auto success = valid.Allocate(MatchId{1U}, {});
-    ASSERT_TRUE(success.endpoint.has_value());
-    EXPECT_EQ("127.0.0.1", success.endpoint->host);
-    EXPECT_EQ(41000U, success.endpoint->tcpPort);
-    EXPECT_EQ(41001U, success.endpoint->udpPort);
-
-    StaticGameWorkerAllocator invalid{GameEndpoint{"", 41000U, 41001U}};
-    const auto failure = invalid.Allocate(MatchId{1U}, {});
-    EXPECT_FALSE(failure.endpoint.has_value());
-    EXPECT_EQ(LobbyError::WorkerUnavailable, failure.error);
-}
-
 TEST(LobbyService, ValidatesHostPlayerCountAndReadyStateBeforeStarting)
 {
-    ServiceFixture fixture{WorkerMode::Static};
+    ServiceFixture fixture;
     const ConnectionId host = WelcomedConnection(fixture);
     const RoomId room = CreateRoom(fixture, host, 2U);
 
@@ -656,15 +653,104 @@ TEST(LobbyService, ValidatesHostPlayerCountAndReadyStateBeforeStarting)
     EXPECT_TRUE(fixture.ticketSource.generated.empty());
 }
 
-TEST(LobbyService, WorkerFailureReturnsWaitingAndPreservesReadyState)
+TEST(LobbyService, StartsReservationWithoutPublishingTickets)
 {
-    ServiceFixture fixture{WorkerMode::Unavailable};
+    ServiceFixture fixture;
     const ReadyRoom ready = ReadyTwoPlayerRoom(fixture);
 
     const auto output = fixture.service.Handle(
         ready.host,
         ClientMessage{StartMatchRequest{5U}},
         Time(0));
+
+    EXPECT_EQ(RoomState::Starting, SnapshotFor(output, ready.host).state);
+    EXPECT_EQ(RoomState::Starting, SnapshotFor(output, ready.guest).state);
+    EXPECT_EQ(5U, SnapshotFor(output, ready.host).requestId);
+    EXPECT_EQ(0U, SnapshotFor(output, ready.guest).requestId);
+    EXPECT_EQ(0U, CountMessages<MatchTicket>(output));
+    EXPECT_TRUE(output.audit.empty());
+
+    const auto& reservation = OnlyAction<ReserveMatchAction>(output);
+    EXPECT_EQ(ReservationId{1U}, reservation.reservation);
+    EXPECT_EQ(ready.room, reservation.room);
+    EXPECT_EQ(MatchId{1U}, reservation.match);
+    EXPECT_EQ(PlayerId{1U}, reservation.requester);
+    EXPECT_EQ(5U, reservation.requestId);
+    EXPECT_EQ(20260825U, reservation.seed);
+    EXPECT_EQ(Time(0), reservation.issuedAt);
+    ASSERT_EQ(2U, reservation.participants.size());
+    EXPECT_EQ(PlayerId{1U}, reservation.participants[0].player);
+    EXPECT_EQ(PlayerId{2U}, reservation.participants[1].player);
+    EXPECT_TRUE(
+        reservation.participants[0].ticket
+        != reservation.participants[1].ticket);
+}
+
+TEST(LobbyService, PublishesTicketsOnlyAfterMatchingReadyEvent)
+{
+    ServiceFixture fixture;
+    const ReadyRoom ready = ReadyTwoPlayerRoom(fixture);
+    const auto start = fixture.service.Handle(
+        ready.host,
+        ClientMessage{StartMatchRequest{5U}},
+        Time(0));
+    const ReserveMatchAction reservation =
+        OnlyAction<ReserveMatchAction>(start);
+
+    const auto output = fixture.service.HandleWorkerEvent(
+        ReservationReadyEvent{
+            reservation.reservation,
+            reservation.match,
+            WorkerId{3U},
+            GameEndpoint{"127.0.0.1", 41000U, 41001U}},
+        Time(1));
+
+    EXPECT_EQ(RoomState::InMatch, SnapshotFor(output, ready.host).state);
+    EXPECT_EQ(RoomState::InMatch, SnapshotFor(output, ready.guest).state);
+    EXPECT_EQ(5U, SnapshotFor(output, ready.host).requestId);
+    EXPECT_EQ(0U, SnapshotFor(output, ready.guest).requestId);
+    EXPECT_EQ(2U, CountMessages<MatchTicket>(output));
+
+    const auto& hostTicket = TicketFor(output, ready.host);
+    const auto& guestTicket = TicketFor(output, ready.guest);
+    EXPECT_TRUE(hostTicket.ticket != guestTicket.ticket);
+    EXPECT_EQ(5U, hostTicket.requestId);
+    EXPECT_EQ(0U, guestTicket.requestId);
+    EXPECT_EQ(MatchId{1U}, hostTicket.match);
+    EXPECT_EQ("127.0.0.1", hostTicket.host);
+    EXPECT_EQ(41000U, hostTicket.tcpPort);
+    EXPECT_EQ(41001U, hostTicket.udpPort);
+    EXPECT_EQ(59U, hostTicket.expiresInSeconds);
+
+    ASSERT_EQ(1U, output.audit.size());
+    EXPECT_EQ(LobbyAuditEventType::MatchStarted, output.audit.front().type);
+    EXPECT_EQ(MatchId{1U}, output.audit.front().match);
+    EXPECT_EQ(GameEndpoint({"127.0.0.1", 41000U, 41001U}),
+              output.audit.front().endpoint);
+
+    const auto roomList = fixture.service.Handle(
+        ready.guest,
+        ClientMessage{ListRoomsRequest{4U}},
+        Time(1));
+    EXPECT_TRUE(OnlyMessage<RoomListResponse>(roomList).rooms.empty());
+}
+
+TEST(LobbyService, ReservationFailureReturnsWaitingAndPreservesReadyState)
+{
+    ServiceFixture fixture;
+    const ReadyRoom ready = ReadyTwoPlayerRoom(fixture);
+    const auto start = fixture.service.Handle(
+        ready.host,
+        ClientMessage{StartMatchRequest{5U}},
+        Time(0));
+    const ReserveMatchAction reservation =
+        OnlyAction<ReserveMatchAction>(start);
+
+    const auto output = fixture.service.HandleWorkerEvent(
+        ReservationFailedEvent{
+            reservation.reservation,
+            reservation.match},
+        Time(1));
 
     EXPECT_EQ(RoomState::Waiting, SnapshotFor(output, ready.host).state);
     EXPECT_EQ(RoomState::Waiting, SnapshotFor(output, ready.guest).state);
@@ -674,80 +760,66 @@ TEST(LobbyService, WorkerFailureReturnsWaitingAndPreservesReadyState)
     EXPECT_TRUE(Member(SnapshotFor(output, ready.guest), PlayerId{2U}).ready);
     EXPECT_EQ(LobbyError::WorkerUnavailable, ErrorFor(output, ready.host).error);
     ASSERT_EQ(2U, fixture.ticketSource.generated.size());
-    EXPECT_EQ(
-        TicketConsumeResult::NotFound,
-        fixture.tickets.Consume(
-            fixture.ticketSource.generated[0],
-            MatchId{1U},
-            PlayerId{1U},
-            Time(0)));
-    EXPECT_EQ(
-        TicketConsumeResult::NotFound,
-        fixture.tickets.Consume(
-            fixture.ticketSource.generated[1],
-            MatchId{1U},
-            PlayerId{2U},
-            Time(0)));
+    for (std::size_t index = 0U;
+         index < fixture.ticketSource.generated.size();
+         ++index)
+    {
+        EXPECT_EQ(
+            TicketConsumeResult::NotFound,
+            fixture.tickets.Consume(
+                fixture.ticketSource.generated[index],
+                reservation.match,
+                PlayerId{static_cast<std::uint32_t>(index + 1U)},
+                Time(1)));
+    }
     ASSERT_EQ(1U, output.audit.size());
     EXPECT_EQ(LobbyAuditEventType::StartFailed, output.audit.front().type);
-    EXPECT_EQ(MatchId{1U}, output.audit.front().match);
+    EXPECT_EQ(reservation.match, output.audit.front().match);
     EXPECT_EQ(LobbyError::WorkerUnavailable, output.audit.front().error);
 }
 
-TEST(LobbyService, StartIssuesOneDistinctTicketPerParticipant)
+TEST(LobbyService, IgnoresMismatchedAndLateWorkerEvents)
 {
-    ServiceFixture fixture{WorkerMode::Static};
+    ServiceFixture fixture;
     const ReadyRoom ready = ReadyTwoPlayerRoom(fixture);
-
-    const auto output = fixture.service.Handle(
+    const auto start = fixture.service.Handle(
         ready.host,
         ClientMessage{StartMatchRequest{5U}},
         Time(0));
+    const ReserveMatchAction reservation =
+        OnlyAction<ReserveMatchAction>(start);
 
-    const auto& hostTicket = TicketFor(output, ready.host);
-    const auto& guestTicket = TicketFor(output, ready.guest);
-    EXPECT_NE(hostTicket.ticket, guestTicket.ticket);
-    EXPECT_EQ(5U, hostTicket.requestId);
-    EXPECT_EQ(0U, guestTicket.requestId);
-    EXPECT_EQ(MatchId{1U}, hostTicket.match);
-    EXPECT_EQ("127.0.0.1", hostTicket.host);
-    EXPECT_EQ(41000U, hostTicket.tcpPort);
-    EXPECT_EQ(41001U, hostTicket.udpPort);
-    EXPECT_EQ(RoomState::InMatch, SnapshotFor(output, ready.host).state);
-    EXPECT_EQ(RoomState::InMatch, SnapshotFor(output, ready.guest).state);
-    EXPECT_EQ(5U, SnapshotFor(output, ready.host).requestId);
-    EXPECT_EQ(0U, SnapshotFor(output, ready.guest).requestId);
-    EXPECT_EQ(
-        TicketConsumeResult::Accepted,
-        fixture.tickets.Consume(
-            hostTicket.ticket,
-            MatchId{1U},
-            PlayerId{1U},
-            Time(59)));
-    EXPECT_EQ(
-        TicketConsumeResult::Accepted,
-        fixture.tickets.Consume(
-            guestTicket.ticket,
-            MatchId{1U},
-            PlayerId{2U},
-            Time(59)));
-    ASSERT_EQ(1U, output.audit.size());
-    EXPECT_EQ(LobbyAuditEventType::MatchStarted, output.audit.front().type);
-    EXPECT_EQ(GameEndpoint({"127.0.0.1", 41000U, 41001U}), output.audit.front().endpoint);
+    const auto wrong = fixture.service.HandleWorkerEvent(
+        ReservationReadyEvent{
+            ReservationId{reservation.reservation.value + 1U},
+            reservation.match,
+            WorkerId{3U},
+            GameEndpoint{"127.0.0.1", 41000U, 41001U}},
+        Time(1));
+    EXPECT_TRUE(wrong.outbound.empty());
+    EXPECT_TRUE(wrong.actions.empty());
 
-    const auto roomList = fixture.service.Handle(
-        ready.guest,
-        ClientMessage{ListRoomsRequest{4U}},
-        Time(59));
-    EXPECT_TRUE(OnlyMessage<RoomListResponse>(roomList).rooms.empty());
+    const auto failed = fixture.service.HandleWorkerEvent(
+        ReservationFailedEvent{
+            reservation.reservation,
+            reservation.match},
+        Time(1));
+    EXPECT_EQ(RoomState::Waiting, SnapshotFor(failed, ready.host).state);
+
+    const auto late = fixture.service.HandleWorkerEvent(
+        ReservationReadyEvent{
+            reservation.reservation,
+            reservation.match,
+            WorkerId{3U},
+            GameEndpoint{"127.0.0.1", 41000U, 41001U}},
+        Time(2));
+    EXPECT_TRUE(late.outbound.empty());
+    EXPECT_TRUE(late.actions.empty());
 }
 
 TEST(LobbyService, TicketSourceFailureRevokesPartialIssueAndRollsBack)
 {
-    ServiceFixture fixture{
-        WorkerMode::Static,
-        LobbyServiceConfig{},
-        1U};
+    ServiceFixture fixture{LobbyServiceConfig{}, 1U};
     const ReadyRoom ready = ReadyTwoPlayerRoom(fixture);
 
     const auto output = fixture.service.Handle(
@@ -757,6 +829,7 @@ TEST(LobbyService, TicketSourceFailureRevokesPartialIssueAndRollsBack)
 
     EXPECT_EQ(RoomState::Waiting, SnapshotFor(output, ready.host).state);
     EXPECT_EQ(LobbyError::InternalError, ErrorFor(output, ready.host).error);
+    EXPECT_TRUE(output.actions.empty());
     ASSERT_EQ(1U, fixture.ticketSource.generated.size());
     EXPECT_EQ(
         TicketConsumeResult::NotFound,
@@ -767,45 +840,228 @@ TEST(LobbyService, TicketSourceFailureRevokesPartialIssueAndRollsBack)
             Time(0)));
 }
 
-TEST(LobbyService, InvalidStaticEndpointRollsBackStart)
+TEST(LobbyService, InvalidOrExpiredReadyRollsBackReservation)
 {
-    ServiceFixture fixture{
-        WorkerMode::Static,
-        LobbyServiceConfig{},
-        std::nullopt,
-        GameEndpoint{"", 41000U, 41001U}};
-    const ReadyRoom ready = ReadyTwoPlayerRoom(fixture);
+    ServiceFixture invalidFixture;
+    const ReadyRoom invalidReady = ReadyTwoPlayerRoom(invalidFixture);
+    const auto invalidStart = invalidFixture.service.Handle(
+        invalidReady.host,
+        ClientMessage{StartMatchRequest{5U}},
+        Time(0));
+    const ReserveMatchAction invalidReservation =
+        OnlyAction<ReserveMatchAction>(invalidStart);
+    auto output = invalidFixture.service.HandleWorkerEvent(
+        ReservationReadyEvent{
+            invalidReservation.reservation,
+            invalidReservation.match,
+            WorkerId{3U},
+            GameEndpoint{"", 41000U, 41001U}},
+        Time(1));
+    EXPECT_EQ(RoomState::Waiting,
+              SnapshotFor(output, invalidReady.host).state);
+    EXPECT_EQ(LobbyError::WorkerUnavailable,
+              ErrorFor(output, invalidReady.host).error);
 
-    const auto output = fixture.service.Handle(
+    ServiceFixture expiredFixture;
+    const ReadyRoom expiredReady = ReadyTwoPlayerRoom(expiredFixture);
+    const auto expiredStart = expiredFixture.service.Handle(
+        expiredReady.host,
+        ClientMessage{StartMatchRequest{5U}},
+        Time(0));
+    const ReserveMatchAction expiredReservation =
+        OnlyAction<ReserveMatchAction>(expiredStart);
+    output = expiredFixture.service.HandleWorkerEvent(
+        ReservationReadyEvent{
+            expiredReservation.reservation,
+            expiredReservation.match,
+            WorkerId{3U},
+            GameEndpoint{"127.0.0.1", 41000U, 41001U}},
+        Time(60));
+    EXPECT_EQ(RoomState::Waiting,
+              SnapshotFor(output, expiredReady.host).state);
+    EXPECT_EQ(LobbyError::WorkerUnavailable,
+              ErrorFor(output, expiredReady.host).error);
+}
+
+TEST(LobbyService, StartingDisconnectCancelsThenRemovesParticipant)
+{
+    ServiceFixture fixture;
+    const ReadyRoom ready = ReadyTwoPlayerRoom(fixture);
+    const auto start = fixture.service.Handle(
         ready.host,
         ClientMessage{StartMatchRequest{5U}},
         Time(0));
+    const ReserveMatchAction reservation =
+        OnlyAction<ReserveMatchAction>(start);
 
-    EXPECT_EQ(RoomState::Waiting, SnapshotFor(output, ready.host).state);
-    EXPECT_EQ(LobbyError::WorkerUnavailable, ErrorFor(output, ready.host).error);
+    auto rejected = fixture.service.Handle(
+        ready.guest,
+        ClientMessage{LeaveRoomRequest{4U}},
+        Time(0));
+    EXPECT_EQ(LobbyError::RoomNotJoinable, OnlyError(rejected).error);
+    rejected = fixture.service.Handle(
+        ready.host,
+        ClientMessage{SetReadyRequest{6U, false}},
+        Time(0));
+    EXPECT_EQ(LobbyError::RoomNotJoinable, OnlyError(rejected).error);
+
+    const auto output = fixture.service.Disconnect(ready.guest);
+
+    const auto& cancel = OnlyAction<CancelReservationAction>(output);
+    EXPECT_EQ(reservation.reservation, cancel.reservation);
+    EXPECT_EQ(reservation.match, cancel.match);
+    const auto& snapshot = SnapshotFor(output, ready.host);
+    EXPECT_EQ(RoomState::Waiting, snapshot.state);
+    ASSERT_EQ(1U, snapshot.members.size());
+    EXPECT_EQ(PlayerId{1U}, snapshot.members.front().player);
+    EXPECT_TRUE(snapshot.members.front().ready);
+    EXPECT_EQ(LobbyError::WorkerUnavailable,
+              ErrorFor(output, ready.host).error);
 }
 
-TEST(LobbyService, ConsumesMaximumMatchIdOnFailedStartWithoutWrapping)
+TEST(LobbyService, StartingHostDisconnectTransfersHostWithoutStaleError)
+{
+    ServiceFixture fixture;
+    const ReadyRoom ready = ReadyTwoPlayerRoom(fixture);
+    const auto start = fixture.service.Handle(
+        ready.host,
+        ClientMessage{StartMatchRequest{5U}},
+        Time(0));
+    const ReserveMatchAction reservation =
+        OnlyAction<ReserveMatchAction>(start);
+
+    const auto output = fixture.service.Disconnect(ready.host);
+
+    const auto& cancel = OnlyAction<CancelReservationAction>(output);
+    EXPECT_EQ(reservation.reservation, cancel.reservation);
+    const auto& snapshot = SnapshotFor(output, ready.guest);
+    EXPECT_EQ(RoomState::Waiting, snapshot.state);
+    EXPECT_EQ(PlayerId{2U}, snapshot.host);
+    ASSERT_EQ(1U, snapshot.members.size());
+    EXPECT_EQ(0U, CountMessages<ErrorResponse>(output));
+    EXPECT_TRUE(std::any_of(
+        output.audit.begin(),
+        output.audit.end(),
+        [](const auto& event) {
+            return event.type == LobbyAuditEventType::HostTransferred;
+        }));
+}
+
+TEST(LobbyService, InMatchLobbyDisconnectWaitsForWorkerCleanup)
+{
+    ServiceFixture fixture;
+    const ReadyRoom ready = ReadyTwoPlayerRoom(fixture);
+    const auto start = fixture.service.Handle(
+        ready.host,
+        ClientMessage{StartMatchRequest{5U}},
+        Time(0));
+    const ReserveMatchAction reservation =
+        OnlyAction<ReserveMatchAction>(start);
+    static_cast<void>(fixture.service.HandleWorkerEvent(
+        ReservationReadyEvent{
+            reservation.reservation,
+            reservation.match,
+            WorkerId{3U},
+            GameEndpoint{"127.0.0.1", 41000U, 41001U}},
+        Time(1)));
+
+    const auto disconnected = fixture.service.Disconnect(ready.guest);
+    EXPECT_TRUE(disconnected.outbound.empty());
+    EXPECT_TRUE(fixture.service.HasRoom(ready.room));
+
+    const auto finished = fixture.service.HandleWorkerEvent(
+        MatchFinishedEvent{WorkerId{3U}, reservation.match},
+        Time(2));
+    EXPECT_FALSE(fixture.service.HasRoom(ready.room));
+    const auto& rooms = OnlyMessage<RoomListResponse>(finished);
+    EXPECT_EQ(0U, rooms.requestId);
+    EXPECT_TRUE(rooms.rooms.empty());
+    for (std::size_t index = 0U;
+         index < fixture.ticketSource.generated.size();
+         ++index)
+    {
+        EXPECT_EQ(
+            TicketConsumeResult::NotFound,
+            fixture.tickets.Consume(
+                fixture.ticketSource.generated[index],
+                reservation.match,
+                PlayerId{static_cast<std::uint32_t>(index + 1U)},
+                Time(2)));
+    }
+}
+
+TEST(LobbyService, ActiveWorkerLossPublishesErrorAndRoomList)
+{
+    ServiceFixture fixture;
+    const ReadyRoom ready = ReadyTwoPlayerRoom(fixture);
+    const auto start = fixture.service.Handle(
+        ready.host,
+        ClientMessage{StartMatchRequest{5U}},
+        Time(0));
+    const ReserveMatchAction reservation =
+        OnlyAction<ReserveMatchAction>(start);
+    static_cast<void>(fixture.service.HandleWorkerEvent(
+        ReservationReadyEvent{
+            reservation.reservation,
+            reservation.match,
+            WorkerId{3U},
+            GameEndpoint{"127.0.0.1", 41000U, 41001U}},
+        Time(1)));
+
+    const auto wrongWorker = fixture.service.HandleWorkerEvent(
+        MatchUnavailableEvent{WorkerId{4U}, reservation.match},
+        Time(2));
+    EXPECT_TRUE(wrongWorker.outbound.empty());
+
+    const auto output = fixture.service.HandleWorkerEvent(
+        MatchUnavailableEvent{WorkerId{3U}, reservation.match},
+        Time(2));
+
+    EXPECT_FALSE(fixture.service.HasRoom(ready.room));
+    EXPECT_EQ(LobbyError::MatchUnavailable,
+              ErrorFor(output, ready.host).error);
+    EXPECT_EQ(LobbyError::MatchUnavailable,
+              ErrorFor(output, ready.guest).error);
+    EXPECT_TRUE(MessageFor<RoomListResponse>(output, ready.host).rooms.empty());
+    EXPECT_TRUE(MessageFor<RoomListResponse>(output, ready.guest).rooms.empty());
+}
+
+TEST(LobbyService, ConsumesMaximumMatchAndReservationIdsWithoutWrapping)
 {
     LobbyServiceConfig config;
     config.nextMatch = std::numeric_limits<std::uint64_t>::max();
-    ServiceFixture fixture{WorkerMode::Unavailable, config};
+    config.nextReservation = std::numeric_limits<std::uint64_t>::max();
+    ServiceFixture fixture{config};
     const ReadyRoom ready = ReadyTwoPlayerRoom(fixture);
 
     auto output = fixture.service.Handle(
         ready.host,
         ClientMessage{StartMatchRequest{5U}},
         Time(0));
-    EXPECT_EQ(LobbyError::WorkerUnavailable, ErrorFor(output, ready.host).error);
-    ASSERT_FALSE(output.audit.empty());
-    EXPECT_EQ(
-        MatchId{std::numeric_limits<std::uint64_t>::max()},
-        output.audit.front().match);
+    const ReserveMatchAction reservation =
+        OnlyAction<ReserveMatchAction>(output);
+    EXPECT_EQ(MatchId{std::numeric_limits<std::uint64_t>::max()},
+              reservation.match);
+    EXPECT_EQ(ReservationId{std::numeric_limits<std::uint64_t>::max()},
+              reservation.reservation);
 
+    static_cast<void>(fixture.service.HandleWorkerEvent(
+        ReservationFailedEvent{reservation.reservation, reservation.match},
+        Time(1)));
     output = fixture.service.Handle(
         ready.host,
         ClientMessage{StartMatchRequest{6U}},
+        Time(1));
+    EXPECT_EQ(LobbyError::IdSpaceExhausted, OnlyError(output).error);
+
+    LobbyServiceConfig noReservation;
+    noReservation.nextReservation = 0U;
+    ServiceFixture exhausted{noReservation};
+    const ReadyRoom exhaustedReady = ReadyTwoPlayerRoom(exhausted);
+    output = exhausted.service.Handle(
+        exhaustedReady.host,
+        ClientMessage{StartMatchRequest{5U}},
         Time(0));
     EXPECT_EQ(LobbyError::IdSpaceExhausted, OnlyError(output).error);
-    EXPECT_TRUE(output.audit.empty());
+    EXPECT_TRUE(exhausted.ticketSource.generated.empty());
 }

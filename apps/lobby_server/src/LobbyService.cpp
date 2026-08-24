@@ -13,17 +13,21 @@ namespace
 using dxa::protocol::ClientHello;
 using dxa::protocol::CreateRoomRequest;
 using dxa::protocol::ErrorResponse;
+using dxa::protocol::GameEndpoint;
 using dxa::protocol::JoinRoomRequest;
 using dxa::protocol::LeaveRoomRequest;
 using dxa::protocol::ListRoomsRequest;
 using dxa::protocol::LobbyError;
 using dxa::protocol::MatchTicketValue;
 using dxa::protocol::PlayerId;
+using dxa::protocol::ReservationId;
+using dxa::protocol::ReservedParticipant;
 using dxa::protocol::RoomId;
 using dxa::protocol::RoomListResponse;
 using dxa::protocol::RoomState;
 using dxa::protocol::SetReadyRequest;
 using dxa::protocol::StartMatchRequest;
+using dxa::protocol::WorkerId;
 
 template <typename Value>
 [[nodiscard]] std::optional<Value> InitialCounter(const Value value) noexcept
@@ -65,19 +69,38 @@ template <typename Value>
     event.room = room;
     return event;
 }
+
+[[nodiscard]] bool IsValidEndpoint(const GameEndpoint& endpoint) noexcept
+{
+    if (endpoint.host.empty()
+        || endpoint.host.size() > 255U
+        || endpoint.tcpPort == 0U
+        || endpoint.udpPort == 0U)
+    {
+        return false;
+    }
+    return std::all_of(
+        endpoint.host.begin(),
+        endpoint.host.end(),
+        [](const char character) {
+            const auto value = static_cast<unsigned char>(character);
+            return value >= 0x21U && value <= 0x7EU;
+        });
+}
+
 } // namespace
 
 LobbyService::LobbyService(
-    IGameWorkerAllocator& allocator,
     MatchTicketRegistry& tickets,
     const LobbyServiceConfig config)
-    : allocator_{allocator},
-      tickets_{tickets},
+    : tickets_{tickets},
       nextConnection_{InitialCounter(config.nextConnection)},
       nextPlayer_{InitialCounter(config.nextPlayer)},
       nextRoom_{InitialCounter(config.nextRoom)},
       nextMatch_{InitialCounter(config.nextMatch)},
+      nextReservation_{InitialCounter(config.nextReservation)},
       nextJoinOrdinal_{InitialCounter(config.nextJoinOrdinal)},
+      matchSeedBase_{config.matchSeedBase},
       maximumRooms_{std::min<std::size_t>(
           config.maximumRooms,
           dxa::protocol::MaximumRooms)}
@@ -176,14 +199,159 @@ LobbyServiceResult LobbyService::Disconnect(const ConnectionId connection)
     if (connectionIt->second.player.has_value())
     {
         const PlayerId player = *connectionIt->second.player;
-        if (playerToRoom_.contains(player))
+        const auto membership = playerToRoom_.find(player);
+        if (membership != playerToRoom_.end())
         {
-            result = LeaveWaitingRoom(player, std::nullopt, 0U);
+            const auto room = rooms_.find(membership->second);
+            if (room != rooms_.end())
+            {
+                const RoomState state = room->second.Snapshot(0U).state;
+                if (state == RoomState::Starting)
+                {
+                    result = DisconnectStartingPlayer(player, membership->second);
+                }
+                else if (state == RoomState::Waiting)
+                {
+                    result = LeaveWaitingRoom(player, std::nullopt, 0U);
+                }
+            }
         }
         playerToConnection_.erase(player);
     }
     connections_.erase(connectionIt);
     return result;
+}
+
+LobbyServiceResult LobbyService::HandleWorkerEvent(
+    const WorkerEvent& event,
+    const std::chrono::steady_clock::time_point now)
+{
+    return std::visit(
+        [this, now](const auto& value) -> LobbyServiceResult {
+            using Event = std::decay_t<decltype(value)>;
+            if constexpr (std::is_same_v<Event, ReservationFailedEvent>)
+            {
+                const auto pending = pendingReservations_.find(value.reservation);
+                if (pending == pendingReservations_.end()
+                    || pending->second.action.match != value.match)
+                {
+                    return {};
+                }
+                return FailPendingReservation(
+                    value.reservation,
+                    LobbyError::WorkerUnavailable);
+            }
+            else if constexpr (std::is_same_v<Event, ReservationReadyEvent>)
+            {
+                const auto pending = pendingReservations_.find(value.reservation);
+                if (pending == pendingReservations_.end()
+                    || pending->second.action.match != value.match)
+                {
+                    return {};
+                }
+                const auto expiresAt = pending->second.action.issuedAt
+                    + std::chrono::seconds{
+                        static_cast<std::chrono::seconds::rep>(
+                            dxa::protocol::MatchTicketLifetimeSeconds)};
+                const auto remaining = std::chrono::duration_cast<
+                    std::chrono::seconds>(expiresAt - now).count();
+                if (value.worker.value == 0U
+                    || !IsValidEndpoint(value.endpoint)
+                    || remaining < 1)
+                {
+                    return FailPendingReservation(
+                        value.reservation,
+                        LobbyError::WorkerUnavailable);
+                }
+
+                ReserveMatchAction action = pending->second.action;
+                pendingReservations_.erase(pending);
+                roomToReservation_.erase(action.room);
+                const auto room = rooms_.find(action.room);
+                if (room == rooms_.end()
+                    || room->second.Snapshot(0U).state != RoomState::Starting)
+                {
+                    std::vector<MatchTicketValue> issued;
+                    issued.reserve(action.participants.size());
+                    for (const ReservedParticipant& participant : action.participants)
+                    {
+                        issued.push_back(participant.ticket);
+                    }
+                    tickets_.Revoke(issued);
+                    return {};
+                }
+
+                room->second.MarkInMatch();
+                ActiveMatch active;
+                active.room = action.room;
+                active.worker = value.worker;
+                active.tickets.reserve(action.participants.size());
+                for (const ReservedParticipant& participant : action.participants)
+                {
+                    active.tickets.push_back(participant.ticket);
+                }
+                activeMatches_.emplace(action.match, std::move(active));
+
+                LobbyServiceResult result;
+                const auto requester = playerToConnection_.find(action.requester);
+                const std::optional<ConnectionId> requesterConnection =
+                    requester == playerToConnection_.end()
+                    ? std::nullopt
+                    : std::optional<ConnectionId>{requester->second};
+                BroadcastSnapshot(
+                    result,
+                    room->second,
+                    requesterConnection,
+                    action.requestId);
+
+                const auto expiresInSeconds = static_cast<std::uint16_t>(
+                    std::min<std::int64_t>(
+                        remaining,
+                        static_cast<std::int64_t>(
+                            dxa::protocol::MatchTicketLifetimeSeconds)));
+                for (const ReservedParticipant& participant : action.participants)
+                {
+                    const auto connection = playerToConnection_.find(participant.player);
+                    if (connection == playerToConnection_.end())
+                    {
+                        continue;
+                    }
+                    result.outbound.push_back({
+                        connection->second,
+                        dxa::protocol::MatchTicket{
+                            requesterConnection.has_value()
+                                    && connection->second == *requesterConnection
+                                ? action.requestId
+                                : 0U,
+                            action.match,
+                            participant.ticket,
+                            value.endpoint.host,
+                            value.endpoint.tcpPort,
+                            value.endpoint.udpPort,
+                            expiresInSeconds}});
+                }
+
+                LobbyAuditEvent audit = Audit(
+                    LobbyAuditEventType::MatchStarted,
+                    requesterConnection,
+                    action.requester,
+                    action.room);
+                audit.match = action.match;
+                audit.endpoint = value.endpoint;
+                result.audit.push_back(std::move(audit));
+                return result;
+            }
+            else if constexpr (std::is_same_v<Event, MatchFinishedEvent>)
+            {
+                return FinishActiveMatch(value.worker, value.match, false);
+            }
+            else
+            {
+                static_assert(std::is_same_v<Event, MatchUnavailableEvent>);
+                return FinishActiveMatch(value.worker, value.match, true);
+            }
+        },
+        event);
 }
 
 MatchTicketRegistry& LobbyService::Tickets() noexcept
@@ -435,15 +603,15 @@ LobbyServiceResult LobbyService::HandleStartMatch(
         return Error(connection, request.requestId, *validationError);
     }
 
-    const auto matchValue = TakeNext(nextMatch_);
-    if (!matchValue.has_value())
+    if (!nextMatch_.has_value() || !nextReservation_.has_value())
     {
         return Error(
             connection,
             request.requestId,
             LobbyError::IdSpaceExhausted);
     }
-    const dxa::protocol::MatchId match{*matchValue};
+    const dxa::protocol::MatchId match{*TakeNext(nextMatch_)};
+    const ReservationId reservation{*TakeNext(nextReservation_)};
     const std::vector<PlayerId> players = room.Players();
     room.BeginStarting();
 
@@ -489,49 +657,216 @@ LobbyServiceResult LobbyService::HandleStartMatch(
         temporaryTickets.push_back(*ticket);
     }
 
-    const WorkerAllocationResult allocation = allocator_.Allocate(match, players);
-    if (!allocation.endpoint.has_value())
+    std::vector<ReservedParticipant> participants;
+    participants.reserve(players.size());
+    for (std::size_t index = 0U; index < players.size(); ++index)
     {
-        return rollback(allocation.error);
+        participants.push_back({players[index], temporaryTickets[index]});
     }
 
-    room.MarkInMatch();
+    const std::uint32_t seed = matchSeedBase_
+        ^ static_cast<std::uint32_t>(match.value)
+        ^ static_cast<std::uint32_t>(match.value >> 32U);
+    ReserveMatchAction action{
+        reservation,
+        roomId,
+        match,
+        player,
+        request.requestId,
+        seed,
+        now,
+        std::move(participants)};
+    const auto [pending, inserted] = pendingReservations_.emplace(
+        reservation,
+        PendingReservation{action});
+    static_cast<void>(pending);
+    const auto [roomReservation, roomInserted] = roomToReservation_.emplace(
+        roomId,
+        reservation);
+    static_cast<void>(roomReservation);
+    if (!inserted || !roomInserted)
+    {
+        pendingReservations_.erase(reservation);
+        roomToReservation_.erase(roomId);
+        return rollback(LobbyError::InternalError);
+    }
+
     LobbyServiceResult result;
     BroadcastSnapshot(result, room, connection, request.requestId);
+    result.actions.push_back(std::move(action));
+    return result;
+}
 
-    for (std::size_t index = 0; index < players.size(); ++index)
+LobbyServiceResult LobbyService::FailPendingReservation(
+    const ReservationId reservation,
+    const LobbyError error)
+{
+    const auto pending = pendingReservations_.find(reservation);
+    if (pending == pendingReservations_.end())
     {
-        const PlayerId participant = players[index];
-        const auto participantConnection = playerToConnection_.find(participant);
-        if (participantConnection == playerToConnection_.end())
-        {
-            continue;
-        }
-        const std::uint32_t ticketRequestId =
-            participantConnection->second == connection
-            ? request.requestId
-            : 0U;
-        result.outbound.push_back({
-            participantConnection->second,
-            dxa::protocol::MatchTicket{
-                ticketRequestId,
-                match,
-                temporaryTickets[index],
-                allocation.endpoint->host,
-                allocation.endpoint->tcpPort,
-                allocation.endpoint->udpPort,
-                static_cast<std::uint16_t>(
-                    dxa::protocol::MatchTicketLifetimeSeconds)}});
+        return {};
+    }
+    ReserveMatchAction action = std::move(pending->second.action);
+    pendingReservations_.erase(pending);
+    roomToReservation_.erase(action.room);
+
+    std::vector<MatchTicketValue> issued;
+    issued.reserve(action.participants.size());
+    for (const ReservedParticipant& participant : action.participants)
+    {
+        issued.push_back(participant.ticket);
+    }
+    tickets_.Revoke(issued);
+
+    LobbyServiceResult result;
+    const auto room = rooms_.find(action.room);
+    if (room != rooms_.end()
+        && room->second.Snapshot(0U).state == RoomState::Starting)
+    {
+        room->second.ReturnToWaiting();
+        BroadcastSnapshot(result, room->second, std::nullopt, 0U);
     }
 
-    LobbyAuditEvent event = Audit(
-        LobbyAuditEventType::MatchStarted,
-        connection,
+    const auto requester = playerToConnection_.find(action.requester);
+    const std::optional<ConnectionId> requesterConnection =
+        requester == playerToConnection_.end()
+        ? std::nullopt
+        : std::optional<ConnectionId>{requester->second};
+    if (requesterConnection.has_value())
+    {
+        result.outbound.push_back({
+            *requesterConnection,
+            ErrorResponse{action.requestId, error}});
+    }
+
+    LobbyAuditEvent audit = Audit(
+        LobbyAuditEventType::StartFailed,
+        requesterConnection,
+        action.requester,
+        action.room);
+    audit.match = action.match;
+    audit.error = error;
+    result.audit.push_back(std::move(audit));
+    return result;
+}
+
+LobbyServiceResult LobbyService::FinishActiveMatch(
+    const WorkerId worker,
+    const dxa::protocol::MatchId match,
+    const bool unavailable)
+{
+    const auto active = activeMatches_.find(match);
+    if (active == activeMatches_.end() || active->second.worker != worker)
+    {
+        return {};
+    }
+    ActiveMatch record = std::move(active->second);
+    activeMatches_.erase(active);
+    tickets_.Revoke(record.tickets);
+
+    const auto room = rooms_.find(record.room);
+    if (room == rooms_.end())
+    {
+        return {};
+    }
+    const std::vector<PlayerId> players = room->second.Players();
+    std::vector<ConnectionId> recipients;
+    recipients.reserve(players.size());
+    for (const PlayerId player : players)
+    {
+        playerToRoom_.erase(player);
+        const auto connection = playerToConnection_.find(player);
+        if (connection != playerToConnection_.end())
+        {
+            recipients.push_back(connection->second);
+        }
+    }
+    rooms_.erase(room);
+
+    LobbyServiceResult result;
+    for (const ConnectionId recipient : recipients)
+    {
+        if (unavailable)
+        {
+            result.outbound.push_back({
+                recipient,
+                ErrorResponse{0U, LobbyError::MatchUnavailable}});
+        }
+        result.outbound.push_back({recipient, RoomList(0U)});
+    }
+    result.audit.push_back(Audit(
+        LobbyAuditEventType::RoomDeleted,
+        std::nullopt,
+        std::nullopt,
+        record.room));
+    return result;
+}
+
+LobbyServiceResult LobbyService::DisconnectStartingPlayer(
+    const PlayerId player,
+    const RoomId roomId)
+{
+    const auto roomReservation = roomToReservation_.find(roomId);
+    if (roomReservation == roomToReservation_.end())
+    {
+        return {};
+    }
+    const auto pending = pendingReservations_.find(roomReservation->second);
+    if (pending == pendingReservations_.end())
+    {
+        roomToReservation_.erase(roomReservation);
+        return {};
+    }
+
+    ReserveMatchAction action = std::move(pending->second.action);
+    pendingReservations_.erase(pending);
+    roomToReservation_.erase(roomReservation);
+    std::vector<MatchTicketValue> issued;
+    issued.reserve(action.participants.size());
+    for (const ReservedParticipant& participant : action.participants)
+    {
+        issued.push_back(participant.ticket);
+    }
+    tickets_.Revoke(issued);
+
+    const auto room = rooms_.find(roomId);
+    if (room == rooms_.end())
+    {
+        return {};
+    }
+    room->second.ReturnToWaiting();
+
+    LobbyServiceResult result = LeaveWaitingRoom(
         player,
-        roomId);
-    event.match = match;
-    event.endpoint = allocation.endpoint;
-    result.audit.push_back(std::move(event));
+        std::nullopt,
+        0U);
+    result.actions.push_back(CancelReservationAction{
+        action.reservation,
+        action.match});
+
+    std::optional<ConnectionId> requesterConnection;
+    if (action.requester != player)
+    {
+        const auto requester = playerToConnection_.find(action.requester);
+        if (requester != playerToConnection_.end())
+        {
+            requesterConnection = requester->second;
+            result.outbound.push_back({
+                *requesterConnection,
+                ErrorResponse{
+                    action.requestId,
+                    LobbyError::WorkerUnavailable}});
+        }
+    }
+
+    LobbyAuditEvent audit = Audit(
+        LobbyAuditEventType::StartFailed,
+        requesterConnection,
+        action.requester,
+        action.room);
+    audit.match = action.match;
+    audit.error = LobbyError::WorkerUnavailable;
+    result.audit.push_back(std::move(audit));
     return result;
 }
 

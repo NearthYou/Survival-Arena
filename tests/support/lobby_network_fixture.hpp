@@ -1,6 +1,5 @@
 #pragma once
 
-#include <dxa/lobby/GameWorkerAllocator.hpp>
 #include <dxa/lobby/LobbyService.hpp>
 #include <dxa/lobby/LobbyTcpServer.hpp>
 #include <dxa/lobby/MatchTicketRegistry.hpp>
@@ -52,11 +51,10 @@ class RawLobbyServerFixture
 {
 public:
     explicit RawLobbyServerFixture(
-        const std::optional<dxa::lobby::GameEndpoint> worker = std::nullopt)
+        const std::optional<dxa::protocol::GameEndpoint> worker = std::nullopt)
         : work_{boost::asio::make_work_guard(io_)},
           tickets_{ticketSource_},
-          allocator_{MakeAllocator(worker)},
-          service_{*allocator_, tickets_},
+          service_{tickets_},
           server_{
               io_,
               service_,
@@ -64,6 +62,26 @@ public:
                   boost::asio::ip::make_address("127.0.0.1"),
                   0U}}
     {
+        if (worker.has_value())
+        {
+            const dxa::protocol::GameEndpoint endpoint = *worker;
+            server_.SetRuntimeActionHandler(
+                [this, endpoint](const dxa::lobby::LobbyRuntimeAction& action) {
+                    const auto* reserve =
+                        std::get_if<dxa::lobby::ReserveMatchAction>(&action);
+                    if (reserve == nullptr)
+                    {
+                        return;
+                    }
+                    server_.ApplyWorkerEvent(
+                        dxa::lobby::ReservationReadyEvent{
+                            reserve->reservation,
+                            reserve->match,
+                            dxa::protocol::WorkerId{1U},
+                            endpoint},
+                        std::chrono::steady_clock::now());
+                });
+        }
         server_.Start();
         thread_ = std::thread{[this] { io_.run(); }};
     }
@@ -94,29 +112,17 @@ public:
     }
 
 private:
-    [[nodiscard]] static std::unique_ptr<dxa::lobby::IGameWorkerAllocator>
-    MakeAllocator(const std::optional<dxa::lobby::GameEndpoint>& worker)
-    {
-        if (worker.has_value())
-        {
-            return std::make_unique<dxa::lobby::StaticGameWorkerAllocator>(
-                *worker);
-        }
-        return std::make_unique<dxa::lobby::UnavailableGameWorkerAllocator>();
-    }
-
     boost::asio::io_context io_;
     boost::asio::executor_work_guard<
         boost::asio::io_context::executor_type> work_;
     DeterministicTicketSource ticketSource_;
     dxa::lobby::MatchTicketRegistry tickets_;
-    std::unique_ptr<dxa::lobby::IGameWorkerAllocator> allocator_;
     dxa::lobby::LobbyService service_;
     dxa::lobby::LobbyTcpServer server_;
     std::thread thread_;
 };
 
-[[nodiscard]] inline dxa::lobby::GameEndpoint StaticEndpoint()
+[[nodiscard]] inline dxa::protocol::GameEndpoint StaticEndpoint()
 {
     return {"127.0.0.1", 7100U, 7101U};
 }
@@ -133,7 +139,7 @@ class LobbyNetworkFixture : public RawLobbyServerFixture
 {
 public:
     explicit LobbyNetworkFixture(
-        const std::optional<dxa::lobby::GameEndpoint> worker)
+        const std::optional<dxa::protocol::GameEndpoint> worker)
         : RawLobbyServerFixture{worker}
     {
     }

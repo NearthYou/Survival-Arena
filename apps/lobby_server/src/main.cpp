@@ -11,7 +11,6 @@
 #include <cstddef>
 #include <exception>
 #include <iostream>
-#include <memory>
 #include <string_view>
 #include <vector>
 
@@ -33,22 +32,10 @@ int main(const int argc, const char* const* const argv)
             return 2;
         }
 
-        std::unique_ptr<dxa::lobby::IGameWorkerAllocator> allocator;
-        if (parsed.options->worker.has_value())
-        {
-            allocator = std::make_unique<dxa::lobby::StaticGameWorkerAllocator>(
-                *parsed.options->worker);
-        }
-        else
-        {
-            allocator =
-                std::make_unique<dxa::lobby::UnavailableGameWorkerAllocator>();
-        }
-
         boost::asio::io_context io;
         dxa::lobby::SecureTicketSource ticketSource;
         dxa::lobby::MatchTicketRegistry tickets{ticketSource};
-        dxa::lobby::LobbyService service{*allocator, tickets};
+        dxa::lobby::LobbyService service{tickets};
         dxa::lobby::LobbyTcpServer server{
             io,
             service,
