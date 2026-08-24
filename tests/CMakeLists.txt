@@ -34,7 +34,9 @@ add_executable(
     protocol_asio_framed_connection_test.cpp
     protocol_lobby_message_codec_test.cpp
     lobby_room_test.cpp
+    lobby_server_options_test.cpp
     lobby_service_test.cpp
+    lobby_tcp_integration_test.cpp
     lobby_ticket_test.cpp
 )
 target_link_libraries(
@@ -44,6 +46,7 @@ target_link_libraries(
         dxa_client_options
         dxa_engine_core
         dxa_lobby_core
+        dxa_lobby_server_lib
         dxa_offline_match_benchmark_options
         dxa_protocol
         dxa_simulation
