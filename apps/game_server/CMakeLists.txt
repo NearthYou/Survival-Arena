@@ -1,6 +1,7 @@
 add_library(
     dxa_game_server_core
     STATIC
+        src/AuthoritativeMatch.cpp
         src/FixedTickScheduler.cpp
         src/GameTicketStore.cpp
         src/ParticipantRoster.cpp
@@ -13,6 +14,8 @@ target_include_directories(
 target_link_libraries(
     dxa_game_server_core
     PUBLIC
+        dxa_game_common
         dxa_protocol
+        dxa_simulation
 )
 dxa_enable_project_warnings(dxa_game_server_core)
