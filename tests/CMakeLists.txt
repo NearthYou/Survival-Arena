@@ -36,6 +36,7 @@ add_executable(
     game_server_adapter_test.cpp
     game_server_integration_test.cpp
     game_server_options_test.cpp
+    game_session_integration_test.cpp
     game_snapshot_reassembler_test.cpp
     game_remote_interpolator_test.cpp
     game_ticket_store_test.cpp
