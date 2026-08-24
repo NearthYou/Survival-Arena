@@ -4,6 +4,7 @@ add_library(
         src/AsioFramedConnection.cpp
         src/ByteCodec.cpp
         src/Crc32.cpp
+        src/GameSnapshotCodec.cpp
         src/GameTcpMessageCodec.cpp
         src/GameUdpCodec.cpp
         src/LobbyMessageCodec.cpp

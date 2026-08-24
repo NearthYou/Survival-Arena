@@ -34,6 +34,7 @@ add_executable(
     protocol_worker_control_codec_test.cpp
     protocol_game_tcp_codec_test.cpp
     protocol_game_udp_codec_test.cpp
+    protocol_game_snapshot_codec_test.cpp
     protocol_byte_codec_test.cpp
     protocol_tcp_frame_test.cpp
     protocol_asio_framed_connection_test.cpp
