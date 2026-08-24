@@ -41,7 +41,11 @@ int main(const int argc, const char* const* const argv)
             service,
             boost::asio::ip::tcp::endpoint{
                 boost::asio::ip::make_address(parsed.options->bindAddress),
-                parsed.options->port}};
+                parsed.options->port},
+            boost::asio::ip::tcp::endpoint{
+                boost::asio::ip::make_address(
+                    parsed.options->workerBindAddress),
+                parsed.options->workerPort}};
         boost::asio::signal_set signals{io, SIGINT, SIGTERM};
         signals.async_wait(
             [&server](const boost::system::error_code error, const int) {
@@ -53,9 +57,11 @@ int main(const int argc, const char* const* const argv)
 
         server.Start();
         spdlog::info(
-            "lobby_server_listening address={} port={}",
+            "lobby_server_listening address={} port={} worker_address={} worker_port={}",
             parsed.options->bindAddress,
-            server.LocalPort());
+            server.LocalPort(),
+            parsed.options->workerBindAddress,
+            server.WorkerControlPort());
         io.run();
         return 0;
     }

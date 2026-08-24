@@ -29,6 +29,7 @@ add_library(
     STATIC
         src/LobbyServerOptions.cpp
         src/LobbyTcpServer.cpp
+        src/WorkerControlServer.cpp
 )
 target_include_directories(
     dxa_lobby_server_lib

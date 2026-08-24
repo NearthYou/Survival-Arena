@@ -12,6 +12,8 @@ struct LobbyServerOptions
 {
     std::string bindAddress = "127.0.0.1";
     std::uint16_t port = 7000U;
+    std::string workerBindAddress = "127.0.0.1";
+    std::uint16_t workerPort = 7001U;
 };
 
 struct LobbyServerOptionsParseResult

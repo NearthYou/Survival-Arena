@@ -3,6 +3,7 @@
 #include <dxa/lobby/LobbyService.hpp>
 #include <dxa/lobby/LobbyTcpServer.hpp>
 #include <dxa/lobby/MatchTicketRegistry.hpp>
+#include <dxa/lobby/WorkerControlServer.hpp>
 #include <dxa/lobby_client/LobbyClient.hpp>
 
 #include <boost/asio/executor_work_guard.hpp>
@@ -51,7 +52,7 @@ class RawLobbyServerFixture
 {
 public:
     explicit RawLobbyServerFixture(
-        const std::optional<dxa::protocol::GameEndpoint> worker = std::nullopt)
+        const dxa::lobby::WorkerControlServerConfig workerConfig = {})
         : work_{boost::asio::make_work_guard(io_)},
           tickets_{ticketSource_},
           service_{tickets_},
@@ -60,28 +61,12 @@ public:
               service_,
               boost::asio::ip::tcp::endpoint{
                   boost::asio::ip::make_address("127.0.0.1"),
-                  0U}}
+                  0U},
+              boost::asio::ip::tcp::endpoint{
+                  boost::asio::ip::make_address("127.0.0.1"),
+                  0U},
+              workerConfig}
     {
-        if (worker.has_value())
-        {
-            const dxa::protocol::GameEndpoint endpoint = *worker;
-            server_.SetRuntimeActionHandler(
-                [this, endpoint](const dxa::lobby::LobbyRuntimeAction& action) {
-                    const auto* reserve =
-                        std::get_if<dxa::lobby::ReserveMatchAction>(&action);
-                    if (reserve == nullptr)
-                    {
-                        return;
-                    }
-                    server_.ApplyWorkerEvent(
-                        dxa::lobby::ReservationReadyEvent{
-                            reserve->reservation,
-                            reserve->match,
-                            dxa::protocol::WorkerId{1U},
-                            endpoint},
-                        std::chrono::steady_clock::now());
-                });
-        }
         server_.Start();
         thread_ = std::thread{[this] { io_.run(); }};
     }
@@ -106,6 +91,11 @@ public:
         return server_.LocalPort();
     }
 
+    [[nodiscard]] std::uint16_t WorkerPort() const
+    {
+        return server_.WorkerControlPort();
+    }
+
     [[nodiscard]] dxa::lobby::LobbyService& Service() noexcept
     {
         return service_;
@@ -122,11 +112,6 @@ private:
     std::thread thread_;
 };
 
-[[nodiscard]] inline dxa::protocol::GameEndpoint StaticEndpoint()
-{
-    return {"127.0.0.1", 7100U, 7101U};
-}
-
 struct LobbyClientProbe
 {
     std::shared_ptr<dxa::lobby_client::LobbyClient> client;
@@ -139,9 +124,14 @@ class LobbyNetworkFixture : public RawLobbyServerFixture
 {
 public:
     explicit LobbyNetworkFixture(
-        const std::optional<dxa::protocol::GameEndpoint> worker)
-        : RawLobbyServerFixture{worker}
+        const dxa::lobby::WorkerControlServerConfig workerConfig = {})
+        : RawLobbyServerFixture{workerConfig}
     {
+    }
+
+    [[nodiscard]] boost::asio::io_context& Io() noexcept
+    {
+        return clientIo_;
     }
 
     ~LobbyNetworkFixture()

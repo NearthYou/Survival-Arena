@@ -46,6 +46,7 @@ add_executable(
     lobby_service_test.cpp
     lobby_tcp_integration_test.cpp
     lobby_ticket_test.cpp
+    lobby_worker_control_integration_test.cpp
     lobby_worker_registry_test.cpp
 )
 target_link_libraries(

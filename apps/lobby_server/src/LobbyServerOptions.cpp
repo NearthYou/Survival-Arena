@@ -42,6 +42,8 @@ LobbyServerOptionsParseResult ParseLobbyServerOptions(
     LobbyServerOptions options;
     bool sawBind = false;
     bool sawPort = false;
+    bool sawWorkerBind = false;
+    bool sawWorkerPort = false;
 
     for (std::size_t index = 0; index < arguments.size(); ++index)
     {
@@ -75,6 +77,29 @@ LobbyServerOptionsParseResult ParseLobbyServerOptions(
             }
             options.port = *parsed;
         }
+        else if (option == "--worker-bind")
+        {
+            if (sawWorkerBind)
+            {
+                return Failure("duplicate --worker-bind option");
+            }
+            sawWorkerBind = true;
+            options.workerBindAddress = value;
+        }
+        else if (option == "--worker-port")
+        {
+            if (sawWorkerPort)
+            {
+                return Failure("duplicate --worker-port option");
+            }
+            sawWorkerPort = true;
+            const auto parsed = ParsePort(value);
+            if (!parsed.has_value())
+            {
+                return Failure("--worker-port must be between 1 and 65535");
+            }
+            options.workerPort = *parsed;
+        }
         else
         {
             return Failure("unknown option: " + std::string{option});
@@ -88,6 +113,15 @@ LobbyServerOptionsParseResult ParseLobbyServerOptions(
     if (addressError)
     {
         return Failure("--bind must be a numeric IP address");
+    }
+
+    addressError.clear();
+    static_cast<void>(boost::asio::ip::make_address(
+        options.workerBindAddress,
+        addressError));
+    if (addressError)
+    {
+        return Failure("--worker-bind must be a numeric IP address");
     }
 
     return {std::move(options), {}};

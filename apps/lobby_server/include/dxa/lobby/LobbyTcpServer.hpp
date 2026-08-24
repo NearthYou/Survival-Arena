@@ -1,27 +1,25 @@
 #pragma once
 
 #include <dxa/lobby/LobbyService.hpp>
+#include <dxa/lobby/WorkerControlServer.hpp>
 
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/ip/tcp.hpp>
 
-#include <chrono>
 #include <cstdint>
-#include <functional>
 #include <memory>
 
 namespace dxa::lobby
 {
-using LobbyRuntimeActionHandler = std::function<void(
-    const LobbyRuntimeAction&)>;
-
 class LobbyTcpServer
 {
 public:
     LobbyTcpServer(
         boost::asio::io_context& io,
         LobbyService& service,
-        boost::asio::ip::tcp::endpoint endpoint);
+        boost::asio::ip::tcp::endpoint endpoint,
+        boost::asio::ip::tcp::endpoint workerEndpoint,
+        WorkerControlServerConfig workerConfig = {});
     ~LobbyTcpServer();
 
     LobbyTcpServer(const LobbyTcpServer&) = delete;
@@ -29,11 +27,8 @@ public:
 
     void Start();
     void Stop();
-    void SetRuntimeActionHandler(LobbyRuntimeActionHandler handler);
-    void ApplyWorkerEvent(
-        const WorkerEvent& event,
-        std::chrono::steady_clock::time_point now);
     [[nodiscard]] std::uint16_t LocalPort() const;
+    [[nodiscard]] std::uint16_t WorkerControlPort() const;
 
 private:
     struct State;
