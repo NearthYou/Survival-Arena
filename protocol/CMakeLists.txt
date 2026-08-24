@@ -3,7 +3,9 @@ add_library(
     STATIC
         src/AsioFramedConnection.cpp
         src/ByteCodec.cpp
+        src/Crc32.cpp
         src/GameTcpMessageCodec.cpp
+        src/GameUdpCodec.cpp
         src/LobbyMessageCodec.cpp
         src/TcpFrame.cpp
         src/WorkerControlMessageCodec.cpp
