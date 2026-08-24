@@ -69,6 +69,8 @@ namespace
         return "IdSpaceExhausted";
     case LobbyError::InternalError:
         return "InternalError";
+    case LobbyError::MatchUnavailable:
+        return "MatchUnavailable";
     }
     return "UnknownError";
 }

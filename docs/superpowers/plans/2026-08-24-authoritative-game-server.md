@@ -245,8 +245,8 @@ struct ReservationId
     [[nodiscard]] auto operator<=>(const ReservationId&) const = default;
 };
 
-using MatchTicketValue = std::array<std::byte, MatchTicketBytes>;
-using UdpSessionToken = std::array<std::byte, 16U>;
+using MatchTicketValue = detail::Opaque128<detail::MatchTicketTag>;
+using UdpSessionToken = detail::Opaque128<detail::UdpSessionTokenTag>;
 
 inline constexpr std::uint16_t GameTickRate = 30U;
 inline constexpr std::uint16_t SnapshotRate = 15U;
@@ -267,6 +267,8 @@ struct GameEndpoint
     [[nodiscard]] bool operator==(const GameEndpoint&) const = default;
 };
 ```
+
+`detail::Opaque128<Tag>` owns a 16-byte array and exposes fixed-extent mutable and const spans, index, fill, iteration and defaulted comparison. Its tag makes ticket and UDP token different C++ types without duplicating storage code.
 
 Until Task 6 deletes the synchronous allocator, make its `dxa::lobby::GameEndpoint` name an alias of `dxa::protocol::GameEndpoint` so two endpoint structs cannot drift.
 

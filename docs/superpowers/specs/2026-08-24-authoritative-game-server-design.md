@@ -117,10 +117,7 @@ struct ReservationId { std::uint64_t value; };
 
 기존 lobby namespace의 `MatchTicketValue`는 `dxa::protocol`로 이동한다. UDP session token도 같은 크기의 별도 type으로 둬 ticket과 혼용하지 않는다.
 
-```cpp
-using MatchTicketValue = std::array<std::byte, 16>;
-using UdpSessionToken = std::array<std::byte, 16>;
-```
+두 type은 내부에 16바이트 배열을 소유하는 서로 다른 tagged value type이다. byte span, index와 비교 연산만 공개하며 서로 암시적으로 변환되지 않는다.
 
 두 값은 production에서 Windows `BCryptGenRandom`, Linux `getrandom`으로 생성한다. 값 자체는 log, console, test failure message와 문서에 출력하지 않는다.
 

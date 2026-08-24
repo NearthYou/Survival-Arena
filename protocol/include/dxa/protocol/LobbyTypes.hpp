@@ -35,7 +35,19 @@ enum class MessageType : std::uint16_t
     StartMatchRequest = 9,
     RoomSnapshot = 10,
     MatchTicket = 11,
-    ErrorResponse = 12
+    ErrorResponse = 12,
+    WorkerRegister = 13,
+    WorkerRegistered = 14,
+    ReserveMatch = 15,
+    ReserveMatchReady = 16,
+    ReserveMatchRejected = 17,
+    CancelMatchReservation = 18,
+    MatchReservationCancelled = 19,
+    MatchFinished = 20,
+    GameClientHello = 21,
+    GameServerWelcome = 22,
+    GameServerError = 23,
+    GameMatchResult = 24
 };
 
 enum class LobbyError : std::uint16_t
@@ -58,6 +70,7 @@ enum class LobbyError : std::uint16_t
     NotAllReady = 16,
     WorkerUnavailable = 17,
     IdSpaceExhausted = 18,
-    InternalError = 19
+    InternalError = 19,
+    MatchUnavailable = 20
 };
 } // namespace dxa::protocol

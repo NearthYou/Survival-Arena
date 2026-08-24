@@ -33,6 +33,18 @@ constexpr std::array TcpMagic{
     case MessageType::RoomSnapshot:
     case MessageType::MatchTicket:
     case MessageType::ErrorResponse:
+    case MessageType::WorkerRegister:
+    case MessageType::WorkerRegistered:
+    case MessageType::ReserveMatch:
+    case MessageType::ReserveMatchReady:
+    case MessageType::ReserveMatchRejected:
+    case MessageType::CancelMatchReservation:
+    case MessageType::MatchReservationCancelled:
+    case MessageType::MatchFinished:
+    case MessageType::GameClientHello:
+    case MessageType::GameServerWelcome:
+    case MessageType::GameServerError:
+    case MessageType::GameMatchResult:
         return true;
     }
     return false;

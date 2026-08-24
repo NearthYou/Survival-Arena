@@ -16,7 +16,7 @@ namespace
 {
 using dxa::lobby::ITicketSource;
 using dxa::lobby::MatchTicketRegistry;
-using dxa::lobby::MatchTicketValue;
+using dxa::protocol::MatchTicketValue;
 using dxa::lobby::TicketConsumeResult;
 using dxa::protocol::MatchId;
 using dxa::protocol::PlayerId;

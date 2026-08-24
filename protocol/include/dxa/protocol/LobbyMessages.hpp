@@ -1,5 +1,6 @@
 #pragma once
 
+#include <dxa/protocol/GameTypes.hpp>
 #include <dxa/protocol/Ids.hpp>
 #include <dxa/protocol/LobbyTypes.hpp>
 
@@ -99,7 +100,7 @@ struct MatchTicket
 {
     std::uint32_t requestId = 0;
     MatchId match;
-    std::array<std::byte, MatchTicketBytes> ticket{};
+    MatchTicketValue ticket;
     std::string host;
     std::uint16_t tcpPort = 0;
     std::uint16_t udpPort = 0;

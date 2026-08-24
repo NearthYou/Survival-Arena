@@ -25,7 +25,7 @@ using dxa::lobby::LobbyService;
 using dxa::lobby::LobbyServiceConfig;
 using dxa::lobby::LobbyServiceResult;
 using dxa::lobby::MatchTicketRegistry;
-using dxa::lobby::MatchTicketValue;
+using dxa::protocol::MatchTicketValue;
 using dxa::lobby::StaticGameWorkerAllocator;
 using dxa::lobby::TicketConsumeResult;
 using dxa::lobby::UnavailableGameWorkerAllocator;

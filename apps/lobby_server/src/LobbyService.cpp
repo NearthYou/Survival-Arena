@@ -17,6 +17,7 @@ using dxa::protocol::JoinRoomRequest;
 using dxa::protocol::LeaveRoomRequest;
 using dxa::protocol::ListRoomsRequest;
 using dxa::protocol::LobbyError;
+using dxa::protocol::MatchTicketValue;
 using dxa::protocol::PlayerId;
 using dxa::protocol::RoomId;
 using dxa::protocol::RoomListResponse;

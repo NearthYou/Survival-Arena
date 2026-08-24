@@ -30,6 +30,7 @@ add_executable(
     foundation_test.cpp
     offline_match_benchmark_options_test.cpp
     protocol_ids_test.cpp
+    protocol_game_types_test.cpp
     protocol_byte_codec_test.cpp
     protocol_tcp_frame_test.cpp
     protocol_asio_framed_connection_test.cpp

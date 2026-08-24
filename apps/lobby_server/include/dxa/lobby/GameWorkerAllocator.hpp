@@ -1,23 +1,15 @@
 #pragma once
 
+#include <dxa/protocol/GameTypes.hpp>
 #include <dxa/protocol/Ids.hpp>
 #include <dxa/protocol/LobbyTypes.hpp>
 
-#include <cstdint>
 #include <optional>
 #include <span>
-#include <string>
 
 namespace dxa::lobby
 {
-struct GameEndpoint
-{
-    std::string host;
-    std::uint16_t tcpPort = 0;
-    std::uint16_t udpPort = 0;
-
-    [[nodiscard]] bool operator==(const GameEndpoint&) const = default;
-};
+using GameEndpoint = dxa::protocol::GameEndpoint;
 
 struct WorkerAllocationResult
 {
