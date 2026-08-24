@@ -38,6 +38,7 @@ struct GameSceneFrame
 {
     bool connected = false;
     dxa::protocol::EntityId localActor;
+    bool localAlive = false;
     dxa::simulation::Vec2 localPosition;
     std::vector<dxa::protocol::NetworkActorSnapshot> actors;
     float zoneRadius = 128.0F;

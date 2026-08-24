@@ -446,6 +446,7 @@ struct GameSession::Impl
             std::scoped_lock lock{sceneMutex};
             scene.connected = true;
             scene.localActor = actor;
+            scene.localAlive = local->alive;
             scene.localPosition = predictor->Position();
             scene.actors = remote.actors;
             scene.zoneRadius = remote.safeZoneRadius;

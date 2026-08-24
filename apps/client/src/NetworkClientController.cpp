@@ -384,7 +384,7 @@ struct NetworkClientController::Impl final
         }
         output.players[localIndex] = {
             output.controlledPlayer,
-            source.connected};
+            source.connected && source.localAlive};
         for (const dxa::protocol::NetworkActorSnapshot& actor
              : source.actors)
         {

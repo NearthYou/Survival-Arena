@@ -225,18 +225,19 @@ public:
         const std::uint32_t ack,
         const float localX = 10.0F,
         const float remoteX = 20.0F,
-        const bool wrongSource = false)
+        const bool wrongSource = false,
+        const bool localAlive = true)
     {
         GameSnapshot snapshot;
-        snapshot.aliveContenders = 2U;
+        snapshot.aliveContenders = localAlive ? 2U : 1U;
         snapshot.actors = {
             NetworkActorSnapshot{
                 EntityId{0U},
                 NetworkActorRole::Contender,
                 NetworkNeutralArchetype::None,
                 {localX, 0.0F},
-                100,
-                true,
+                localAlive ? 100 : 0,
+                localAlive,
                 NetworkWeaponType::Blade,
                 0U,
                 0U},
@@ -622,6 +623,29 @@ TEST(GameSession, RejectsPrematureAndWrongMatchResult)
         });
         EXPECT_FALSE(session.Result().has_value());
     }
+}
+
+TEST(GameSession, PublishesLocalDeathWithoutDroppingConnection)
+{
+    FakeGameServer server;
+    GameSession session{dxa::simulation::BuildSurvivalArenaNavMesh()};
+    session.Start(server.StartFor());
+    server.AcceptHelloAndWelcome();
+    server.AcceptUdpBind();
+    server.SendSnapshot(
+        1U,
+        2U,
+        0U,
+        10.0F,
+        20.0F,
+        false,
+        false);
+    WaitUntil([&] { return session.SnapshotCount() == 1U; });
+    session.FixedUpdate();
+
+    const GameSceneFrame scene = session.SampleScene();
+    EXPECT_TRUE(scene.connected);
+    EXPECT_FALSE(scene.localAlive);
 }
 
 TEST(GameSession, KeepsTicketAndUdpTokenOutOfCapturedOutput)
