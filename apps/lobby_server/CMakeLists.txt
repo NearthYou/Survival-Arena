@@ -1,6 +1,8 @@
 add_library(
     dxa_lobby_core
     STATIC
+        src/GameWorkerAllocator.cpp
+        src/LobbyService.cpp
         src/MatchTicketRegistry.cpp
         src/Room.cpp
         src/SecureTicketSource.cpp

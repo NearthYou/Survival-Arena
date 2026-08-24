@@ -33,6 +33,7 @@ add_executable(
     protocol_tcp_frame_test.cpp
     protocol_lobby_message_codec_test.cpp
     lobby_room_test.cpp
+    lobby_service_test.cpp
     lobby_ticket_test.cpp
 )
 target_link_libraries(
