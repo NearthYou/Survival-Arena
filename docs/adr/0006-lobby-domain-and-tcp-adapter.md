@@ -43,7 +43,7 @@ connection마다 thread와 mutex를 두는 방식도 제외했다. 24인 첫 버
 
 최종 로컬 실행은 새 server process에서 RoomId 1을 만들었다. CLI 1개와 bot 23개가 모두 ready가 된 뒤 InMatch로 전환했고 CLI ticket 알림 1건과 bot ticket 23건을 받았다. bot과 CLI exit code는 모두 0이었다. server listen 뒤 CLI process 시작부터 종료까지 로컬 wall time은 359ms였다. 이 값은 loopback 로비 흐름만 포함하며 game server 비용이나 internet latency가 아니다.
 
-Windows Debug CTest 308건과 MSVC Release 빌드를 통과했다. CTest에는 WARP smoke, protocol, room, service와 실제 TCP integration이 포함된다.
+Windows Debug CTest 308건과 MSVC Release 빌드를 통과했다. Ubuntu 24.04 GCC CI에서도 build와 Linux CTest 262건이 통과했다. CTest에는 protocol, room, service와 실제 TCP integration이 포함되며 Windows에서는 WARP smoke도 실행한다.
 
 ## 결과에 따른 제약
 
@@ -55,6 +55,6 @@ room 종료 통지가 없어 InMatch room은 lobby process에 남는다. 9주차
 
 UDP 입력, 30Hz 권위 simulation, 15Hz snapshot, client prediction과 reconciliation은 이 ADR의 범위가 아니다.
 
-Linux source는 Windows 전용 API와 분리했지만 이번 로컬 환경에서 Linux compiler로 빌드하지 않았다. Ubuntu CI를 Linux 검증 문턱으로 사용한다.
+Linux source는 Windows 전용 API와 분리했다. 로컬에는 Linux compiler가 없었지만 Docker Ubuntu AddressSanitizer로 Asio test 7건을 확인했고, 최종 Ubuntu CI에서 전체 Linux build와 test를 통과했다.
 
 외부 bind를 명시하면 connection 총량을 제한하는 별도 gate는 없다. accept가 지속적으로 실패할 때 backoff하는 정책도 아직 없다. 기본 bind는 loopback이며 외부 배포 전 두 제한을 운영 설정과 함께 정해야 한다.

@@ -102,6 +102,12 @@ InMatch disconnect를 탈락으로 바꾸는 game server가 없다. reconnect도
 
 UDP 입력, 30Hz 권위 simulation, 15Hz snapshot, prediction과 reconciliation은 9주차에 연결한다.
 
-Windows Debug와 Release는 로컬에서 검증했다. Linux compiler는 이번 로컬 환경에 없으므로 Linux build 완료로 표현하지 않는다. Ubuntu CI 결과를 별도로 확인한다.
+Windows Debug와 Release는 로컬에서 검증했다. 로컬에 Linux compiler는 없었고 Ubuntu CI를 Linux 문턱으로 사용했다.
+
+첫 Ubuntu build는 GCC 13의 `-Werror=redundant-move`에서 멈췄다. decode 결과를 `const auto`로 받아 optional 안의 `ServerMessage`가 실제로 move되지 않았다. local을 mutable로 바꿔 callback에 variant를 move했다.
+
+다음 Ubuntu run은 build를 통과했지만 Asio와 lobby TCP test 13건이 모두 segfault했다. Docker Ubuntu 24.04에서 같은 test를 AddressSanitizer로 실행하면 7건이 통과했다. 차이를 좁히니 `BOOST_ASIO_NO_DEPRECATED`가 `dxa_protocol`에 PRIVATE로만 적용돼 public Boost.Asio header가 library와 consumer에서 다른 class 정의를 만들고 있었다. consumer compile guard가 실패하는 RED를 추가하고 macro를 PUBLIC usage requirement로 바꿨다.
+
+최종 Ubuntu 24.04 CI는 GCC build와 Linux CTest 262건을 통과했다. Windows와 Ubuntu duplicate matrix 4개도 같은 HEAD에서 모두 성공했다.
 
 기본 server는 loopback에 bind한다. 외부 bind를 명시한 경우에도 connection 총량 제한과 반복 accept failure backoff는 아직 없다. 외부 배포 전에 운영 제한을 추가해야 한다.
