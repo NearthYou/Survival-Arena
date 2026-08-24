@@ -1,7 +1,6 @@
 #include <dxa/lobby/GameWorkerAllocator.hpp>
 
 #include <algorithm>
-#include <cctype>
 #include <utility>
 
 namespace dxa::lobby
@@ -44,6 +43,6 @@ WorkerAllocationResult StaticGameWorkerAllocator::Allocate(
     {
         return {};
     }
-    return WorkerAllocationResult{endpoint_, dxa::protocol::LobbyError::InternalError};
+    return WorkerAllocationResult{endpoint_};
 }
 } // namespace dxa::lobby

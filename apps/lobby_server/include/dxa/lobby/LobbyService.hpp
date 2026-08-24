@@ -106,6 +106,11 @@ private:
         ConnectionId connection,
         dxa::protocol::PlayerId player,
         const dxa::protocol::SetReadyRequest& request);
+    [[nodiscard]] LobbyServiceResult HandleStartMatch(
+        ConnectionId connection,
+        dxa::protocol::PlayerId player,
+        const dxa::protocol::StartMatchRequest& request,
+        std::chrono::steady_clock::time_point now);
     [[nodiscard]] LobbyServiceResult LeaveWaitingRoom(
         dxa::protocol::PlayerId player,
         std::optional<ConnectionId> requester,

@@ -101,7 +101,6 @@ LobbyServiceResult LobbyService::Handle(
     const dxa::protocol::ClientMessage& message,
     const std::chrono::steady_clock::time_point now)
 {
-    static_cast<void>(now);
     const auto connectionIt = connections_.find(connection);
     if (connectionIt == connections_.end())
     {
@@ -127,7 +126,7 @@ LobbyServiceResult LobbyService::Handle(
 
     const PlayerId player = *state.player;
     return std::visit(
-        [this, connection, player](const auto& request) -> LobbyServiceResult {
+        [this, connection, player, now](const auto& request) -> LobbyServiceResult {
             using Request = std::decay_t<decltype(request)>;
             if constexpr (std::is_same_v<Request, ClientHello>)
             {
@@ -158,10 +157,7 @@ LobbyServiceResult LobbyService::Handle(
             }
             else if constexpr (std::is_same_v<Request, StartMatchRequest>)
             {
-                return Error(
-                    connection,
-                    request.requestId,
-                    LobbyError::WorkerUnavailable);
+                return HandleStartMatch(connection, player, request, now);
             }
         },
         message);
@@ -404,6 +400,137 @@ LobbyServiceResult LobbyService::HandleSetReady(
 
     LobbyServiceResult result;
     BroadcastSnapshot(result, roomIt->second, connection, request.requestId);
+    return result;
+}
+
+LobbyServiceResult LobbyService::HandleStartMatch(
+    const ConnectionId connection,
+    const PlayerId player,
+    const StartMatchRequest& request,
+    const std::chrono::steady_clock::time_point now)
+{
+    const auto membership = playerToRoom_.find(player);
+    if (membership == playerToRoom_.end())
+    {
+        return Error(
+            connection,
+            request.requestId,
+            LobbyError::NotInRoom);
+    }
+    const RoomId roomId = membership->second;
+    const auto roomIt = rooms_.find(roomId);
+    if (roomIt == rooms_.end())
+    {
+        return Error(
+            connection,
+            request.requestId,
+            LobbyError::InternalError);
+    }
+
+    Room& room = roomIt->second;
+    const auto validationError = room.ValidateStart(player);
+    if (validationError.has_value())
+    {
+        return Error(connection, request.requestId, *validationError);
+    }
+
+    const auto matchValue = TakeNext(nextMatch_);
+    if (!matchValue.has_value())
+    {
+        return Error(
+            connection,
+            request.requestId,
+            LobbyError::IdSpaceExhausted);
+    }
+    const dxa::protocol::MatchId match{*matchValue};
+    const std::vector<PlayerId> players = room.Players();
+    room.BeginStarting();
+
+    std::vector<MatchTicketValue> temporaryTickets;
+    temporaryTickets.reserve(players.size());
+
+    const auto rollback = [
+        this,
+        &room,
+        &temporaryTickets,
+        connection,
+        player,
+        roomId,
+        match,
+        requestId = request.requestId](const LobbyError error) {
+        tickets_.Revoke(temporaryTickets);
+        room.ReturnToWaiting();
+
+        LobbyServiceResult result;
+        BroadcastSnapshot(result, room, std::nullopt, 0U);
+        result.outbound.push_back({
+            connection,
+            ErrorResponse{requestId, error}});
+
+        LobbyAuditEvent event = Audit(
+            LobbyAuditEventType::StartFailed,
+            connection,
+            player,
+            roomId);
+        event.match = match;
+        event.error = error;
+        result.audit.push_back(std::move(event));
+        return result;
+    };
+
+    for (const PlayerId participant : players)
+    {
+        const auto ticket = tickets_.Issue(match, participant, now);
+        if (!ticket.has_value())
+        {
+            return rollback(LobbyError::InternalError);
+        }
+        temporaryTickets.push_back(*ticket);
+    }
+
+    const WorkerAllocationResult allocation = allocator_.Allocate(match, players);
+    if (!allocation.endpoint.has_value())
+    {
+        return rollback(allocation.error);
+    }
+
+    room.MarkInMatch();
+    LobbyServiceResult result;
+    BroadcastSnapshot(result, room, connection, request.requestId);
+
+    for (std::size_t index = 0; index < players.size(); ++index)
+    {
+        const PlayerId participant = players[index];
+        const auto participantConnection = playerToConnection_.find(participant);
+        if (participantConnection == playerToConnection_.end())
+        {
+            continue;
+        }
+        const std::uint32_t ticketRequestId =
+            participantConnection->second == connection
+            ? request.requestId
+            : 0U;
+        result.outbound.push_back({
+            participantConnection->second,
+            dxa::protocol::MatchTicket{
+                ticketRequestId,
+                match,
+                temporaryTickets[index],
+                allocation.endpoint->host,
+                allocation.endpoint->tcpPort,
+                allocation.endpoint->udpPort,
+                static_cast<std::uint16_t>(
+                    dxa::protocol::MatchTicketLifetimeSeconds)}});
+    }
+
+    LobbyAuditEvent event = Audit(
+        LobbyAuditEventType::MatchStarted,
+        connection,
+        player,
+        roomId);
+    event.match = match;
+    event.endpoint = allocation.endpoint;
+    result.audit.push_back(std::move(event));
     return result;
 }
 
