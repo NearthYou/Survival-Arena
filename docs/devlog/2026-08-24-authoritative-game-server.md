@@ -78,6 +78,10 @@ secret_leak_count=0
 
 화면에서는 우클릭 뒤 local character 이동, remote actor 위치 변화와 축소 zone 표현을 확인했다. 별도 Debug hardware 실행은 `NVIDIA GeForce RTX 3050 Ti Laptop GPU`, 120 frame, DX11 debug layer error 0, exit code 0이었다.
 
+첫 PR CI의 Ubuntu build는 두 이벤트에서 같은 GCC 오류로 중단됐다. `GameSession` 생성자 초기화 목록이 멤버 선언 순서와 달라 `-Wreorder`가 발생했다. 선언 순서에 맞춘 `a695d0a` 뒤에는 build가 더 진행됐고, 축약 aggregate 세 곳에서 빈 `optional`을 생략한 `-Wmissing-field-initializers`가 드러났다. `WorkerRecord`, `PlayerSession`, `ParticipantSlot`의 의도된 빈 상태를 명시한 `7d6ee11`로 수정했다. 두 오류 모두 CI의 warnings-as-errors가 경고를 build 실패로 바꾼 경우였다.
+
+Ubuntu 24.04와 고정 vcpkg baseline을 사용한 CI 동형 Docker 검증에서 146/146 build target과 Linux CTest 435/435가 통과했다. 코드 변경 head `7d6ee11`에서는 push와 PR 이벤트의 Ubuntu job이 각각 5분 18초와 5분 4초, Windows job이 각각 22분 17초와 23분 55초에 통과했다. Windows job에는 전체 CTest와 WARP, shader와 asset 등록 검사가 포함된다.
+
 ## 남은 한계
 
 9주차 수동 경기는 두 participant만 사용했다. 실제 DX11 client 1개와 play bot 23개의 세 경기 연속 완주, 평균 수신량과 server tick 비용은 아직 검증하지 않았다.
@@ -88,4 +92,4 @@ game TCP와 UDP는 평문이고 reconnect와 UDP endpoint rebind가 없다. 기�
 
 수동 장면에서는 고정 camera가 local character나 zone geometry와 가까워질 때 화면 일부가 가려졌다. network 상태와 result는 확인할 수 있었지만 camera collision이나 zoom 보정은 이번 변경에 포함하지 않았다.
 
-로컬에는 Linux compiler를 다시 실행할 환경이 없어 이번 branch의 Ubuntu 결과는 PR CI에서 확인해야 한다. CI가 통과하기 전에는 Linux 검증 완료로 기록하지 않는다.
+Windows와 Ubuntu CI는 최종 head에서 모두 통과했다. 이 결과는 9주차 기능과 현재 dependency baseline의 build 재현 근거이며, 10주차 24인 부하와 network impairment 성능을 대신하지 않는다.
