@@ -196,6 +196,22 @@ public:
         });
     }
 
+    [[nodiscard]] std::vector<std::shared_ptr<LobbyClientProbe>>
+    AddWelcomedClients(const std::size_t count)
+    {
+        std::vector<std::shared_ptr<LobbyClientProbe>> clients;
+        clients.reserve(count);
+        for (std::size_t index = 0; index < count; ++index)
+        {
+            clients.push_back(AddClient());
+        }
+        for (const auto& client : clients)
+        {
+            ConnectAndWelcome(client);
+        }
+        return clients;
+    }
+
     void RunUntil(const std::function<bool()>& condition)
     {
         bool timedOut = false;
