@@ -1,6 +1,11 @@
-add_library(dxa_protocol INTERFACE)
+add_library(
+    dxa_protocol
+    STATIC
+        src/ByteCodec.cpp
+)
 target_include_directories(
     dxa_protocol
-    INTERFACE
+    PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
+dxa_enable_project_warnings(dxa_protocol)

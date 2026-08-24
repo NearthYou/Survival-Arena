@@ -29,6 +29,7 @@ add_executable(
     foundation_test.cpp
     offline_match_benchmark_options_test.cpp
     protocol_ids_test.cpp
+    protocol_byte_codec_test.cpp
 )
 target_link_libraries(
     dxa_tests
