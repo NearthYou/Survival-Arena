@@ -75,6 +75,8 @@ struct EntityId { std::uint32_t value; };
 
 0은 invalid sentinel로 사용하지 않는다. 값의 부재는 `std::optional`로 표현한다. server가 발급하는 ID는 process lifetime 동안 증가하고 재사용하지 않는다. 다음 ID가 numeric limit을 넘으면 새 요청을 거부한다.
 
+`ConnectionId`는 lobby server process 안에서만 사용하는 별도 `std::uint64_t` strong type이다. TCP accept 시 발급하고 protocol에는 직렬화하지 않는다. hello 전 session과 이미 PlayerId가 발급된 session을 같은 routing key로 다루기 위해 사용한다.
+
 room participant는 다음 상태만 가진다.
 
 - `PlayerId`
@@ -209,12 +211,14 @@ start 처리 중에는 다른 command를 끼워 넣지 않는다. 모든 room mu
 ```cpp
 struct OutboundMessage
 {
-    PlayerId recipient;
+    ConnectionId recipient;
     ServerMessage message;
 };
 ```
 
-성공한 room mutation은 현재 room 참가자 모두에게 최신 `RoomSnapshot`을 보낸다. 요청자는 원래 request ID를 받고 나머지는 0을 받는다. 실패는 요청자에게만 `ErrorResponse`를 보내며 room snapshot을 바꾸지 않는다. worker 실패는 Waiting으로 복귀한 snapshot을 참가자 전체에 먼저 보내고, host에게 `WorkerUnavailable` 오류를 보낸다.
+`LobbyService::OpenConnection()`은 새 ConnectionId를 만들고, hello 성공 시 ConnectionId와 PlayerId를 연결한다. `Disconnect(ConnectionId)`는 연결된 player가 있으면 room leave와 같은 operation을 실행한다.
+
+성공한 room mutation은 현재 room 참가자의 connection 모두에게 최신 `RoomSnapshot`을 보낸다. 요청자는 원래 request ID를 받고 나머지는 0을 받는다. 실패는 요청 connection에만 `ErrorResponse`를 보내며 room snapshot을 바꾸지 않는다. worker 실패는 Waiting으로 복귀한 snapshot을 참가자 전체에 먼저 보내고, host connection에 `WorkerUnavailable` 오류를 보낸다.
 
 ## error code
 
