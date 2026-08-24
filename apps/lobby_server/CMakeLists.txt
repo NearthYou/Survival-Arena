@@ -5,6 +5,7 @@ add_library(
         src/MatchTicketRegistry.cpp
         src/Room.cpp
         src/SecureTicketSource.cpp
+        src/WorkerRegistry.cpp
 )
 target_include_directories(
     dxa_lobby_core
