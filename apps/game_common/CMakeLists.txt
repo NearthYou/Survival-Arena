@@ -1,0 +1,17 @@
+add_library(
+    dxa_game_common
+    STATIC
+        src/ArenaFingerprint.cpp
+)
+target_include_directories(
+    dxa_game_common
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+target_link_libraries(
+    dxa_game_common
+    PUBLIC
+        dxa_protocol
+        dxa_simulation
+)
+dxa_enable_project_warnings(dxa_game_common)

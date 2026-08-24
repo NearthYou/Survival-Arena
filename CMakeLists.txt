@@ -25,6 +25,7 @@ endif()
 
 add_subdirectory(protocol)
 add_subdirectory(simulation)
+add_subdirectory(apps/game_common)
 add_subdirectory(engine)
 add_subdirectory(apps/lobby_server)
 add_subdirectory(apps/lobby_client)

@@ -14,6 +14,7 @@ add_executable(
     engine_input_state_test.cpp
     engine_resource_pool_test.cpp
     simulation_ai_decision_test.cpp
+    simulation_arena_map_test.cpp
     simulation_behavior_tree_test.cpp
     simulation_combat_test.cpp
     simulation_loot_test.cpp
@@ -62,6 +63,7 @@ target_link_libraries(
         dxa_lobby_server_lib
         dxa_offline_match_benchmark_options
         dxa_protocol
+        dxa_game_common
         dxa_simulation
         dxa_simulation_benchmark_options
 )

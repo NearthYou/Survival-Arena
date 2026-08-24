@@ -1,7 +1,7 @@
 #include <dxa/offline_match_benchmark/BenchmarkOptions.hpp>
 
+#include <dxa/simulation/ArenaMap.hpp>
 #include <dxa/simulation/MatchConfig.hpp>
-#include <dxa/simulation/NavMesh.hpp>
 #include <dxa/simulation/OfflineBotController.hpp>
 #include <dxa/simulation/OfflineMatch.hpp>
 #include <dxa/simulation/SafeZone.hpp>
@@ -61,26 +61,6 @@ struct TickStatistics
     double p95 = 0.0;
     double maximum = 0.0;
 };
-
-[[nodiscard]] dxa::simulation::NavMesh MakeArenaNavMesh(
-    const dxa::simulation::MatchConfig& config)
-{
-    using dxa::simulation::NavMesh;
-    using dxa::simulation::NavTriangleIndices;
-    const float extent = config.arenaHalfExtent;
-    return NavMesh::Build(
-        {
-            {-extent, -extent},
-            {extent, -extent},
-            {-extent, extent},
-            {extent, extent}
-        },
-        {
-            NavTriangleIndices{{0U, 1U, 2U}},
-            NavTriangleIndices{{1U, 3U, 2U}}
-        },
-        4.0F);
-}
 
 [[nodiscard]] const dxa::simulation::ActorSnapshot& FindActor(
     const dxa::simulation::MatchSnapshot& snapshot,
@@ -164,7 +144,8 @@ void SubmitControlledBotCommand(
 {
     dxa::simulation::MatchConfig config = dxa::simulation::DefaultMatchConfig();
     config.seed = seed;
-    const dxa::simulation::NavMesh navMesh = MakeArenaNavMesh(config);
+    const dxa::simulation::NavMesh navMesh =
+        dxa::simulation::BuildSurvivalArenaNavMesh();
     dxa::simulation::OfflineMatch match = dxa::simulation::OfflineMatch::Create(
         navMesh,
         config);
