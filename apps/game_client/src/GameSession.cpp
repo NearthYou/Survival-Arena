@@ -60,11 +60,11 @@ struct GameSession::Impl
 {
     explicit Impl(dxa::simulation::NavMesh sourceNavMesh)
         : navMesh{std::move(sourceNavMesh)},
+          interpolation{3U, dxa::protocol::MaxClientSnapshotBuffer},
           tcpResolver{io},
           udpResolver{io},
           udpSocket{io},
-          bindTimer{io},
-          interpolation{3U, dxa::protocol::MaxClientSnapshotBuffer}
+          bindTimer{io}
     {
     }
 
