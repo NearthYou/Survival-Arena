@@ -4,6 +4,7 @@
 #include <dxa/lobby/LobbyService.hpp>
 #include <dxa/lobby/LobbyTcpServer.hpp>
 #include <dxa/lobby/MatchTicketRegistry.hpp>
+#include <dxa/lobby_client/LobbyClient.hpp>
 
 #include <boost/asio/executor_work_guard.hpp>
 #include <boost/asio/io_context.hpp>
@@ -12,10 +13,19 @@
 #include <boost/asio/post.hpp>
 
 #include <algorithm>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
+#include <memory>
+#include <optional>
 #include <span>
+#include <stdexcept>
+#include <string>
 #include <thread>
+#include <utility>
+#include <variant>
+#include <vector>
 
 namespace dxa::test
 {
@@ -41,10 +51,12 @@ private:
 class RawLobbyServerFixture
 {
 public:
-    RawLobbyServerFixture()
+    explicit RawLobbyServerFixture(
+        const std::optional<dxa::lobby::GameEndpoint> worker = std::nullopt)
         : work_{boost::asio::make_work_guard(io_)},
           tickets_{ticketSource_},
-          service_{allocator_, tickets_},
+          allocator_{MakeAllocator(worker)},
+          service_{*allocator_, tickets_},
           server_{
               io_,
               service_,
@@ -82,14 +94,141 @@ public:
     }
 
 private:
+    [[nodiscard]] static std::unique_ptr<dxa::lobby::IGameWorkerAllocator>
+    MakeAllocator(const std::optional<dxa::lobby::GameEndpoint>& worker)
+    {
+        if (worker.has_value())
+        {
+            return std::make_unique<dxa::lobby::StaticGameWorkerAllocator>(
+                *worker);
+        }
+        return std::make_unique<dxa::lobby::UnavailableGameWorkerAllocator>();
+    }
+
     boost::asio::io_context io_;
     boost::asio::executor_work_guard<
         boost::asio::io_context::executor_type> work_;
     DeterministicTicketSource ticketSource_;
     dxa::lobby::MatchTicketRegistry tickets_;
-    dxa::lobby::UnavailableGameWorkerAllocator allocator_;
+    std::unique_ptr<dxa::lobby::IGameWorkerAllocator> allocator_;
     dxa::lobby::LobbyService service_;
     dxa::lobby::LobbyTcpServer server_;
     std::thread thread_;
+};
+
+[[nodiscard]] inline dxa::lobby::GameEndpoint StaticEndpoint()
+{
+    return {"127.0.0.1", 7100U, 7101U};
+}
+
+struct LobbyClientProbe
+{
+    std::shared_ptr<dxa::lobby_client::LobbyClient> client;
+    bool connected = false;
+    std::vector<dxa::protocol::ServerMessage> messages;
+    std::optional<boost::system::error_code> closedError;
+};
+
+class LobbyNetworkFixture : public RawLobbyServerFixture
+{
+public:
+    explicit LobbyNetworkFixture(
+        const std::optional<dxa::lobby::GameEndpoint> worker)
+        : RawLobbyServerFixture{worker}
+    {
+    }
+
+    ~LobbyNetworkFixture()
+    {
+        for (const auto& probe : clients_)
+        {
+            probe->client->Close();
+        }
+        clientIo_.restart();
+        while (clientIo_.poll_one() != 0U)
+        {
+        }
+    }
+
+    [[nodiscard]] std::shared_ptr<LobbyClientProbe> AddClient()
+    {
+        auto probe = std::make_shared<LobbyClientProbe>();
+        probe->client = dxa::lobby_client::LobbyClient::Create(clientIo_);
+        const std::weak_ptr<LobbyClientProbe> weak = probe;
+        probe->client->AsyncConnect(
+            "127.0.0.1",
+            Port(),
+            dxa::lobby_client::LobbyClientCallbacks{
+                [weak] {
+                    if (const auto locked = weak.lock())
+                    {
+                        locked->connected = true;
+                    }
+                },
+                [weak](dxa::protocol::ServerMessage message) {
+                    if (const auto locked = weak.lock())
+                    {
+                        locked->messages.push_back(std::move(message));
+                    }
+                },
+                [weak](const boost::system::error_code error) {
+                    if (const auto locked = weak.lock())
+                    {
+                        locked->closedError = error;
+                    }
+                }});
+        clients_.push_back(probe);
+        return probe;
+    }
+
+    void ConnectAndWelcome(const std::shared_ptr<LobbyClientProbe>& probe)
+    {
+        RunUntil([&probe] { return probe->connected; });
+        static_cast<void>(probe->client->Hello());
+        RunUntil([&probe] {
+            return std::any_of(
+                probe->messages.begin(),
+                probe->messages.end(),
+                [](const auto& message) {
+                    return std::holds_alternative<
+                        dxa::protocol::ServerWelcome>(message);
+                });
+        });
+    }
+
+    void RunUntil(const std::function<bool()>& condition)
+    {
+        bool timedOut = false;
+        boost::asio::steady_timer timer{clientIo_};
+        timer.expires_after(std::chrono::seconds{5});
+        timer.async_wait([&timedOut](const boost::system::error_code error) {
+            if (!error)
+            {
+                timedOut = true;
+            }
+        });
+
+        clientIo_.restart();
+        while (!condition() && !timedOut)
+        {
+            if (clientIo_.run_one() == 0U)
+            {
+                break;
+            }
+        }
+        timer.cancel();
+        clientIo_.restart();
+        while (clientIo_.poll_one() != 0U)
+        {
+        }
+        if (!condition())
+        {
+            throw std::runtime_error{"lobby network test timed out"};
+        }
+    }
+
+private:
+    boost::asio::io_context clientIo_;
+    std::vector<std::shared_ptr<LobbyClientProbe>> clients_;
 };
 } // namespace dxa::test

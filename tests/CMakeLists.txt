@@ -45,6 +45,7 @@ target_link_libraries(
         GTest::gtest_main
         dxa_client_options
         dxa_engine_core
+        dxa_lobby_client
         dxa_lobby_core
         dxa_lobby_server_lib
         dxa_offline_match_benchmark_options
