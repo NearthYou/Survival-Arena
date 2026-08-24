@@ -289,10 +289,11 @@ public:
         throw std::logic_error{"client input disappeared"};
     }
 
-    void SendResult()
+    void SendResult(const MatchId match = MatchId{7U})
     {
+        static_cast<void>(WaitForHello());
         SendTcp(GameServerMessage{GameMatchResult{
-            MatchId{7U},
+            match,
             EntityId{0U},
             true,
             MatchCompletionReason::LastSurvivor,
@@ -595,6 +596,31 @@ TEST(GameSession, DeliversResultAndRejectsImpossibleAck)
         WaitUntil([&] { return session.SnapshotCount() == 1U; });
         session.FixedUpdate();
         EXPECT_EQ(GameSessionState::ProtocolError, session.State());
+    }
+}
+
+TEST(GameSession, RejectsPrematureAndWrongMatchResult)
+{
+    {
+        FakeGameServer server;
+        GameSession session{dxa::simulation::BuildSurvivalArenaNavMesh()};
+        session.Start(server.StartFor());
+        server.SendResult();
+        WaitUntil([&] {
+            return session.State() == GameSessionState::ProtocolError;
+        });
+        EXPECT_FALSE(session.Result().has_value());
+    }
+    {
+        FakeGameServer server;
+        GameSession session{dxa::simulation::BuildSurvivalArenaNavMesh()};
+        session.Start(server.StartFor());
+        server.AcceptHelloAndWelcome();
+        server.SendResult(MatchId{8U});
+        WaitUntil([&] {
+            return session.State() == GameSessionState::ProtocolError;
+        });
+        EXPECT_FALSE(session.Result().has_value());
     }
 }
 

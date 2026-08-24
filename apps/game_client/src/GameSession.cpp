@@ -203,6 +203,15 @@ struct GameSession::Impl
 
         const auto result = std::get<dxa::protocol::GameMatchResult>(
             *decoded.message);
+        const GameSessionState current = state.load();
+        if ((current != GameSessionState::BindingUdp
+             && current != GameSessionState::Synchronizing
+             && current != GameSessionState::Running)
+            || result.match != start.ticket.match)
+        {
+            FailProtocol();
+            return;
+        }
         {
             std::scoped_lock lock{resultMutex};
             matchResult = result;
