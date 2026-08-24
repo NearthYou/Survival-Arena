@@ -13,7 +13,7 @@ target_include_directories(
         ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 target_link_libraries(dxa_protocol PUBLIC Boost::asio)
-target_compile_definitions(dxa_protocol PRIVATE BOOST_ASIO_NO_DEPRECATED)
+target_compile_definitions(dxa_protocol PUBLIC BOOST_ASIO_NO_DEPRECATED)
 if(WIN32)
     target_compile_definitions(dxa_protocol PUBLIC _WIN32_WINNT=0x0A00)
 endif()

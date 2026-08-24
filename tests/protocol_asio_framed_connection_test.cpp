@@ -1,3 +1,7 @@
+#if !defined(BOOST_ASIO_NO_DEPRECATED)
+#error "dxa_protocol consumers must share BOOST_ASIO_NO_DEPRECATED"
+#endif
+
 #include <dxa/protocol/AsioFramedConnection.hpp>
 
 #include <dxa/protocol/TcpFrame.hpp>
