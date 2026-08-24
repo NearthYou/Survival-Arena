@@ -225,7 +225,7 @@ struct LobbyServiceResult
 
 `LobbyService::OpenConnection()`은 새 ConnectionId를 optional로 반환하고, hello 성공 시 ConnectionId와 PlayerId를 연결한다. ConnectionId가 소진되면 새 session state를 만들지 않는다. `Disconnect(ConnectionId)`는 연결된 player가 있으면 room leave와 같은 operation을 실행한다.
 
-성공한 room mutation은 현재 room 참가자의 connection 모두에게 최신 `RoomSnapshot`을 보낸다. 요청자는 원래 request ID를 받고 나머지는 0을 받는다. 실패는 요청 connection에만 `ErrorResponse`를 보내며 room snapshot을 바꾸지 않는다. worker 실패는 Waiting으로 복귀한 snapshot을 참가자 전체에 먼저 보내고, host connection에 `WorkerUnavailable` 오류를 보낸다.
+성공한 room mutation은 현재 room 참가자의 connection 모두에게 최신 `RoomSnapshot`을 보낸다. 요청자는 원래 request ID를 받고 나머지는 0을 받는다. 명시적 leave가 성공하면 이미 room에서 빠진 요청자에게 원래 request ID를 가진 최신 `RoomListResponse`를 보내고, 남은 참가자에게 request ID 0인 `RoomSnapshot`을 보낸다. 마지막 참가자의 leave로 room이 삭제된 경우에는 요청자에게 room list만 보낸다. 실패는 요청 connection에만 `ErrorResponse`를 보내며 room snapshot을 바꾸지 않는다. worker 실패는 Waiting으로 복귀한 snapshot을 참가자 전체에 먼저 보내고, host connection에 `WorkerUnavailable` 오류를 보낸다.
 
 audit event는 PlayerId 발급, room 생성 및 삭제, host 승계, start 성공과 실패만 표현한다. event에는 ticket field가 없다. server adapter가 audit event를 spdlog text로 바꾸며 LobbyService는 logging library를 참조하지 않는다. connection open과 close는 해당 lifecycle을 직접 소유한 TCP adapter가 기록한다.
 

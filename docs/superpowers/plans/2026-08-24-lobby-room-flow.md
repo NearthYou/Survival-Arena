@@ -909,7 +909,7 @@ TEST(LobbyService, DisconnectTransfersHostAndDeletesEmptyRoom)
 }
 ```
 
-Add create, list sorted by RoomId, already-in-room, leave, ready broadcast request IDs, 1,024 room limit, and ID exhaustion tests through an injectable initial counter config.
+Add create, list sorted by RoomId, already-in-room, leave, ready broadcast request IDs, 1,024 room limit, and ID exhaustion tests through an injectable initial counter config. A successful explicit leave returns a correlated `RoomListResponse` to the departing connection and broadcasts a request ID 0 `RoomSnapshot` only to remaining members. If the room becomes empty, only the room list response remains.
 
 Define these local fixture helpers in `lobby_service_test.cpp`:
 
@@ -1056,7 +1056,7 @@ public:
 
 Store `ConnectionState { optional<PlayerId> player, uint32_t lastRequestId }`, `playerToConnection`, `playerToRoom`, and `rooms` maps. Validate connection and request sequence before visiting the message variant. Advance `lastRequestId` for every structurally valid new request, including semantic failure. Audit events never contain ticket values. Tests assert audit and outbound collections separately.
 
-This task implements hello, list, create, join, leave, ready, and disconnect. `StartMatchRequest` returns `WorkerUnavailable` until Task 8 connects the start path.
+This task implements hello, list, create, join, leave, ready, and disconnect. Create, join, and ready send a correlated snapshot to the requester and request ID 0 snapshots to the other room members. Leave sends a correlated room list to the requester and request ID 0 snapshots to remaining members. `StartMatchRequest` returns `WorkerUnavailable` until Task 8 connects the start path.
 
 - [ ] Step 4: Run GREEN and room tests
 
