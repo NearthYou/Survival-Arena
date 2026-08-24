@@ -261,6 +261,9 @@ struct BotCoordinator::Impl final
         const dxa::protocol::PlayerId player,
         const dxa::protocol::MatchTicket& ticket)
     {
+        activeMatch.store(ticket.match.value);
+        std::cout << "bot match assigned: match="
+                  << ticket.match.value << '\n' << std::flush;
         lobbyTimer.cancel();
         const dxa::simulation::ArenaMapDefinition arena =
             dxa::simulation::SurvivalArenaMapDefinition();
@@ -319,7 +322,17 @@ struct BotCoordinator::Impl final
         try
         {
             gameSession->FixedUpdate();
-            snapshotCount.store(gameSession->SnapshotCount());
+            const std::uint64_t receivedSnapshots =
+                gameSession->SnapshotCount();
+            snapshotCount.store(receivedSnapshots);
+            if (receivedSnapshots >= 2U
+                && !synchronizationReported.exchange(true))
+            {
+                std::cout << "bot match synchronized: match="
+                          << activeMatch.load()
+                          << " snapshots=" << receivedSnapshots
+                          << '\n' << std::flush;
+            }
             const dxa::game_client::GameSessionState state =
                 gameSession->State();
             if (state == dxa::game_client::GameSessionState::BindingUdp
@@ -455,6 +468,8 @@ struct BotCoordinator::Impl final
     std::uint64_t gameTickOrdinal = 0U;
     std::atomic<bool> gameAuthenticated{false};
     std::atomic<std::uint64_t> snapshotCount{0U};
+    std::atomic<std::uint64_t> activeMatch{0U};
+    std::atomic<bool> synchronizationReported{false};
     mutable std::mutex resultMutex;
     std::optional<dxa::protocol::GameMatchResult> result;
     std::atomic<int> exitCode{3};

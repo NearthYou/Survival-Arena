@@ -212,7 +212,11 @@ struct GameServer::State final
           reconnectTimer_{io},
           matchTimer_{io},
           gameAcceptor_{io},
-          udpSocket_{io}
+          udpSocket_{io},
+          tokenSource_{
+              config_.udpTokenSource
+                  ? config_.udpTokenSource
+                  : std::make_shared<SecureUdpTokenSource>()}
     {
         if (config_.authenticationTimeout <= std::chrono::milliseconds::zero()
             || config_.controlReconnectDelay
@@ -458,7 +462,7 @@ struct GameServer::State final
                 reservation,
                 dxa::simulation::SurvivalArenaMapDefinition(),
                 config_.matchConfig,
-                tokenSource_,
+                *tokenSource_,
                 std::chrono::steady_clock::now()));
             activeReservation_ = reservation.reservation;
             activeMatch_ = reservation.match;
@@ -864,7 +868,7 @@ struct GameServer::State final
     std::optional<AuthoritativeMatch> match_;
     std::optional<dxa::protocol::ReservationId> activeReservation_;
     std::optional<dxa::protocol::MatchId> activeMatch_;
-    SecureUdpTokenSource tokenSource_;
+    std::shared_ptr<IUdpTokenSource> tokenSource_;
     std::optional<std::uint64_t> nextGameConnection_{1U};
     std::array<std::byte, dxa::protocol::MaxUdpDatagramBytes + 1U>
         udpReceiveBuffer_{};

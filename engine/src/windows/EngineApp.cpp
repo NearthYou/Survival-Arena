@@ -128,6 +128,9 @@ int EngineApp::Run(
         false
 #endif
     });
+    std::clog << "graphics adapter="
+              << GetAdapterNameUtf8(graphics.Device())
+              << '\n' << std::flush;
 
     GpuFrameTimer gpuTimer;
     if (options.benchmark.has_value())
@@ -444,6 +447,22 @@ int EngineApp::Run(
                 options.benchmark->startedAt,
                 options.renderPath},
             samples);
+    }
+
+    if (graphics.DebugLayerEnabled())
+    {
+        const std::size_t debugErrors = graphics.DebugErrorCount();
+        std::clog << "DX11 debug layer=enabled errors="
+                  << debugErrors << '\n' << std::flush;
+        if (debugErrors != 0U)
+        {
+            throw std::runtime_error{
+                "DX11 debug layer reported an error or corruption message"};
+        }
+    }
+    else
+    {
+        std::clog << "DX11 debug layer=disabled\n" << std::flush;
     }
 
     return 0;

@@ -354,11 +354,15 @@ class GameNetworkFixture
 public:
     explicit GameNetworkFixture(
         dxa::simulation::MatchConfig config =
-            dxa::simulation::DefaultMatchConfig())
+            dxa::simulation::DefaultMatchConfig(),
+        std::shared_ptr<dxa::game_server::IUdpTokenSource> tokenSource = {})
         : lobby_{},
           worker_{
               lobby_.Io(),
-              MakeGameConfig(lobby_.WorkerPort(), std::move(config))}
+              MakeGameConfig(
+                  lobby_.WorkerPort(),
+                  std::move(config),
+                  std::move(tokenSource))}
     {
     }
 
@@ -522,13 +526,15 @@ public:
 private:
     [[nodiscard]] static dxa::game_server::GameServerConfig MakeGameConfig(
         const std::uint16_t controlPort,
-        dxa::simulation::MatchConfig matchConfig)
+        dxa::simulation::MatchConfig matchConfig,
+        std::shared_ptr<dxa::game_server::IUdpTokenSource> tokenSource)
     {
         dxa::game_server::GameServerConfig config;
         config.options.lobbyControlPort = controlPort;
         config.options.gameTcpPort = 0U;
         config.options.gameUdpPort = 0U;
         config.matchConfig = std::move(matchConfig);
+        config.udpTokenSource = std::move(tokenSource);
         return config;
     }
 

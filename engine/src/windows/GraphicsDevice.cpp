@@ -1,12 +1,14 @@
 #include <dxa/engine/GraphicsDevice.hpp>
 
 #include <dxgi.h>
+#include <d3d11sdklayers.h>
 
 #include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstdint>
 #include <iomanip>
+#include <memory>
 #include <sstream>
 #include <stdexcept>
 
@@ -231,5 +233,39 @@ ID3D11RenderTargetView* GraphicsDevice::BackBufferRenderTargetView() const noexc
 bool GraphicsDevice::DebugLayerEnabled() const noexcept
 {
     return debugLayerEnabled_;
+}
+
+std::size_t GraphicsDevice::DebugErrorCount() const
+{
+    if (!debugLayerEnabled_)
+    {
+        return 0U;
+    }
+    Microsoft::WRL::ComPtr<ID3D11InfoQueue> infoQueue;
+    RequireSuccess(
+        device_.As(&infoQueue),
+        "ID3D11Device::QueryInterface(ID3D11InfoQueue)");
+
+    std::size_t errors = 0U;
+    const std::uint64_t messageCount =
+        infoQueue->GetNumStoredMessagesAllowedByRetrievalFilter();
+    for (std::uint64_t index = 0U; index < messageCount; ++index)
+    {
+        SIZE_T messageSize = 0U;
+        if (FAILED(infoQueue->GetMessage(index, nullptr, &messageSize)))
+        {
+            ++errors;
+            continue;
+        }
+        auto storage = std::make_unique<std::byte[]>(messageSize);
+        auto* const message = reinterpret_cast<D3D11_MESSAGE*>(storage.get());
+        if (FAILED(infoQueue->GetMessage(index, message, &messageSize))
+            || message->Severity == D3D11_MESSAGE_SEVERITY_CORRUPTION
+            || message->Severity == D3D11_MESSAGE_SEVERITY_ERROR)
+        {
+            ++errors;
+        }
+    }
+    return errors;
 }
 } // namespace dxa::engine

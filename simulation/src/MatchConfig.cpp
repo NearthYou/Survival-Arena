@@ -39,11 +39,16 @@ MatchConfig DefaultMatchConfig() noexcept
 void ValidateMatchConfig(const MatchConfig& config)
 {
     if (config.tickRate != 30U
-        || config.botDecisionIntervalTicks != 6U
-        || config.suddenDeathTick != 14400U
-        || config.hardTimeoutTick != 18000U)
+        || config.botDecisionIntervalTicks != 6U)
     {
-        throw std::invalid_argument{"match tick contract must remain 30 Hz and 600 seconds"};
+        throw std::invalid_argument{
+            "match simulation contract must remain 30 Hz with six-tick bot decisions"};
+    }
+    if (config.suddenDeathTick == 0U
+        || config.hardTimeoutTick <= config.suddenDeathTick)
+    {
+        throw std::invalid_argument{
+            "match timeout must follow a positive sudden-death tick"};
     }
     if (config.contenderCount < 2U || config.maximumSpawnAttempts == 0U)
     {

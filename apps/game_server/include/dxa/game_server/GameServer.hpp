@@ -1,6 +1,7 @@
 #pragma once
 
 #include <dxa/game_server/GameServerOptions.hpp>
+#include <dxa/game_server/UdpTokenSource.hpp>
 
 #include <dxa/simulation/MatchConfig.hpp>
 
@@ -19,6 +20,7 @@ struct GameServerConfig
         dxa::simulation::DefaultMatchConfig();
     std::chrono::milliseconds authenticationTimeout{5000};
     std::chrono::milliseconds controlReconnectDelay{1000};
+    std::shared_ptr<IUdpTokenSource> udpTokenSource;
 };
 
 class GameServer

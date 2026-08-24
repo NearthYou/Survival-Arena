@@ -152,7 +152,8 @@ struct NetworkClientController::Impl final
                     std::get_if<dxa::protocol::ServerWelcome>(&message))
             {
                 command = flow.OnWelcome(welcome->player);
-                std::cout << "network lobby state=connected\n";
+                std::cout << "network lobby state=connected\n"
+                          << std::flush;
             }
             else if (const auto* snapshot =
                          std::get_if<dxa::protocol::RoomSnapshot>(&message))
@@ -174,7 +175,8 @@ struct NetworkClientController::Impl final
                           << " players=" << snapshot->members.size()
                           << '/' << static_cast<std::uint32_t>(
                                  options.expectedPlayers)
-                          << " ready=" << readyCount << '\n';
+                          << " ready=" << readyCount << '\n'
+                          << std::flush;
             }
             else if (const auto* ticket =
                          std::get_if<dxa::protocol::MatchTicket>(&message))
@@ -182,7 +184,7 @@ struct NetworkClientController::Impl final
                 flow.OnMatchTicket(*ticket);
                 StartGame(*ticket);
                 std::cout << "network match=" << ticket->match.value
-                          << " state=assigned\n";
+                          << " state=assigned\n" << std::flush;
                 return;
             }
             else if (const auto* error =
@@ -204,7 +206,7 @@ struct NetworkClientController::Impl final
                 }
                 std::cout << "network room="
                           << flow.Room()->value
-                          << " state=closed\n";
+                          << " state=closed\n" << std::flush;
                 return;
             }
             else
@@ -253,6 +255,7 @@ struct NetworkClientController::Impl final
             ticket,
             arena.mapId,
             arena.fingerprint});
+        activeMatch.store(ticket.match.value);
         {
             std::scoped_lock lock{sessionMutex};
             if (gameSession)
@@ -310,12 +313,42 @@ struct NetworkClientController::Impl final
             return;
         }
         session->FixedUpdate();
-        snapshotCount.store(session->SnapshotCount());
+        const std::uint64_t receivedSnapshots = session->SnapshotCount();
+        snapshotCount.store(receivedSnapshots);
+        if (receivedSnapshots >= 2U
+            && !synchronizationReported.exchange(true))
+        {
+            std::cout << "network match=" << activeMatch.load()
+                      << " state=synchronized snapshots="
+                      << receivedSnapshots << '\n' << std::flush;
+        }
         const dxa::game_client::GameSessionState state = session->State();
         if (state == dxa::game_client::GameSessionState::ProtocolError
             || state == dxa::game_client::GameSessionState::Closed)
         {
             throw std::runtime_error{"game session failed"};
+        }
+        if (state == dxa::game_client::GameSessionState::Finished
+            && !resultReported.exchange(true))
+        {
+            const auto result = session->Result();
+            if (!result.has_value())
+            {
+                throw std::runtime_error{
+                    "game session finished without result"};
+            }
+            std::cout << "network match=" << result->match.value
+                      << " state=finished winner=";
+            if (result->hasWinner)
+            {
+                std::cout << result->winner.value;
+            }
+            else
+            {
+                std::cout << "none";
+            }
+            std::cout << " tick=" << result->finishedTick
+                      << '\n' << std::flush;
         }
         if (state == dxa::game_client::GameSessionState::Running
             && input.moveDestination.has_value())
@@ -428,6 +461,9 @@ struct NetworkClientController::Impl final
     std::atomic<bool> stopRequested{false};
     std::atomic<bool> failed{false};
     std::atomic<std::uint64_t> snapshotCount{0U};
+    std::atomic<std::uint64_t> activeMatch{0U};
+    std::atomic<bool> synchronizationReported{false};
+    std::atomic<bool> resultReported{false};
 
     mutable std::mutex sessionMutex;
     std::shared_ptr<dxa::game_client::GameSession> gameSession;
