@@ -1,6 +1,7 @@
 #include <dxa/protocol/AsioFramedConnection.hpp>
 
 #include <boost/asio/error.hpp>
+#include <boost/asio/post.hpp>
 #include <boost/asio/read.hpp>
 #include <boost/asio/write.hpp>
 
@@ -220,6 +221,7 @@ void AsioFramedConnection::FinishClose(
     }
     closed_ = true;
 
+    const auto executor = socket_.get_executor();
     boost::system::error_code ignored;
     socket_.cancel(ignored);
     socket_.shutdown(boost::asio::ip::tcp::socket::shutdown_both, ignored);
@@ -230,7 +232,11 @@ void AsioFramedConnection::FinishClose(
     CloseHandler closeHandler = std::move(onClose_);
     if (closeHandler)
     {
-        closeHandler(error);
+        boost::asio::post(
+            executor,
+            [handler = std::move(closeHandler), error]() mutable {
+                handler(error);
+            });
     }
 }
 } // namespace dxa::protocol

@@ -168,6 +168,7 @@ TEST(AsioFramedConnection, ReadsFragmentedFrameAndPreservesWriteOrder)
     EXPECT_EQ(0U, closeCount);
 
     connection->Close();
+    PumpReady(pair.io);
     EXPECT_EQ(1U, closeCount);
 }
 
@@ -235,26 +236,41 @@ TEST(AsioFramedConnection, ManualCloseInvokesCallbackOnlyOnce)
     EXPECT_EQ(1U, closeCount);
 }
 
-TEST(AsioFramedConnection, KeepsItselfAliveDuringReentrantCloseCallback)
+TEST(AsioFramedConnection, DefersCloseCallbackUntilCurrentCallReturns)
+{
+    AsioSocketPair pair;
+    std::size_t closeCount = 0U;
+    auto connection = AsioFramedConnection::Create(
+        std::move(pair.server),
+        [](RawFrame) {},
+        [&closeCount](const boost::system::error_code) { ++closeCount; });
+    connection->Start();
+
+    connection->Close();
+
+    EXPECT_EQ(0U, closeCount);
+    PumpReady(pair.io);
+    EXPECT_EQ(1U, closeCount);
+}
+
+TEST(AsioFramedConnection, DeferredCloseCallbackCanReleaseLastOwner)
 {
     AsioSocketPair pair;
     std::shared_ptr<AsioFramedConnection> connection;
     std::weak_ptr<AsioFramedConnection> weak;
-    bool aliveDuringCallback = false;
     connection = AsioFramedConnection::Create(
         std::move(pair.server),
         [](RawFrame) {},
-        [&connection, &weak, &aliveDuringCallback](
-            const boost::system::error_code) {
+        [&connection](const boost::system::error_code) {
             connection.reset();
-            aliveDuringCallback = !weak.expired();
         });
     weak = connection;
     AsioFramedConnection* const raw = connection.get();
 
     raw->Close();
+    EXPECT_FALSE(weak.expired());
+    PumpReady(pair.io);
 
-    EXPECT_TRUE(aliveDuringCallback);
     EXPECT_TRUE(weak.expired());
 }
 
@@ -276,7 +292,7 @@ TEST(AsioFramedConnection, ClosesWhenPendingWritesExceedLimit)
     EXPECT_TRUE(connection->Send(maximum));
     EXPECT_TRUE(connection->Send(maximum));
     EXPECT_FALSE(connection->Send(maximum));
-    EXPECT_EQ(1U, closeCount);
+    EXPECT_EQ(0U, closeCount);
     EXPECT_FALSE(connection->Socket().is_open());
 
     PumpReady(pair.io);
