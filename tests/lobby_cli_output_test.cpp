@@ -3,10 +3,28 @@
 #include <gtest/gtest.h>
 
 #include <cstddef>
+#include <ostream>
+#include <sstream>
 #include <string>
 
 using dxa::lobby_cli::FormatLobbyServerMessage;
+using dxa::lobby_cli::WriteLobbyCliLine;
 using namespace dxa::protocol;
+
+namespace
+{
+class FlushCountingBuffer final : public std::stringbuf
+{
+public:
+    int sync() override
+    {
+        ++flushCount;
+        return std::stringbuf::sync();
+    }
+
+    int flushCount = 0;
+};
+} // namespace
 
 TEST(LobbyCliOutput, RedactsTicketBytes)
 {
@@ -44,4 +62,15 @@ TEST(LobbyCliOutput, ShowsPublicWelcomeRoomAndErrorFields)
     const std::string error = FormatLobbyServerMessage(
         ServerMessage{ErrorResponse{3U, LobbyError::RoomFull}});
     EXPECT_NE(std::string::npos, error.find("RoomFull"));
+}
+
+TEST(LobbyCliOutput, FlushesEachConsoleLine)
+{
+    FlushCountingBuffer buffer;
+    std::ostream output{&buffer};
+
+    WriteLobbyCliLine(output, "visible now");
+
+    EXPECT_EQ("visible now\n", buffer.str());
+    EXPECT_EQ(1, buffer.flushCount);
 }

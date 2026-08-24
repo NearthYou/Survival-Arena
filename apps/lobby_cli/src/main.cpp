@@ -147,7 +147,7 @@ int main(const int argc, const char* const* const argv)
         std::mutex outputMutex;
         const auto print = [&outputMutex](const std::string& text) {
             const std::scoped_lock lock{outputMutex};
-            std::cout << text << '\n';
+            dxa::lobby_cli::WriteLobbyCliLine(std::cout, text);
         };
 
         client->AsyncConnect(

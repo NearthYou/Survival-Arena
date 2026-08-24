@@ -1,6 +1,7 @@
 #include <dxa/lobby_cli/LobbyCliOutput.hpp>
 
 #include <cstdint>
+#include <ostream>
 #include <sstream>
 #include <string_view>
 #include <type_traits>
@@ -125,5 +126,10 @@ std::string FormatLobbyServerMessage(const dxa::protocol::ServerMessage& message
             return output.str();
         },
         message);
+}
+
+void WriteLobbyCliLine(std::ostream& output, const std::string_view text)
+{
+    output << text << '\n' << std::flush;
 }
 } // namespace dxa::lobby_cli
