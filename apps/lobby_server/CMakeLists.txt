@@ -1,7 +1,9 @@
 add_library(
     dxa_lobby_core
     STATIC
+        src/MatchTicketRegistry.cpp
         src/Room.cpp
+        src/SecureTicketSource.cpp
 )
 target_include_directories(
     dxa_lobby_core
@@ -13,4 +15,7 @@ target_link_libraries(
     PUBLIC
         dxa_protocol
 )
+if(WIN32)
+    target_link_libraries(dxa_lobby_core PRIVATE bcrypt)
+endif()
 dxa_enable_project_warnings(dxa_lobby_core)
