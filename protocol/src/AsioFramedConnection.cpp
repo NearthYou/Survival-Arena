@@ -56,6 +56,8 @@ void AsioFramedConnection::Start()
 
 bool AsioFramedConnection::Send(const EncodedMessage& message)
 {
+    const auto keepAlive = shared_from_this();
+    static_cast<void>(keepAlive);
     if (closed_)
     {
         return false;
@@ -89,6 +91,8 @@ bool AsioFramedConnection::Send(const EncodedMessage& message)
 
 void AsioFramedConnection::Close()
 {
+    const auto keepAlive = shared_from_this();
+    static_cast<void>(keepAlive);
     FinishClose(boost::asio::error::operation_aborted);
 }
 

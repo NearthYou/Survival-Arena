@@ -235,6 +235,29 @@ TEST(AsioFramedConnection, ManualCloseInvokesCallbackOnlyOnce)
     EXPECT_EQ(1U, closeCount);
 }
 
+TEST(AsioFramedConnection, KeepsItselfAliveDuringReentrantCloseCallback)
+{
+    AsioSocketPair pair;
+    std::shared_ptr<AsioFramedConnection> connection;
+    std::weak_ptr<AsioFramedConnection> weak;
+    bool aliveDuringCallback = false;
+    connection = AsioFramedConnection::Create(
+        std::move(pair.server),
+        [](RawFrame) {},
+        [&connection, &weak, &aliveDuringCallback](
+            const boost::system::error_code) {
+            connection.reset();
+            aliveDuringCallback = !weak.expired();
+        });
+    weak = connection;
+    AsioFramedConnection* const raw = connection.get();
+
+    raw->Close();
+
+    EXPECT_TRUE(aliveDuringCallback);
+    EXPECT_TRUE(weak.expired());
+}
+
 TEST(AsioFramedConnection, ClosesWhenPendingWritesExceedLimit)
 {
     AsioSocketPair pair;
