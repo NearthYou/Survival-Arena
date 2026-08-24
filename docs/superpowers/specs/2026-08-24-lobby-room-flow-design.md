@@ -198,15 +198,16 @@ InMatch room은 새 room list에서 제외한다. v1 lobby process 안에서는 
 - 최소 2명 필요
 - host를 포함한 모든 참가자가 ready여야 함
 - start 조건을 통과하면 먼저 Starting으로 전환
-- worker allocator가 실패하면 Waiting으로 복귀하고 기존 ready 값 유지
-- allocator가 성공하면 참가자별 ticket을 만들고 InMatch로 전환
+- 참가자별 ticket을 임시 목록으로 모두 발급한 뒤 worker allocator를 호출
+- ticket 발급이나 worker allocator가 실패하면 임시 ticket을 revoke하고 Waiting으로 복귀하며 기존 ready 값 유지
+- worker allocator가 성공하면 InMatch로 전환
 - 같은 room에 있는 각 참가자는 서로 다른 ticket을 받음
 
 start 처리 중에는 다른 command를 끼워 넣지 않는다. 모든 room mutation은 하나의 `io_context` thread에서 직렬 실행한다.
 
 ## LobbyService 출력
 
-`LobbyService`는 protocol request를 받아 대상별 server message 목록을 반환한다.
+`LobbyService`는 protocol request를 받아 대상별 server message와 구조화된 audit event를 반환한다.
 
 ```cpp
 struct OutboundMessage
@@ -214,11 +215,19 @@ struct OutboundMessage
     ConnectionId recipient;
     ServerMessage message;
 };
+
+struct LobbyServiceResult
+{
+    std::vector<OutboundMessage> outbound;
+    std::vector<LobbyAuditEvent> audit;
+};
 ```
 
-`LobbyService::OpenConnection()`은 새 ConnectionId를 만들고, hello 성공 시 ConnectionId와 PlayerId를 연결한다. `Disconnect(ConnectionId)`는 연결된 player가 있으면 room leave와 같은 operation을 실행한다.
+`LobbyService::OpenConnection()`은 새 ConnectionId를 optional로 반환하고, hello 성공 시 ConnectionId와 PlayerId를 연결한다. ConnectionId가 소진되면 새 session state를 만들지 않는다. `Disconnect(ConnectionId)`는 연결된 player가 있으면 room leave와 같은 operation을 실행한다.
 
 성공한 room mutation은 현재 room 참가자의 connection 모두에게 최신 `RoomSnapshot`을 보낸다. 요청자는 원래 request ID를 받고 나머지는 0을 받는다. 실패는 요청 connection에만 `ErrorResponse`를 보내며 room snapshot을 바꾸지 않는다. worker 실패는 Waiting으로 복귀한 snapshot을 참가자 전체에 먼저 보내고, host connection에 `WorkerUnavailable` 오류를 보낸다.
+
+audit event는 PlayerId 발급, room 생성 및 삭제, host 승계, start 성공과 실패만 표현한다. event에는 ticket field가 없다. server adapter가 audit event를 spdlog text로 바꾸며 LobbyService는 logging library를 참조하지 않는다. connection open과 close는 해당 lifecycle을 직접 소유한 TCP adapter가 기록한다.
 
 ## error code
 
@@ -270,6 +279,7 @@ ticket은 참가자별 128비트 값이다.
 - 발급 시 `MatchId`, `PlayerId`, 만료 시각을 registry에 저장
 - 발급 후 60초 만료
 - 한 번 consume한 ticket은 즉시 제거
+- start transaction이 끝나기 전에 실패하면 이번 transaction에서 발급한 ticket을 모두 revoke
 - 잘못된 match 또는 player로 consume하면 실패하며 ticket은 소비하지 않음
 - 만료 ticket은 consume할 수 없고 정리됨
 
