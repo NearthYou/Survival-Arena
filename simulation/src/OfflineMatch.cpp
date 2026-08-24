@@ -61,6 +61,20 @@ void OfflineMatch::Submit(MatchCommand command)
     impl_->queuedCommands.push_back(std::move(command));
 }
 
+void OfflineMatch::Submit(MatchLifecycleCommand command)
+{
+    if (impl_ == nullptr)
+    {
+        throw std::logic_error{"offline match has been moved from"};
+    }
+    if (!IsActivePhase(impl_->phase))
+    {
+        throw std::logic_error{
+            "offline match accepts lifecycle commands only while running"};
+    }
+    impl_->queuedLifecycleCommands.push_back(std::move(command));
+}
+
 void OfflineMatch::Step()
 {
     if (impl_ == nullptr)

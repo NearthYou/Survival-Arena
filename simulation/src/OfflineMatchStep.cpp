@@ -360,10 +360,78 @@ void OfflineMatch::Impl::Step()
     ++tick;
     selectedCommands.clear();
     std::vector<MatchEvent> tickEvents;
+    std::vector<MatchLifecycleCommand> lifecycleCommands;
+    lifecycleCommands.swap(queuedLifecycleCommands);
+    std::sort(
+        lifecycleCommands.begin(),
+        lifecycleCommands.end(),
+        [](const MatchLifecycleCommand& left,
+           const MatchLifecycleCommand& right) {
+            return left.actor < right.actor;
+        });
+    lifecycleCommands.erase(
+        std::unique(
+            lifecycleCommands.begin(),
+            lifecycleCommands.end(),
+            [](const MatchLifecycleCommand& left,
+               const MatchLifecycleCommand& right) {
+                return left.actor == right.actor;
+            }),
+        lifecycleCommands.end());
+
+    std::vector<std::size_t> disconnectIndices;
+    disconnectIndices.reserve(lifecycleCommands.size());
+    for (const MatchLifecycleCommand& command : lifecycleCommands)
+    {
+        if (command.reason != ContenderExitReason::Disconnected)
+        {
+            continue;
+        }
+        const std::optional<std::size_t> actorIndex = FindActorIndex(
+            actors,
+            command.actor);
+        if (!actorIndex.has_value()
+            || actors[*actorIndex].role != ActorRole::Contender
+            || !actors[*actorIndex].alive)
+        {
+            continue;
+        }
+        disconnectIndices.push_back(*actorIndex);
+    }
+
+    const std::uint32_t aliveBeforeDisconnect = CountAliveContenders(actors);
+    if (disconnectIndices.size()
+        >= static_cast<std::size_t>(aliveBeforeDisconnect))
+    {
+        throw std::logic_error{
+            "offline match cannot disconnect every living contender"};
+    }
+
+    std::vector<ActorId> disconnectedActors;
+    disconnectedActors.reserve(disconnectIndices.size());
+    for (const std::size_t actorIndex : disconnectIndices)
+    {
+        CombatActor& actor = actors[actorIndex];
+        actor.health = 0;
+        actor.alive = false;
+        disconnectedActors.push_back(actor.id);
+        tickEvents.push_back(MatchEvent{
+            tick,
+            MatchEventType::ActorDisconnected,
+            actor.id});
+    }
+
     std::vector<MatchCommand> commands;
     commands.swap(queuedCommands);
 
     const auto processCommand = [&](const MatchCommand& command) {
+        if (std::binary_search(
+                disconnectedActors.begin(),
+                disconnectedActors.end(),
+                command.actor))
+        {
+            return;
+        }
         const std::optional<std::size_t> actorIndex = FindActorIndex(actors, command.actor);
         if (!actorIndex.has_value() || !actors[*actorIndex].alive)
         {

@@ -38,6 +38,7 @@ struct OfflineMatch::Impl
     std::vector<std::unique_ptr<BehaviorTreeAiController>> neutralControllers;
     std::vector<LootItem> loot;
     std::vector<MatchCommand> queuedCommands;
+    std::vector<MatchLifecycleCommand> queuedLifecycleCommands;
     std::map<ActorId, MatchCommand> selectedCommands;
     std::vector<MatchEvent> events;
     std::optional<MatchResult> result;

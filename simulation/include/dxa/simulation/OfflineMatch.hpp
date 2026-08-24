@@ -24,6 +24,7 @@ public:
 
     void Start();
     void Submit(MatchCommand command);
+    void Submit(MatchLifecycleCommand command);
     void Step();
     [[nodiscard]] MatchSnapshot Snapshot() const;
     [[nodiscard]] std::vector<MatchEvent> DrainEvents();

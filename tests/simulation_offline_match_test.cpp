@@ -18,6 +18,7 @@ namespace
 using dxa::simulation::ActorId;
 using dxa::simulation::ActorRole;
 using dxa::simulation::ActorSnapshot;
+using dxa::simulation::ContenderExitReason;
 using dxa::simulation::DefaultMatchConfig;
 using dxa::simulation::Distance;
 using dxa::simulation::LootType;
@@ -25,6 +26,7 @@ using dxa::simulation::MatchCommand;
 using dxa::simulation::MatchConfig;
 using dxa::simulation::MatchEvent;
 using dxa::simulation::MatchEventType;
+using dxa::simulation::MatchLifecycleCommand;
 using dxa::simulation::MatchPhase;
 using dxa::simulation::MatchSnapshot;
 using dxa::simulation::NavMesh;
@@ -360,10 +362,164 @@ TEST(OfflineMatch, RejectsLifecycleCallsBeforeStartAndDuplicateStart)
     EXPECT_TRUE(match.Snapshot().loot.empty());
     EXPECT_TRUE(match.DrainEvents().empty());
     EXPECT_THROW(match.Submit(MatchCommand{}), std::logic_error);
+    EXPECT_THROW(
+        match.Submit(MatchLifecycleCommand{
+            0U, ContenderExitReason::Disconnected}),
+        std::logic_error);
     EXPECT_THROW(match.Step(), std::logic_error);
 
     match.Start();
     EXPECT_THROW(match.Start(), std::logic_error);
+}
+
+TEST(OfflineMatch, DisconnectEliminatesContenderOnNextStep)
+{
+    OfflineMatch match = StartedCloseCombatMatch(3U);
+    match.Submit(MatchLifecycleCommand{
+        2U, ContenderExitReason::Disconnected});
+
+    EXPECT_TRUE(ActorById(match.Snapshot(), 2U).alive);
+    EXPECT_EQ(100, ActorById(match.Snapshot(), 2U).health);
+
+    match.Step();
+
+    const MatchSnapshot snapshot = match.Snapshot();
+    EXPECT_FALSE(ActorById(snapshot, 2U).alive);
+    EXPECT_EQ(0, ActorById(snapshot, 2U).health);
+    EXPECT_EQ(2U, snapshot.aliveContenders);
+    const std::vector<MatchEvent> events = match.DrainEvents();
+    EXPECT_EQ(1U, static_cast<std::size_t>(std::count_if(
+        events.begin(),
+        events.end(),
+        [](const MatchEvent& event) {
+            return event.type == MatchEventType::ActorDisconnected
+                && event.actor == 2U;
+        })));
+}
+
+TEST(OfflineMatch, DuplicateDisconnectChangesStateOnce)
+{
+    OfflineMatch match = StartedCloseCombatMatch(3U);
+    const MatchLifecycleCommand disconnect{
+        2U, ContenderExitReason::Disconnected};
+    match.Submit(disconnect);
+    match.Submit(disconnect);
+
+    match.Step();
+
+    const std::vector<MatchEvent> events = match.DrainEvents();
+    EXPECT_EQ(1U, static_cast<std::size_t>(std::count_if(
+        events.begin(),
+        events.end(),
+        [](const MatchEvent& event) {
+            return event.type == MatchEventType::ActorDisconnected
+                && event.actor == 2U;
+        })));
+    EXPECT_EQ(2U, match.Snapshot().aliveContenders);
+}
+
+TEST(OfflineMatch, DisconnectOrderingProducesTheSameSnapshotAndChecksum)
+{
+    OfflineMatch first = StartedCloseCombatMatch(4U);
+    OfflineMatch repeated = StartedCloseCombatMatch(4U);
+    first.Submit(MatchLifecycleCommand{
+        3U, ContenderExitReason::Disconnected});
+    first.Submit(MatchLifecycleCommand{
+        1U, ContenderExitReason::Disconnected});
+    repeated.Submit(MatchLifecycleCommand{
+        1U, ContenderExitReason::Disconnected});
+    repeated.Submit(MatchLifecycleCommand{
+        3U, ContenderExitReason::Disconnected});
+    repeated.Submit(MatchLifecycleCommand{
+        1U, ContenderExitReason::Disconnected});
+
+    first.Step();
+    repeated.Step();
+
+    EXPECT_EQ(first.Snapshot(), repeated.Snapshot());
+    EXPECT_EQ(first.DrainEvents(), repeated.DrainEvents());
+}
+
+TEST(OfflineMatch, IgnoresMissingNeutralAndAlreadyDeadDisconnectTargets)
+{
+    MatchConfig config = CloseCombatConfig(3U);
+    config.meleeNeutralCount = 1U;
+    OfflineMatch match = OfflineMatch::Create(MakeArenaNavMesh(), config);
+    match.Start();
+    match.Submit(MatchLifecycleCommand{
+        2U, ContenderExitReason::Disconnected});
+    match.Step();
+    (void)match.DrainEvents();
+
+    match.Submit(MatchLifecycleCommand{
+        2U, ContenderExitReason::Disconnected});
+    match.Submit(MatchLifecycleCommand{
+        3U, ContenderExitReason::Disconnected});
+    match.Submit(MatchLifecycleCommand{
+        99U, ContenderExitReason::Disconnected});
+    match.Step();
+
+    EXPECT_FALSE(ActorById(match.Snapshot(), 2U).alive);
+    EXPECT_TRUE(ActorById(match.Snapshot(), 3U).alive);
+    EXPECT_EQ(2U, match.Snapshot().aliveContenders);
+    EXPECT_TRUE(match.DrainEvents().empty());
+}
+
+TEST(OfflineMatch, DisconnectRemovesSameTickPlayerCommandWithoutRejection)
+{
+    OfflineMatch match = StartedCloseCombatMatch(3U);
+    const dxa::simulation::Vec2 before =
+        ActorById(match.Snapshot(), 2U).position;
+    match.Submit(MoveCommand(2U, {0.0F, 0.0F}));
+    match.Submit(MatchLifecycleCommand{
+        2U, ContenderExitReason::Disconnected});
+
+    match.Step();
+
+    EXPECT_EQ(before, ActorById(match.Snapshot(), 2U).position);
+    const std::vector<MatchEvent> events = match.DrainEvents();
+    EXPECT_EQ(1U, events.size());
+    EXPECT_EQ(MatchEventType::ActorDisconnected, events.front().type);
+    EXPECT_EQ(2U, events.front().actor);
+}
+
+TEST(OfflineMatch, TwoDisconnectsLeaveOneSurvivorAndFinishMatch)
+{
+    OfflineMatch match = StartedCloseCombatMatch(3U);
+    match.Submit(MatchLifecycleCommand{
+        2U, ContenderExitReason::Disconnected});
+    match.Submit(MatchLifecycleCommand{
+        1U, ContenderExitReason::Disconnected});
+
+    match.Step();
+
+    const MatchSnapshot snapshot = match.Snapshot();
+    ASSERT_TRUE(snapshot.result.has_value());
+    EXPECT_EQ(MatchPhase::Finished, snapshot.phase);
+    EXPECT_EQ(1U, snapshot.aliveContenders);
+    EXPECT_EQ(0U, snapshot.result->winner);
+    EXPECT_EQ(1U, snapshot.result->finishedTick);
+    const std::vector<MatchEvent> events = match.DrainEvents();
+    std::vector<ActorId> disconnected;
+    for (const MatchEvent& event : events)
+    {
+        if (event.type == MatchEventType::ActorDisconnected)
+        {
+            disconnected.push_back(event.actor);
+        }
+    }
+    EXPECT_EQ((std::vector<ActorId>{1U, 2U}), disconnected);
+    EXPECT_EQ(1U, static_cast<std::size_t>(std::count_if(
+        events.begin(),
+        events.end(),
+        [](const MatchEvent& event) {
+            return event.type == MatchEventType::MatchFinished
+                && event.actor == 0U;
+        })));
+    EXPECT_THROW(
+        match.Submit(MatchLifecycleCommand{
+            0U, ContenderExitReason::Disconnected}),
+        std::logic_error);
 }
 
 TEST(OfflineMatch, OwnsTemporaryNavMeshForSpawnAndAgents)
