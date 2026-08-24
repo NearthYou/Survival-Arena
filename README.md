@@ -2,7 +2,9 @@
 
 C++20과 DirectX 11로 만드는 쿼터뷰 생존 아레나 포트폴리오다. 렌더링 엔진과 게임 클라이언트를 중심에 두고, 24인 방과 권위형 게임 서버를 같은 저장소에서 검증한다.
 
-현재 단계는 7주차 오프라인 경기 루프까지 구현된 상태다. 플랫폼 중립 30Hz simulation에서 참가자 24명과 중립 AI 100마리가 256×256 arena를 이동하고, loot 60개에서 무기와 회복 아이템을 얻어 전투한다. Blade, Rifle, ArcPulse, 4단계 축소 구역, 사망과 최후 생존자 판정을 연결했다. canonical seed `20260823`의 공식 Release 경기는 tick 16,147, 약 8분 58초에 winner 2로 끝났고 repeat mismatch는 0건이었다. 로비, 방, 실제 client-server 통신은 아직 구현하지 않았다. 진행 상태와 검증 결과는 [프로젝트 계획](docs/PROJECT_PLAN.md)과 `docs/devlog/`에 남긴다.
+현재 단계는 8주차 로비와 방 흐름까지 구현된 상태다. 플랫폼 중립 30Hz simulation의 오프라인 경기 위에 Boost.Asio TCP 로비를 추가했다. 콘솔 client 1개와 같은 `LobbyClient`를 사용하는 bot 23개가 방 생성, 입장, 준비, 게임 시작, 참가자별 ticket 수신까지 실제 loopback socket으로 진행한다. 새 server process에서 RoomId 1을 만들고 24명 전원 ready, InMatch, CLI ticket 알림 1건과 bot ticket 23건, 두 client 실행 파일의 exit code 0을 확인했다. server가 이미 listen 중인 상태에서 CLI 시작부터 종료까지 걸린 로컬 측정값은 359ms였다. ticket byte는 출력하거나 측정 기록에 저장하지 않았다.
+
+이번 로비 server의 static worker endpoint는 protocol 흐름을 검증하기 위한 값일 뿐 실제 game server가 실행 중이라는 뜻이 아니다. UDP 입력, 30Hz 권위형 network simulation, snapshot, 예측과 재조정은 9주차 범위다. 진행 상태와 검증 결과는 [프로젝트 계획](docs/PROJECT_PLAN.md)과 `docs/devlog/`에 남긴다.
 
 ## 원칙
 
@@ -22,6 +24,39 @@ C++20과 DirectX 11로 만드는 쿼터뷰 생존 아레나 포트폴리오다. 
 ```
 
 Linux 서버 빌드는 이후 마일스톤에서 Docker와 CI로 함께 검증한다.
+
+## 로비와 23봇 실행
+
+첫 번째 터미널에서 로비 server를 실행한다. `--worker-*` 값은 9주차 game server를 대신하는 검증용 endpoint다.
+
+```powershell
+./out/build/windows-msvc-vs-debug/apps/lobby_server/Debug/dxa_lobby_server.exe `
+  --bind 127.0.0.1 `
+  --port 7000 `
+  --worker-host 127.0.0.1 `
+  --worker-tcp-port 7100 `
+  --worker-udp-port 7101
+```
+
+두 번째 터미널에서 콘솔 client를 실행하고 `create`를 입력한다. 새 server라면 RoomId 1이 나온다.
+
+```powershell
+./out/build/windows-msvc-vs-debug/apps/lobby_cli/Debug/dxa_lobby_cli.exe `
+  --host 127.0.0.1 `
+  --port 7000
+```
+
+세 번째 터미널에서 bot 23개를 같은 방에 넣는다.
+
+```powershell
+./out/build/windows-msvc-vs-debug/apps/bot_client/Debug/dxa_bot_client.exe `
+  --host 127.0.0.1 `
+  --port 7000 `
+  --room 1 `
+  --count 23
+```
+
+CLI snapshot에서 24명 전원이 ready인지 확인한 다음 `ready on`, `start`를 입력한다. 성공하면 CLI는 ticket 수신 사실과 MatchId, endpoint만 표시하고 비밀 ticket 값은 표시하지 않는다. bot 실행은 `bot tickets received: 23/23`을 출력하고 exit code 0으로 끝난다.
 
 렌더 경로만 짧게 확인하려면 다음 명령을 사용한다.
 
@@ -86,7 +121,7 @@ NavMesh 이동 수직 기능은 별도 데모에서 확인한다. 창을 띄운 
   -HybridRun docs/benchmarks/hybrid-deferred/20260823-145749-54a54e5c-seed20260823
 ```
 
-첫 프레임에서 확인한 실패와 경계는 [첫 DX11 프레임 기록](docs/devlog/2026-08-22-first-dx11-frame.md)에, 에셋 파이프라인에서 확인한 문제는 [에셋 파이프라인 기록](docs/devlog/2026-08-23-asset-pipeline.md)에 적었다. GPU query 302개 누락 과정은 [포워드 기준선 기록](docs/devlog/2026-08-23-forward-baseline.md)에, 2,240 draw를 줄인 과정은 [하이브리드 디퍼드 기록](docs/devlog/2026-08-23-hybrid-deferred.md)에 남겼다. 전수 탐색과 가속 구조를 같은 결과로 맞춘 과정은 [공간 탐색과 AI 기록](docs/devlog/2026-08-23-spatial-navigation-ai.md)에 정리했다. 3초 만에 끝난 첫 경기를 규칙 수치 조작 없이 재설계한 과정과 측정 경계는 [오프라인 경기 기록](docs/devlog/2026-08-24-offline-match-loop.md)과 [공식 Release 원본](docs/benchmarks/offline-match/20260824-023134-1ede6a23-seed20260823/RESULT.md)에서 확인할 수 있다.
+첫 프레임에서 확인한 실패와 경계는 [첫 DX11 프레임 기록](docs/devlog/2026-08-22-first-dx11-frame.md)에, 에셋 파이프라인에서 확인한 문제는 [에셋 파이프라인 기록](docs/devlog/2026-08-23-asset-pipeline.md)에 적었다. GPU query 302개 누락 과정은 [포워드 기준선 기록](docs/devlog/2026-08-23-forward-baseline.md)에, 2,240 draw를 줄인 과정은 [하이브리드 디퍼드 기록](docs/devlog/2026-08-23-hybrid-deferred.md)에 남겼다. 전수 탐색과 가속 구조를 같은 결과로 맞춘 과정은 [공간 탐색과 AI 기록](docs/devlog/2026-08-23-spatial-navigation-ai.md)에 정리했다. 3초 만에 끝난 첫 경기를 규칙 수치 조작 없이 재설계한 과정과 측정 경계는 [오프라인 경기 기록](docs/devlog/2026-08-24-offline-match-loop.md)과 [공식 Release 원본](docs/benchmarks/offline-match/20260824-023134-1ede6a23-seed20260823/RESULT.md)에서 확인할 수 있다. 로비 domain, TCP session, 24인 실제 socket 검증 과정은 [로비와 방 기록](docs/devlog/2026-08-24-lobby-room-flow.md)과 [ADR 0006](docs/adr/0006-lobby-domain-and-tcp-adapter.md)에 남겼다.
 
 ## 라이선스
 

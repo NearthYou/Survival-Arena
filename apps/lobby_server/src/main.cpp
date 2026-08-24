@@ -1,0 +1,80 @@
+#include <dxa/lobby/LobbyServerOptions.hpp>
+#include <dxa/lobby/LobbyTcpServer.hpp>
+#include <dxa/lobby/MatchTicketRegistry.hpp>
+
+#include <boost/asio.hpp>
+
+#include <spdlog/spdlog.h>
+
+#include <algorithm>
+#include <csignal>
+#include <cstddef>
+#include <exception>
+#include <iostream>
+#include <memory>
+#include <string_view>
+#include <vector>
+
+int main(const int argc, const char* const* const argv)
+{
+    try
+    {
+        std::vector<std::string_view> arguments;
+        arguments.reserve(static_cast<std::size_t>(std::max(0, argc - 1)));
+        for (int index = 1; index < argc; ++index)
+        {
+            arguments.emplace_back(argv[index]);
+        }
+
+        const auto parsed = dxa::lobby::ParseLobbyServerOptions(arguments);
+        if (!parsed.options.has_value())
+        {
+            std::cerr << parsed.error << '\n';
+            return 2;
+        }
+
+        std::unique_ptr<dxa::lobby::IGameWorkerAllocator> allocator;
+        if (parsed.options->worker.has_value())
+        {
+            allocator = std::make_unique<dxa::lobby::StaticGameWorkerAllocator>(
+                *parsed.options->worker);
+        }
+        else
+        {
+            allocator =
+                std::make_unique<dxa::lobby::UnavailableGameWorkerAllocator>();
+        }
+
+        boost::asio::io_context io;
+        dxa::lobby::SecureTicketSource ticketSource;
+        dxa::lobby::MatchTicketRegistry tickets{ticketSource};
+        dxa::lobby::LobbyService service{*allocator, tickets};
+        dxa::lobby::LobbyTcpServer server{
+            io,
+            service,
+            boost::asio::ip::tcp::endpoint{
+                boost::asio::ip::make_address(parsed.options->bindAddress),
+                parsed.options->port}};
+        boost::asio::signal_set signals{io, SIGINT, SIGTERM};
+        signals.async_wait(
+            [&server](const boost::system::error_code error, const int) {
+                if (!error)
+                {
+                    server.Stop();
+                }
+            });
+
+        server.Start();
+        spdlog::info(
+            "lobby_server_listening address={} port={}",
+            parsed.options->bindAddress,
+            server.LocalPort());
+        io.run();
+        return 0;
+    }
+    catch (const std::exception& error)
+    {
+        spdlog::error("lobby server failed: {}", error.what());
+        return 1;
+    }
+}
