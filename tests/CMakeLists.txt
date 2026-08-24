@@ -3,6 +3,7 @@ find_package(GTest CONFIG REQUIRED)
 add_executable(
     dxa_tests
     client_options_test.cpp
+    bot_client_options_test.cpp
     engine_benchmark_report_test.cpp
     engine_gpu_pass_timing_test.cpp
     engine_perspective_frustum_test.cpp
@@ -34,6 +35,8 @@ add_executable(
     protocol_asio_framed_connection_test.cpp
     protocol_lobby_message_codec_test.cpp
     lobby_room_test.cpp
+    lobby_cli_command_test.cpp
+    lobby_cli_output_test.cpp
     lobby_server_options_test.cpp
     lobby_service_test.cpp
     lobby_tcp_integration_test.cpp
@@ -43,9 +46,11 @@ target_link_libraries(
     dxa_tests
     PRIVATE
         GTest::gtest_main
+        dxa_bot_client_options
         dxa_client_options
         dxa_engine_core
         dxa_lobby_client
+        dxa_lobby_cli_support
         dxa_lobby_core
         dxa_lobby_server_lib
         dxa_offline_match_benchmark_options
