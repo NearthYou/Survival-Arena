@@ -29,6 +29,8 @@ add_executable(
     simulation_benchmark_options_test.cpp
     simulation_spatial_index_test.cpp
     foundation_test.cpp
+    game_participant_roster_test.cpp
+    game_ticket_store_test.cpp
     offline_match_benchmark_options_test.cpp
     protocol_ids_test.cpp
     protocol_game_types_test.cpp
@@ -57,6 +59,7 @@ target_link_libraries(
         dxa_bot_client_options
         dxa_client_options
         dxa_engine_core
+        dxa_game_server_core
         dxa_lobby_client
         dxa_lobby_cli_support
         dxa_lobby_core

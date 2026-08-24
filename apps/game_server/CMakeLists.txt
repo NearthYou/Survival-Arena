@@ -1,0 +1,17 @@
+add_library(
+    dxa_game_server_core
+    STATIC
+        src/GameTicketStore.cpp
+        src/ParticipantRoster.cpp
+)
+target_include_directories(
+    dxa_game_server_core
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+target_link_libraries(
+    dxa_game_server_core
+    PUBLIC
+        dxa_protocol
+)
+dxa_enable_project_warnings(dxa_game_server_core)
