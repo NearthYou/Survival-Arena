@@ -30,8 +30,8 @@ struct ParticipantSlot
     dxa::protocol::PlayerId player;
     dxa::protocol::EntityId actor;
     ParticipantSlotState state = ParticipantSlotState::Pending;
-    std::optional<GameConnectionId> connection;
-    std::optional<dxa::protocol::UdpSessionToken> udpToken;
+    std::optional<GameConnectionId> connection{};
+    std::optional<dxa::protocol::UdpSessionToken> udpToken{};
 };
 
 class ParticipantRoster

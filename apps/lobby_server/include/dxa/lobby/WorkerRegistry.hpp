@@ -97,8 +97,8 @@ private:
         WorkerConnectionId connection;
         dxa::protocol::WorkerRegister registration;
         WorkerState state = WorkerState::Idle;
-        std::optional<dxa::protocol::ReservationId> reservation;
-        std::optional<dxa::protocol::MatchId> match;
+        std::optional<dxa::protocol::ReservationId> reservation{};
+        std::optional<dxa::protocol::MatchId> match{};
     };
 
     [[nodiscard]] WorkerRegistryResult CloseForProtocolViolation(

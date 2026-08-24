@@ -104,9 +104,9 @@ struct AuthoritativeMatch::Impl
     {
         GameConnectionId connection;
         dxa::protocol::UdpSessionToken token;
-        std::optional<UdpPeer> peer;
+        std::optional<UdpPeer> peer{};
         std::uint32_t acknowledgedInput = 0U;
-        std::optional<dxa::simulation::MatchCommand> persistentCommand;
+        std::optional<dxa::simulation::MatchCommand> persistentCommand{};
         bool connected = true;
     };
 
