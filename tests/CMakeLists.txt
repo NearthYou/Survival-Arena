@@ -33,6 +33,7 @@ add_executable(
     game_fixed_tick_scheduler_test.cpp
     game_participant_roster_test.cpp
     game_server_adapter_test.cpp
+    game_server_integration_test.cpp
     game_server_options_test.cpp
     game_ticket_store_test.cpp
     offline_match_benchmark_options_test.cpp
