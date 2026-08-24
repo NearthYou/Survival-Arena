@@ -2,6 +2,7 @@ add_library(
     dxa_protocol
     STATIC
         src/ByteCodec.cpp
+        src/LobbyMessageCodec.cpp
         src/TcpFrame.cpp
 )
 target_include_directories(
