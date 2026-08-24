@@ -32,6 +32,7 @@ add_executable(
     protocol_byte_codec_test.cpp
     protocol_tcp_frame_test.cpp
     protocol_lobby_message_codec_test.cpp
+    lobby_room_test.cpp
 )
 target_link_libraries(
     dxa_tests
@@ -39,6 +40,7 @@ target_link_libraries(
         GTest::gtest_main
         dxa_client_options
         dxa_engine_core
+        dxa_lobby_core
         dxa_offline_match_benchmark_options
         dxa_protocol
         dxa_simulation
