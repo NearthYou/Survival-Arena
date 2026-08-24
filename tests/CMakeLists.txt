@@ -28,6 +28,7 @@ add_executable(
     simulation_spatial_index_test.cpp
     foundation_test.cpp
     offline_match_benchmark_options_test.cpp
+    protocol_ids_test.cpp
 )
 target_link_libraries(
     dxa_tests
@@ -36,6 +37,7 @@ target_link_libraries(
         dxa_client_options
         dxa_engine_core
         dxa_offline_match_benchmark_options
+        dxa_protocol
         dxa_simulation
         dxa_simulation_benchmark_options
 )

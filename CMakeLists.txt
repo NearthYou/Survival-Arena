@@ -23,6 +23,7 @@ if(DXA_BUILD_TESTS)
     enable_testing()
 endif()
 
+add_subdirectory(protocol)
 add_subdirectory(simulation)
 add_subdirectory(engine)
 add_subdirectory(apps/client)
