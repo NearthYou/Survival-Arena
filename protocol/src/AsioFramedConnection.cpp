@@ -59,7 +59,7 @@ bool AsioFramedConnection::Send(const EncodedMessage& message)
 {
     const auto keepAlive = shared_from_this();
     static_cast<void>(keepAlive);
-    if (closed_)
+    if (closed_ || closeAfterFlush_)
     {
         return false;
     }
@@ -95,6 +95,21 @@ void AsioFramedConnection::Close()
     const auto keepAlive = shared_from_this();
     static_cast<void>(keepAlive);
     FinishClose(boost::asio::error::operation_aborted);
+}
+
+void AsioFramedConnection::CloseAfterFlush()
+{
+    const auto keepAlive = shared_from_this();
+    static_cast<void>(keepAlive);
+    if (closed_ || closeAfterFlush_)
+    {
+        return;
+    }
+    closeAfterFlush_ = true;
+    if (!writeInProgress_ && writeQueue_.empty())
+    {
+        FinishClose(boost::asio::error::operation_aborted);
+    }
 }
 
 boost::asio::ip::tcp::socket& AsioFramedConnection::Socket() noexcept
@@ -183,6 +198,10 @@ void AsioFramedConnection::WriteNext()
     if (closed_ || writeQueue_.empty())
     {
         writeInProgress_ = false;
+        if (!closed_ && closeAfterFlush_)
+        {
+            FinishClose(boost::asio::error::operation_aborted);
+        }
         return;
     }
 
@@ -228,6 +247,7 @@ void AsioFramedConnection::FinishClose(
     socket_.close(ignored);
     pendingWriteBytes_ = 0U;
     writeInProgress_ = false;
+    closeAfterFlush_ = false;
 
     CloseHandler closeHandler = std::move(onClose_);
     if (closeHandler)
