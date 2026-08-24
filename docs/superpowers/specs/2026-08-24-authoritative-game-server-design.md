@@ -77,7 +77,7 @@ tests/
 
 `LobbyService`의 외부 interface는 client event, disconnect와 worker event를 받아 `LobbyServiceResult`를 돌려주는 데 집중한다. reservation 선택, timeout과 TCP write는 worker control adapter 안에 숨긴다. 8주차의 동기 allocator 위에 비동기 wrapper를 한 겹 더 올리지 않는다.
 
-worker event는 `Registered`, `ReservationReady`, `ReservationRejected`, `ReservationCancelled`, `MatchFinished`, `WorkerDisconnected` variant로 service에 들어간다. service가 내보내는 `LobbyRuntimeAction`은 `ReserveMatch`, `CancelReservation`, `CloseWorker` variant다. pure unit test는 같은 event와 action seam을 사용하고 내부 map을 직접 검사하지 않는다. production adapter는 action을 framed TCP로 바꾸며 loopback test는 실제 adapter를 사용한다.
+`LobbyService`에 들어가는 worker event는 `ReservationReady`, `ReservationFailed`, `MatchFinished`, `MatchUnavailable` variant다. service가 내보내는 `LobbyRuntimeAction`은 `ReserveMatch`, `CancelReservation` variant다. register, cancel ACK와 connection close는 `WorkerRegistry`가 내부 상태로 처리하고 필요한 domain event만 service에 전달한다. pure unit test는 같은 event와 action seam을 사용하고 내부 map을 직접 검사하지 않는다. production adapter는 action을 framed TCP로 바꾸며 loopback test는 실제 adapter를 사용한다.
 
 `dxa_game_server_core`의 match module은 reservation 하나를 받아 authentication, datagram, disconnect와 clock advance event를 처리하고 outbound TCP, UDP와 worker control action을 반환한다. socket callback마다 simulation map을 직접 수정하지 않는다. clock과 보안 난수 source만 생성자에서 받으며 protocol codec, NavMesh 검증, ticket consume와 fixed tick ordering은 module 안에 둔다.
 
@@ -183,7 +183,7 @@ struct LobbyServiceResult
 2. lobby가 Room을 Starting으로 바꾸고 참가자 전체에 Starting snapshot을 보낸다.
 3. lobby가 MatchId, ReservationId와 참가자별 서로 다른 ticket을 만든다.
 4. `WorkerRegistry`가 가장 작은 Idle worker를 Reserved로 바꾸고 `ReserveMatch`를 보낸다.
-5. game server가 participant와 ticket 경계를 검증하고 `OfflineMatch`를 생성한다.
+5. game server가 participant와 ticket 경계를 검증하고 `OfflineMatch`를 생성한 뒤 `Start`로 spawn을 검증한다.
 6. game server가 ticket을 pending store에 넣은 뒤 `ReserveMatchReady`를 보낸다.
 7. lobby가 같은 ReservationId의 ready를 받으면 room을 InMatch로 바꾸고 worker를 Active로 바꾼다.
 8. lobby가 InMatch snapshot과 참가자별 `MatchTicket`을 보낸다.
@@ -234,7 +234,7 @@ worker control과 game TCP는 message variant와 codec을 분리한다. 잘못�
 
 `ReserveMatchRejected`의 공개 이유는 `Busy = 1`, `InvalidReservation = 2`, `SimulationInitializationFailed = 3`, `InternalError = 4`로 고정한다. 어떤 이유든 lobby participant에게는 기존 `WorkerUnavailable`만 전달한다.
 
-`MatchFinished`는 MatchId, optional winner ActorId, 종료 이유와 finished tick을 보낸다. 종료 이유는 `LastSurvivor`, `TimeLimit`, `NoAuthenticatedPlayers` 중 하나다. lobby는 Active worker를 Idle로 돌리고 InMatch room을 삭제하며 participant의 room index를 지운다. 연결이 남은 participant에게 최신 room list를 push한다.
+`MatchFinished`는 MatchId, optional winner ActorId, 종료 이유와 finished tick을 보낸다. 종료 이유는 `LastSurvivor`, `TimeLimit`, `NoAuthenticatedPlayers`, `NoConnectedPlayers` 중 하나다. lobby는 Active worker를 Idle로 돌리고 InMatch room을 삭제하며 participant의 room index를 지운다. 연결이 남은 participant에게 최신 room list를 push한다.
 
 Active worker가 끊긴 경우 lobby는 room을 삭제하고 연결이 남은 participant에게 새 `MatchUnavailable` error와 room list를 보낸다. game TCP 연결 종료에 따른 한 참가자의 탈락과 worker process 전체 disconnect를 구분한다.
 
@@ -286,18 +286,20 @@ UDP token은 game TCP 인증 성공 후 새로 생성한다. match ticket을 UDP
 
 경기가 끝나면 연결된 client에게 `GameMatchResult`를 보낸 뒤 session write queue를 비우고 닫는다. reconnect와 session resume은 v1에서 제공하지 않는다.
 
+경기 시작 후 인증된 game TCP가 모두 끊기면 `OfflineMatch`에 마지막 contender의 disconnect command를 제출하지 않는다. worker는 optional winner 없이 `NoConnectedPlayers`로 match를 종료하고 lobby에 `MatchFinished`를 보낸다. 연결이 하나 이상 남아 있을 때만 끊긴 contender를 simulation에서 탈락시켜 가짜 생존자를 만들지 않는다.
+
 ### simulation 시작 gate
 
-`ReserveMatchReady`는 simulation 초기화와 ticket store 준비가 끝났다는 뜻이며 경기 시작 신호가 아니다. game server는 participant마다 `Pending`, `Authenticated`, `Unavailable` slot 상태를 유지한다.
+`ReserveMatchReady`는 `OfflineMatch::Start`가 spawn을 성공시키고 ticket store 준비까지 끝났다는 뜻이며, 30Hz 실행 시작 신호가 아니다. `Start` 직후에는 timer와 `Step`을 실행하지 않으므로 중립 AI와 zone도 진행되지 않는다. game server는 participant마다 `Pending`, `Authenticated`, `Unavailable` slot 상태를 유지한다.
 
 - ticket 인증 성공 시 `Authenticated`
 - ticket 만료 시 `Unavailable`
 - 인증 후 game TCP가 시작 전에 끊기면 `Unavailable`
 - 소비된 ticket은 다시 `Pending`으로 돌아가지 않음
 
-모든 slot이 `Authenticated` 또는 `Unavailable`로 확정될 때까지 `OfflineMatch::Start`와 30Hz timer를 실행하지 않는다. 전원이 인증되면 즉시 시작한다. 일부 ticket이 만료되면 남은 slot이 확정되는 순간 시작하고, Unavailable contender의 lifecycle command를 첫 tick 전에 제출한다.
+모든 slot이 `Authenticated` 또는 `Unavailable`로 확정될 때까지 30Hz timer와 `OfflineMatch::Step`을 실행하지 않는다. 전원이 인증되면 즉시 실행을 시작한다. 일부 ticket이 만료되면 남은 slot이 확정되는 순간 실행을 시작하고, Unavailable contender의 lifecycle command를 첫 tick 전에 제출한다.
 
-Authenticated slot이 하나 이상일 때만 simulation을 시작한다. 전원이 Unavailable이면 simulation을 시작하지 않고 `NoAuthenticatedPlayers`로 `MatchFinished`를 lobby에 보낸다. 이 gate 때문에 ticket을 받지 못한 participant가 경기 시작 전에 중립 AI에게 공격받거나 match가 영구 대기하는 경로가 없다.
+Authenticated slot이 하나 이상일 때만 simulation tick을 시작한다. 전원이 Unavailable이면 `Step`을 실행하지 않고 `NoAuthenticatedPlayers`로 `MatchFinished`를 lobby에 보낸다. 이 gate 때문에 ticket을 받지 못한 participant가 경기 시작 전에 중립 AI에게 공격받거나 match가 영구 대기하는 경로가 없다.
 
 ## simulation 연결
 
@@ -602,6 +604,7 @@ log에 허용하는 값은 WorkerId, ReservationId, MatchId, PlayerId, ActorId, 
 - semantic invalid input도 ACK sequence 전진
 - NaN, infinity, NavMesh 밖과 path 없는 destination 거부
 - game TCP disconnect와 ticket expiry contender 탈락
+- game TCP 전원 disconnect 시 NoConnectedPlayers 종료
 - 30Hz tick, 15Hz snapshot과 최대 5 catch-up
 - overrun counter와 timer rebase
 - match result의 game TCP와 worker control 전달
