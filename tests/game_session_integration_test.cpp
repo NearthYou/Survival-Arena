@@ -648,6 +648,24 @@ TEST(GameSession, PublishesLocalDeathWithoutDroppingConnection)
     EXPECT_FALSE(scene.localAlive);
 }
 
+TEST(GameSession, FinishedStateSurvivesQueuedInitialSnapshot)
+{
+    FakeGameServer server;
+    GameSession session{dxa::simulation::BuildSurvivalArenaNavMesh()};
+    session.Start(server.StartFor());
+    server.AcceptHelloAndWelcome();
+    server.AcceptUdpBind();
+    server.SendSnapshot(1U, 2U, 0U);
+    WaitUntil([&] { return session.SnapshotCount() == 1U; });
+    server.SendResult();
+    WaitUntil([&] { return session.State() == GameSessionState::Finished; });
+
+    session.FixedUpdate();
+
+    EXPECT_EQ(GameSessionState::Finished, session.State());
+    EXPECT_TRUE(session.Result().has_value());
+}
+
 TEST(GameSession, KeepsTicketAndUdpTokenOutOfCapturedOutput)
 {
     testing::internal::CaptureStdout();

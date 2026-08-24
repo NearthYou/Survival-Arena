@@ -391,6 +391,13 @@ struct GameSession::Impl
 
     void FixedUpdate()
     {
+        const GameSessionState entryState = state.load();
+        if (entryState == GameSessionState::Finished
+            || entryState == GameSessionState::ProtocolError
+            || entryState == GameSessionState::Closed)
+        {
+            return;
+        }
         std::vector<ReassembledSnapshot> pending;
         {
             std::scoped_lock lock{snapshotMutex};
@@ -428,8 +435,18 @@ struct GameSession::Impl
                             local->position.z},
                         config.contenderSpeed,
                         0.1F);
-                    state.store(GameSessionState::Running);
-                    becameRunning = true;
+                    GameSessionState expected =
+                        GameSessionState::Synchronizing;
+                    if (state.compare_exchange_strong(
+                            expected,
+                            GameSessionState::Running))
+                    {
+                        becameRunning = true;
+                    }
+                    else if (expected != GameSessionState::Running)
+                    {
+                        return;
+                    }
                 }
                 predictor->Reconcile(
                     {local->position.x, local->position.z},
