@@ -168,7 +168,7 @@ void LobbyClient::Receive(
     const dxa::protocol::MessageType type,
     std::vector<std::byte> payload)
 {
-    const auto decoded = dxa::protocol::DecodeServerMessage(type, payload);
+    auto decoded = dxa::protocol::DecodeServerMessage(type, payload);
     if (!decoded.message.has_value())
     {
         NotifyClosed(boost::asio::error::invalid_argument);
