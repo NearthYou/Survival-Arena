@@ -331,8 +331,13 @@ struct GameSession::Impl
         {
             return;
         }
-        const auto completed = reassembler.Push(
-            std::get<dxa::protocol::SnapshotFragment>(datagram));
+        const auto& fragment =
+            std::get<dxa::protocol::SnapshotFragment>(datagram);
+        if (fragment.match != start.ticket.match)
+        {
+            return;
+        }
+        const auto completed = reassembler.Push(fragment);
         if (!completed.has_value())
         {
             return;

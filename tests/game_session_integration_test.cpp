@@ -226,7 +226,8 @@ public:
         const float localX = 10.0F,
         const float remoteX = 20.0F,
         const bool wrongSource = false,
-        const bool localAlive = true)
+        const bool localAlive = true,
+        const MatchId match = MatchId{7U})
     {
         GameSnapshot snapshot;
         snapshot.aliveContenders = localAlive ? 2U : 1U;
@@ -252,7 +253,7 @@ public:
                 0U,
                 0U}};
         const auto fragments = dxa::protocol::FragmentSnapshot(
-            MatchId{7U},
+            match,
             snapshotId,
             serverTick,
             ack,
@@ -664,6 +665,28 @@ TEST(GameSession, FinishedStateSurvivesQueuedInitialSnapshot)
 
     EXPECT_EQ(GameSessionState::Finished, session.State());
     EXPECT_TRUE(session.Result().has_value());
+}
+
+TEST(GameSession, RejectsSnapshotFromAnotherMatch)
+{
+    FakeGameServer server;
+    GameSession session{dxa::simulation::BuildSurvivalArenaNavMesh()};
+    session.Start(server.StartFor());
+    server.AcceptHelloAndWelcome();
+    server.AcceptUdpBind();
+    server.SendSnapshot(
+        1U,
+        2U,
+        0U,
+        10.0F,
+        20.0F,
+        false,
+        true,
+        MatchId{8U});
+    std::this_thread::sleep_for(50ms);
+
+    EXPECT_EQ(0U, session.SnapshotCount());
+    EXPECT_EQ(GameSessionState::Synchronizing, session.State());
 }
 
 TEST(GameSession, KeepsTicketAndUdpTokenOutOfCapturedOutput)
