@@ -1,0 +1,19 @@
+add_library(
+    dxa_game_client
+    STATIC
+        src/ClientPredictor.cpp
+        src/RemoteInterpolator.cpp
+        src/SnapshotReassembler.cpp
+)
+target_include_directories(
+    dxa_game_client
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+target_link_libraries(
+    dxa_game_client
+    PUBLIC
+        dxa_protocol
+        dxa_simulation
+)
+dxa_enable_project_warnings(dxa_game_client)
