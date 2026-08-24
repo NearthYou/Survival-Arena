@@ -104,7 +104,6 @@ if(WIN32)
             dxa_asset_importer
             dxa_asset_tool_options
             dxa_engine
-            dxa_navigation_demo_core
             dxa_texture_cooker
     )
     target_compile_definitions(

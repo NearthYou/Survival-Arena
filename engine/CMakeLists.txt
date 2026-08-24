@@ -48,6 +48,7 @@ if(WIN32)
             src/windows/AssetSceneRenderer.cpp
             src/windows/EngineApp.cpp
             src/windows/ForwardRenderer.cpp
+            src/windows/GroundPlanePicking.cpp
             src/windows/GpuFrameTimer.cpp
             src/windows/GpuSceneModel.cpp
             src/windows/GraphicsDevice.cpp

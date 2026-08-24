@@ -1,10 +1,10 @@
 #include <dxa/engine/FrameClock.hpp>
+#include <dxa/engine/GroundPlanePicking.hpp>
 #include <dxa/engine/GraphicsDevice.hpp>
 #include <dxa/engine/HybridDeferredRenderer.hpp>
 #include <dxa/engine/InputState.hpp>
 #include <dxa/engine/Window.hpp>
 #include <dxa/engine/benchmark/StressScene.hpp>
-#include <dxa/navigation_demo/GroundPicking.hpp>
 #include <dxa/simulation/ArenaMap.hpp>
 #include <dxa/simulation/Combat.hpp>
 #include <dxa/simulation/MatchConfig.hpp>
@@ -512,18 +512,24 @@ int RunVisibleMatch(
 
         if (active && input.WasRightPointerPressed())
         {
-            const auto destination = dxa::navigation_demo::PointerGroundDestination(
+            const auto ground = dxa::engine::PointerGroundDestination(
                 input.Pointer(),
                 width,
                 height,
                 dxa::engine::benchmark::SampleStressCamera(timing.frameIndex));
-            if (destination.has_value()
-                && navMesh.FindContainingTriangleGrid(*destination).triangle.has_value())
+            if (ground.has_value())
             {
-                dxa::simulation::MatchCommand command;
-                command.actor = 0U;
-                command.moveDestination = *destination;
-                match.Submit(command);
+                const dxa::simulation::Vec2 destination{
+                    ground->x,
+                    ground->z};
+                if (navMesh.FindContainingTriangleGrid(destination)
+                        .triangle.has_value())
+                {
+                    dxa::simulation::MatchCommand command;
+                    command.actor = 0U;
+                    command.moveDestination = destination;
+                    match.Submit(command);
+                }
             }
         }
 

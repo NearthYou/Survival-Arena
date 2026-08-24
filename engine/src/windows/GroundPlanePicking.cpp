@@ -1,16 +1,17 @@
-#include <dxa/navigation_demo/GroundPicking.hpp>
+#include <dxa/engine/GroundPlanePicking.hpp>
 
 #include <DirectXMath.h>
 
 #include <cmath>
+#include <cstdint>
 #include <stdexcept>
 
-namespace dxa::navigation_demo
+namespace dxa::engine
 {
 namespace
 {
 [[nodiscard]] bool IsFinite(
-    const dxa::engine::benchmark::SceneVector3 value) noexcept
+    const benchmark::SceneVector3 value) noexcept
 {
     return std::isfinite(value.x)
         && std::isfinite(value.y)
@@ -18,19 +19,28 @@ namespace
 }
 } // namespace
 
-std::optional<dxa::simulation::Vec2> PointerGroundDestination(
-    const dxa::engine::PointerPosition pointer,
+std::optional<benchmark::SceneVector3> PointerGroundDestination(
+    const PointerPosition pointer,
     const std::uint32_t width,
     const std::uint32_t height,
-    const dxa::engine::benchmark::StressCamera& camera)
+    const benchmark::StressCamera& camera)
 {
     using namespace DirectX;
-    if (width == 0
-        || height == 0
+    if (width == 0U
+        || height == 0U
         || !IsFinite(camera.eye)
         || !IsFinite(camera.target))
     {
-        throw std::invalid_argument{"ground picking requires a finite camera and viewport"};
+        throw std::invalid_argument{
+            "ground picking requires a finite camera and viewport"};
+    }
+    if (pointer.x < 0
+        || pointer.y < 0
+        || static_cast<std::uint32_t>(pointer.x) >= width
+        || static_cast<std::uint32_t>(pointer.y) >= height)
+    {
+        throw std::invalid_argument{
+            "ground picking pointer must be inside the viewport"};
     }
 
     const XMVECTOR eye = XMVectorSet(
@@ -46,10 +56,11 @@ std::optional<dxa::simulation::Vec2> PointerGroundDestination(
     const XMVECTOR up = XMVectorSet(0.0F, 1.0F, 0.0F, 0.0F);
     const XMVECTOR lookDirection = XMVectorSubtract(target, eye);
     if (XMVectorGetX(XMVector3LengthSq(lookDirection)) <= 1.0e-12F
-        || XMVectorGetX(XMVector3LengthSq(XMVector3Cross(lookDirection, up)))
-            <= 1.0e-12F)
+        || XMVectorGetX(XMVector3LengthSq(
+               XMVector3Cross(lookDirection, up))) <= 1.0e-12F)
     {
-        throw std::invalid_argument{"ground picking camera direction is degenerate"};
+        throw std::invalid_argument{
+            "ground picking camera direction is degenerate"};
     }
 
     const XMMATRIX view = XMMatrixLookAtLH(eye, target, up);
@@ -110,11 +121,12 @@ std::optional<dxa::simulation::Vec2> PointerGroundDestination(
     {
         return std::nullopt;
     }
-    const dxa::simulation::Vec2 destination{
+    const benchmark::SceneVector3 destination{
         nearPoint.x + direction.x * distance,
+        0.0F,
         nearPoint.z + direction.z * distance};
-    return dxa::simulation::IsFinite(destination)
-        ? std::optional<dxa::simulation::Vec2>{destination}
+    return IsFinite(destination)
+        ? std::optional<benchmark::SceneVector3>{destination}
         : std::nullopt;
 }
-} // namespace dxa::navigation_demo
+} // namespace dxa::engine

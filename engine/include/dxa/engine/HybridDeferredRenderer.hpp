@@ -2,8 +2,8 @@
 
 #include <dxa/engine/AssetSceneRenderer.hpp>
 #include <dxa/engine/RenderPass.hpp>
+#include <dxa/engine/RuntimeScene.hpp>
 #include <dxa/engine/assets/AssetFile.hpp>
-#include <dxa/engine/benchmark/StressScene.hpp>
 #include <dxa/engine/detail/GpuSceneModel.hpp>
 
 #include <d3d11.h>
@@ -27,14 +27,6 @@ struct HybridDeferredConfig
     std::uint32_t stressSceneSeed = 0;
     std::filesystem::path shaderRoot;
     std::filesystem::path assetRoot;
-};
-
-struct SceneCharacterState
-{
-    benchmark::SceneVector3 position;
-    bool active = true;
-
-    [[nodiscard]] bool operator==(const SceneCharacterState&) const = default;
 };
 
 using RenderPassCallback = std::function<void(RenderPass)>;
