@@ -29,6 +29,7 @@ add_executable(
     simulation_benchmark_options_test.cpp
     simulation_spatial_index_test.cpp
     foundation_test.cpp
+    game_fixed_tick_scheduler_test.cpp
     game_participant_roster_test.cpp
     game_ticket_store_test.cpp
     offline_match_benchmark_options_test.cpp

@@ -1,6 +1,7 @@
 add_library(
     dxa_game_server_core
     STATIC
+        src/FixedTickScheduler.cpp
         src/GameTicketStore.cpp
         src/ParticipantRoster.cpp
 )
