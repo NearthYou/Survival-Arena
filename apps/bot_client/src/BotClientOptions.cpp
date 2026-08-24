@@ -40,9 +40,20 @@ BotClientOptionsParseResult ParseBotClientOptions(
     bool sawPort = false;
     bool sawRoom = false;
     bool sawCount = false;
+    bool sawPlay = false;
     for (std::size_t index = 0; index < arguments.size(); ++index)
     {
         const std::string_view option = arguments[index];
+        if (option == "--play")
+        {
+            if (sawPlay)
+            {
+                return Failure("unknown or duplicate option: --play");
+            }
+            sawPlay = true;
+            options.play = true;
+            continue;
+        }
         if (index + 1U >= arguments.size())
         {
             return Failure("option requires a value: " + std::string{option});
@@ -98,6 +109,10 @@ BotClientOptionsParseResult ParseBotClientOptions(
     if (options.host.empty() || options.host.size() > 255U)
     {
         return Failure("host must contain 1 to 255 bytes");
+    }
+    if (options.play && options.count != 1U)
+    {
+        return Failure("--play requires --count 1");
     }
     return {std::move(options), {}};
 }

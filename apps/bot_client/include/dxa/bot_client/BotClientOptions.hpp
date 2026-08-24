@@ -16,6 +16,7 @@ struct BotClientOptions
     std::uint16_t port = 7000U;
     dxa::protocol::RoomId room;
     std::uint32_t count = 1U;
+    bool play = false;
 };
 
 struct BotClientOptionsParseResult

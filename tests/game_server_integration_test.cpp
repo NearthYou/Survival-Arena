@@ -1,9 +1,380 @@
 #include "support/game_network_fixture.hpp"
 
+#include <dxa/bot_client/BotCoordinator.hpp>
+#include <dxa/game_common/ArenaFingerprint.hpp>
+#include <dxa/protocol/AsioFramedConnection.hpp>
+#include <dxa/protocol/GameTcpMessageCodec.hpp>
+#include <dxa/protocol/GameUdpCodec.hpp>
+#include <dxa/protocol/LobbyMessageCodec.hpp>
+#include <dxa/simulation/ArenaMap.hpp>
+
 #include <gtest/gtest.h>
 
+#include <boost/asio.hpp>
+
+#include <algorithm>
+#include <array>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
+#include <memory>
+#include <optional>
+#include <span>
+#include <stdexcept>
+#include <utility>
+#include <variant>
+
+namespace
+{
+using namespace std::chrono_literals;
+using boost::asio::ip::tcp;
+using boost::asio::ip::udp;
+
+[[nodiscard]] dxa::simulation::MatchConfig BotPlayMatchConfig()
+{
+    dxa::simulation::MatchConfig config =
+        dxa::simulation::DefaultMatchConfig();
+    config.meleeNeutralCount = 0U;
+    config.rangedNeutralCount = 0U;
+    config.rifleLootCount = 0U;
+    config.arcPulseLootCount = 0U;
+    config.medKitLootCount = 0U;
+    return config;
+}
+
+[[nodiscard]] dxa::bot_client::BotClientOptions PlayOptions(
+    const std::uint16_t port,
+    const dxa::protocol::RoomId room)
+{
+    dxa::bot_client::BotClientOptions options;
+    options.port = port;
+    options.room = room;
+    options.play = true;
+    return options;
+}
+
+template <typename Condition>
+void RunIoUntil(
+    boost::asio::io_context& io,
+    Condition condition)
+{
+    bool timedOut = false;
+    boost::asio::steady_timer timer{io};
+    timer.expires_after(5s);
+    timer.async_wait([&timedOut](const boost::system::error_code error) {
+        if (!error)
+        {
+            timedOut = true;
+        }
+    });
+    io.restart();
+    while (!condition() && !timedOut)
+    {
+        if (io.run_one() == 0U)
+        {
+            break;
+        }
+    }
+    timer.cancel();
+    io.restart();
+    while (io.poll_one() != 0U)
+    {
+    }
+    if (!condition())
+    {
+        throw std::runtime_error{"bot coordinator test timed out"};
+    }
+}
+
+class SilentLobbyServer
+{
+public:
+    explicit SilentLobbyServer(boost::asio::io_context& io)
+        : acceptor_{
+              io,
+              tcp::endpoint{
+                  boost::asio::ip::make_address("127.0.0.1"),
+                  0U}}
+    {
+        acceptor_.async_accept(
+            [this](const boost::system::error_code error, tcp::socket socket) {
+                if (!error)
+                {
+                    socket_.emplace(std::move(socket));
+                }
+            });
+    }
+
+    [[nodiscard]] std::uint16_t Port() const
+    {
+        return acceptor_.local_endpoint().port();
+    }
+
+private:
+    tcp::acceptor acceptor_;
+    std::optional<tcp::socket> socket_;
+};
+
+enum class GameHandshakeResponse
+{
+    RejectAuthentication,
+    WelcomeWithoutUdpBind
+};
+
+class ScriptedBotServers
+{
+public:
+    ScriptedBotServers(
+        boost::asio::io_context& io,
+        const GameHandshakeResponse response)
+        : lobbyAcceptor_{
+              io,
+              tcp::endpoint{
+                  boost::asio::ip::make_address("127.0.0.1"),
+                  0U}},
+          gameAcceptor_{
+              io,
+              tcp::endpoint{
+                  boost::asio::ip::make_address("127.0.0.1"),
+                  0U}},
+          gameUdp_{
+              io,
+              udp::endpoint{
+                  boost::asio::ip::make_address("127.0.0.1"),
+                  0U}},
+          response_{response}
+    {
+        AcceptLobby();
+        AcceptGame();
+        ReceiveGameUdp();
+    }
+
+    ~ScriptedBotServers()
+    {
+        if (lobby_)
+        {
+            lobby_->Close();
+        }
+        if (game_)
+        {
+            game_->Close();
+        }
+        boost::system::error_code ignored;
+        lobbyAcceptor_.close(ignored);
+        gameAcceptor_.close(ignored);
+        gameUdp_.close(ignored);
+    }
+
+    [[nodiscard]] std::uint16_t LobbyPort() const
+    {
+        return lobbyAcceptor_.local_endpoint().port();
+    }
+
+    [[nodiscard]] bool GameHelloReceived() const noexcept
+    {
+        return gameHelloReceived_;
+    }
+
+    [[nodiscard]] bool UdpBindReceived() const noexcept
+    {
+        return udpBindReceived_;
+    }
+
+private:
+    void AcceptLobby()
+    {
+        lobbyAcceptor_.async_accept([this](
+            const boost::system::error_code error,
+            tcp::socket socket) {
+            if (error)
+            {
+                return;
+            }
+            lobby_ = dxa::protocol::AsioFramedConnection::Create(
+                std::move(socket),
+                [this](dxa::protocol::RawFrame frame) {
+                    HandleLobby(std::move(frame));
+                },
+                [](const boost::system::error_code) {});
+            lobby_->Start();
+        });
+    }
+
+    void HandleLobby(dxa::protocol::RawFrame frame)
+    {
+        const auto decoded = dxa::protocol::DecodeClientMessage(
+            frame.type,
+            frame.payload);
+        if (!decoded.message.has_value())
+        {
+            return;
+        }
+        if (const auto* hello = std::get_if<dxa::protocol::ClientHello>(
+                &*decoded.message))
+        {
+            SendLobby(dxa::protocol::ServerMessage{
+                dxa::protocol::ServerWelcome{
+                    hello->requestId,
+                    dxa::protocol::PlayerId{3U}}});
+            return;
+        }
+        if (const auto* join = std::get_if<dxa::protocol::JoinRoomRequest>(
+                &*decoded.message))
+        {
+            SendRoom(join->requestId, false);
+            return;
+        }
+        if (const auto* ready = std::get_if<dxa::protocol::SetReadyRequest>(
+                &*decoded.message);
+            ready != nullptr && ready->ready)
+        {
+            SendRoom(ready->requestId, true);
+            SendLobby(dxa::protocol::ServerMessage{
+                dxa::protocol::MatchTicket{
+                    ready->requestId,
+                    dxa::protocol::MatchId{8U},
+                    dxa::test::GameNetworkTicket(91U),
+                    "127.0.0.1",
+                    gameAcceptor_.local_endpoint().port(),
+                    gameUdp_.local_endpoint().port(),
+                    60U}});
+        }
+    }
+
+    void SendRoom(const std::uint32_t requestId, const bool ready)
+    {
+        SendLobby(dxa::protocol::ServerMessage{
+            dxa::protocol::RoomSnapshot{
+                requestId,
+                dxa::protocol::RoomId{1U},
+                dxa::protocol::RoomState::Waiting,
+                dxa::protocol::PlayerId{3U},
+                {{dxa::protocol::PlayerId{3U}, ready}}}});
+    }
+
+    void SendLobby(const dxa::protocol::ServerMessage& message)
+    {
+        if (lobby_)
+        {
+            static_cast<void>(lobby_->Send(
+                dxa::protocol::EncodeServerMessage(message)));
+        }
+    }
+
+    void AcceptGame()
+    {
+        gameAcceptor_.async_accept([this](
+            const boost::system::error_code error,
+            tcp::socket socket) {
+            if (error)
+            {
+                return;
+            }
+            game_ = dxa::protocol::AsioFramedConnection::Create(
+                std::move(socket),
+                [this](dxa::protocol::RawFrame frame) {
+                    const auto decoded =
+                        dxa::protocol::DecodeGameClientMessage(
+                            frame.type,
+                            frame.payload);
+                    if (!decoded.message.has_value())
+                    {
+                        return;
+                    }
+                    gameHelloReceived_ = true;
+                    if (response_ ==
+                        GameHandshakeResponse::RejectAuthentication)
+                    {
+                        static_cast<void>(game_->Send(
+                            dxa::protocol::EncodeGameServerMessage(
+                                dxa::protocol::GameServerMessage{
+                                    dxa::protocol::GameServerErrorMessage{
+                                        dxa::protocol::GameServerErrorCode::
+                                            AuthenticationFailed}})));
+                        game_->CloseAfterFlush();
+                        return;
+                    }
+                    const auto& hello = std::get<
+                        dxa::protocol::GameClientHello>(*decoded.message);
+                    const auto arena =
+                        dxa::simulation::SurvivalArenaMapDefinition();
+                    dxa::protocol::UdpSessionToken token;
+                    token.fill(static_cast<std::byte>(0xA5U));
+                    static_cast<void>(game_->Send(
+                        dxa::protocol::EncodeGameServerMessage(
+                            dxa::protocol::GameServerMessage{
+                                dxa::protocol::GameServerWelcome{
+                                    hello.match,
+                                    hello.player,
+                                    dxa::protocol::EntityId{0U},
+                                    dxa::protocol::GameTickRate,
+                                    dxa::protocol::SnapshotRate,
+                                    arena.mapId,
+                                    dxa::game_common::
+                                        SurvivalArenaFingerprint(arena),
+                                    token}})));
+                },
+                [](const boost::system::error_code) {});
+            game_->Start();
+        });
+    }
+
+    void ReceiveGameUdp()
+    {
+        gameUdp_.async_receive_from(
+            boost::asio::buffer(gameUdpBuffer_),
+            gameUdpRemote_,
+            [this](
+                const boost::system::error_code error,
+                const std::size_t received) {
+                if (!error)
+                {
+                    const auto decoded =
+                        dxa::protocol::DecodeClientDatagram(std::span{
+                            gameUdpBuffer_.data(),
+                            received});
+                    udpBindReceived_ = decoded.datagram.has_value()
+                        && std::holds_alternative<dxa::protocol::UdpBind>(
+                            *decoded.datagram);
+                }
+                if (gameUdp_.is_open())
+                {
+                    ReceiveGameUdp();
+                }
+            });
+    }
+
+    tcp::acceptor lobbyAcceptor_;
+    tcp::acceptor gameAcceptor_;
+    udp::socket gameUdp_;
+    GameHandshakeResponse response_;
+    std::shared_ptr<dxa::protocol::AsioFramedConnection> lobby_;
+    std::shared_ptr<dxa::protocol::AsioFramedConnection> game_;
+    udp::endpoint gameUdpRemote_;
+    std::array<std::byte, dxa::protocol::MaxUdpDatagramBytes + 1U>
+        gameUdpBuffer_{};
+    bool gameHelloReceived_ = false;
+    bool udpBindReceived_ = false;
+};
+
+void WaitForThirdBotReady(
+    dxa::test::GameNetworkFixture& fixture,
+    const dxa::test::ReadyNetworkRoom& room)
+{
+    fixture.RunUntil([&room] {
+        const auto* snapshot =
+            dxa::test::LatestLobbyMessage<dxa::protocol::RoomSnapshot>(
+                *room.host);
+        return snapshot != nullptr
+            && snapshot->members.size() == 3U
+            && std::all_of(
+                snapshot->members.begin(),
+                snapshot->members.end(),
+                [](const auto& member) { return member.ready; });
+    });
+}
+} // namespace
 
 TEST(GameServerIntegration, CompletesLobbyReservationAuthenticationAndDisconnectResult)
 {
@@ -157,4 +528,143 @@ TEST(GameServerIntegration, CompletesThreeSequentialReservationsOnOneWorker)
         static_cast<void>(fixture.WaitForResult(host));
         fixture.WaitForRoomCleanup(room);
     }
+}
+
+TEST(GameServerIntegration, PlayBotUsesSharedGameSessionUntilResult)
+{
+    dxa::test::GameNetworkFixture fixture{BotPlayMatchConfig()};
+    fixture.StartLobbyAndWorker();
+    const dxa::test::ReadyNetworkRoom room =
+        fixture.CreateReadyTwoPlayerRoom();
+
+    dxa::bot_client::BotCoordinator bot{
+        fixture.BotIo(),
+        PlayOptions(fixture.LobbyPort(), room.room)};
+    bot.Start();
+
+    WaitForThirdBotReady(fixture, room);
+    fixture.StartMatch(room.host);
+    const dxa::test::TicketPair tickets = fixture.WaitForTwoTickets(room);
+    const auto host = fixture.Authenticate(tickets.host);
+    const auto guest = fixture.Authenticate(tickets.guest);
+
+    fixture.RunUntil([&bot] { return bot.GameAuthenticated(); });
+    fixture.RunUntil([&bot] { return bot.SnapshotCount() >= 2U; });
+    host->CloseTcp();
+    guest->CloseTcp();
+    fixture.RunUntil([&bot] { return bot.Result().has_value(); });
+
+    EXPECT_EQ(0, bot.ExitCode());
+    bot.Stop();
+}
+
+TEST(GameServerIntegration, PlayBotPreservesLobbyOnlyTicketMode)
+{
+    dxa::test::GameNetworkFixture fixture{BotPlayMatchConfig()};
+    fixture.StartLobbyAndWorker();
+    const dxa::test::ReadyNetworkRoom room =
+        fixture.CreateReadyTwoPlayerRoom();
+    dxa::bot_client::BotClientOptions options =
+        PlayOptions(fixture.LobbyPort(), room.room);
+    options.play = false;
+    dxa::bot_client::BotCoordinator bot{fixture.BotIo(), options};
+    bot.Start();
+
+    WaitForThirdBotReady(fixture, room);
+    fixture.StartMatch(room.host);
+    fixture.RunUntil([&bot] { return bot.Done(); });
+
+    EXPECT_EQ(0, bot.ExitCode());
+    EXPECT_FALSE(bot.GameAuthenticated());
+    EXPECT_EQ(0U, bot.SnapshotCount());
+    EXPECT_FALSE(bot.Result().has_value());
+}
+
+TEST(GameServerIntegration, PlayBotReportsLobbyError)
+{
+    dxa::test::GameNetworkFixture fixture{BotPlayMatchConfig()};
+    fixture.StartLobbyAndWorker();
+    dxa::bot_client::BotCoordinator bot{
+        fixture.BotIo(),
+        PlayOptions(fixture.LobbyPort(), dxa::protocol::RoomId{999U})};
+    bot.Start();
+
+    fixture.RunUntil([&bot] { return bot.Done(); });
+
+    EXPECT_EQ(3, bot.ExitCode());
+    EXPECT_FALSE(bot.GameAuthenticated());
+    EXPECT_FALSE(bot.Result().has_value());
+}
+
+TEST(GameServerIntegration, PlayBotReportsGameAuthenticationFailure)
+{
+    boost::asio::io_context io;
+    ScriptedBotServers servers{
+        io,
+        GameHandshakeResponse::RejectAuthentication};
+    dxa::bot_client::BotCoordinator bot{
+        io,
+        PlayOptions(servers.LobbyPort(), dxa::protocol::RoomId{1U})};
+    bot.Start();
+
+    RunIoUntil(io, [&bot] { return bot.Done(); });
+
+    EXPECT_TRUE(servers.GameHelloReceived());
+    EXPECT_EQ(3, bot.ExitCode());
+    EXPECT_FALSE(bot.GameAuthenticated());
+    EXPECT_FALSE(bot.Result().has_value());
+}
+
+TEST(GameServerIntegration, PlayBotTimesOutAfterGameAuthentication)
+{
+    boost::asio::io_context io;
+    ScriptedBotServers servers{
+        io,
+        GameHandshakeResponse::WelcomeWithoutUdpBind};
+    dxa::bot_client::BotCoordinator bot{
+        io,
+        PlayOptions(servers.LobbyPort(), dxa::protocol::RoomId{1U}),
+        dxa::bot_client::BotCoordinatorTimeouts{1s, 100ms}};
+    bot.Start();
+
+    RunIoUntil(io, [&bot] { return bot.Done(); });
+
+    EXPECT_TRUE(servers.GameHelloReceived());
+    EXPECT_TRUE(servers.UdpBindReceived());
+    EXPECT_TRUE(bot.GameAuthenticated());
+    EXPECT_EQ(4, bot.ExitCode());
+    EXPECT_EQ(0U, bot.SnapshotCount());
+    EXPECT_FALSE(bot.Result().has_value());
+}
+
+TEST(GameServerIntegration, PlayBotUsesTimeoutExitCode)
+{
+    boost::asio::io_context io;
+    SilentLobbyServer server{io};
+    dxa::bot_client::BotCoordinator bot{
+        io,
+        PlayOptions(server.Port(), dxa::protocol::RoomId{1U}),
+        dxa::bot_client::BotCoordinatorTimeouts{20ms, 100ms}};
+    bot.Start();
+
+    RunIoUntil(io, [&bot] { return bot.Done(); });
+
+    EXPECT_EQ(4, bot.ExitCode());
+    EXPECT_FALSE(bot.GameAuthenticated());
+}
+
+TEST(GameServerIntegration, PlayBotStopIsIdempotentBeforeWelcome)
+{
+    boost::asio::io_context io;
+    SilentLobbyServer server{io};
+    dxa::bot_client::BotCoordinator bot{
+        io,
+        PlayOptions(server.Port(), dxa::protocol::RoomId{1U})};
+    bot.Start();
+
+    bot.Stop();
+    bot.Stop();
+
+    EXPECT_TRUE(bot.Done());
+    EXPECT_EQ(3, bot.ExitCode());
 }

@@ -381,6 +381,16 @@ public:
         started_ = true;
     }
 
+    [[nodiscard]] boost::asio::io_context& BotIo() noexcept
+    {
+        return lobby_.Io();
+    }
+
+    [[nodiscard]] std::uint16_t LobbyPort() const
+    {
+        return lobby_.Port();
+    }
+
     [[nodiscard]] ReadyNetworkRoom CreateReadyTwoPlayerRoom()
     {
         if (!started_)
