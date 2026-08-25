@@ -1,11 +1,13 @@
 add_library(
     dxa_protocol
     STATIC
+        include/dxa/protocol/DatagramShaper.hpp
         include/dxa/protocol/ReplicationSnapshot.hpp
         include/dxa/protocol/ReplicationSnapshotCodec.hpp
         src/AsioFramedConnection.cpp
         src/ByteCodec.cpp
         src/Crc32.cpp
+        src/DatagramShaper.cpp
         src/GameSnapshotCodec.cpp
         src/GameTcpMessageCodec.cpp
         src/GameUdpCodec.cpp
