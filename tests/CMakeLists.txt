@@ -100,6 +100,7 @@ if(WIN32)
             engine_hybrid_deferred_renderer_test.cpp
             engine_window_test.cpp
             navigation_ground_pick_test.cpp
+            network_load_vertical_test.cpp
             network_vertical_slice_test.cpp
     )
     target_link_libraries(
