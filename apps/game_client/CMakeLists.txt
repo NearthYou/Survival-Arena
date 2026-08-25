@@ -2,6 +2,7 @@ add_library(
     dxa_game_client
     STATIC
         src/ClientPredictor.cpp
+        src/GameNetworkRuntime.cpp
         src/GameSession.cpp
         src/RemoteInterpolator.cpp
         src/SnapshotReassembler.cpp

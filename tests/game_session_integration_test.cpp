@@ -1,4 +1,5 @@
 #include <dxa/game_client/GameSession.hpp>
+#include <dxa/game_client/GameNetworkRuntime.hpp>
 
 #include <dxa/game_common/ArenaFingerprint.hpp>
 #include <dxa/protocol/AsioFramedConnection.hpp>
@@ -496,6 +497,44 @@ TEST(GameSession, AuthenticatesBindsPredictsAndPublishesScene)
     EXPECT_EQ(EntityId{0U}, scene.localActor);
     EXPECT_EQ(1U, scene.lastAckInputSequence);
     EXPECT_EQ(2U, scene.snapshotCount);
+}
+
+TEST(GameSession, TwoSessionsShareOneRuntimeAndBothSynchronize)
+{
+    FakeGameServer firstServer;
+    FakeGameServer secondServer;
+    auto runtime = std::make_shared<dxa::game_client::GameNetworkRuntime>();
+    ASSERT_TRUE(runtime->Start());
+
+    dxa::game_client::GameSession first{
+        dxa::simulation::BuildSurvivalArenaNavMesh(),
+        runtime};
+    dxa::game_client::GameSession second{
+        dxa::simulation::BuildSurvivalArenaNavMesh(),
+        runtime};
+    first.Start(firstServer.StartFor(PlayerId{3U}));
+    second.Start(secondServer.StartFor(PlayerId{4U}));
+
+    firstServer.AcceptHelloAndWelcome();
+    secondServer.AcceptHelloAndWelcome();
+    firstServer.AcceptUdpBind();
+    secondServer.AcceptUdpBind();
+    firstServer.SendSnapshot(1U, 2U, 0U);
+    secondServer.SendSnapshot(1U, 2U, 0U);
+
+    WaitUntil([&] {
+        first.FixedUpdate();
+        second.FixedUpdate();
+        return first.State() == GameSessionState::Running
+            && second.State() == GameSessionState::Running;
+    });
+    EXPECT_EQ(1U, first.SnapshotCount());
+    EXPECT_EQ(1U, second.SnapshotCount());
+
+    first.Stop();
+    EXPECT_EQ(GameSessionState::Running, second.State());
+    second.Stop();
+    runtime->Stop();
 }
 
 TEST(GameSession, RejectsMapMismatchBeforeUdpBind)

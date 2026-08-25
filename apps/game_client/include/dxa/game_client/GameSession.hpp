@@ -13,6 +13,8 @@
 
 namespace dxa::game_client
 {
+class GameNetworkRuntime;
+
 struct GameSessionStart
 {
     dxa::protocol::PlayerId player;
@@ -50,6 +52,9 @@ class GameSession
 {
 public:
     explicit GameSession(dxa::simulation::NavMesh navMesh);
+    GameSession(
+        dxa::simulation::NavMesh navMesh,
+        std::shared_ptr<GameNetworkRuntime> runtime);
     ~GameSession();
     GameSession(const GameSession&) = delete;
     GameSession& operator=(const GameSession&) = delete;
@@ -67,6 +72,8 @@ public:
 
 private:
     struct Impl;
-    std::unique_ptr<Impl> impl_;
+    std::shared_ptr<GameNetworkRuntime> runtime_;
+    bool ownsRuntime_ = false;
+    std::shared_ptr<Impl> impl_;
 };
 } // namespace dxa::game_client

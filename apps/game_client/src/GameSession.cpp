@@ -1,6 +1,7 @@
 #include <dxa/game_client/GameSession.hpp>
 
 #include <dxa/game_client/ClientPredictor.hpp>
+#include <dxa/game_client/GameNetworkRuntime.hpp>
 #include <dxa/game_client/RemoteInterpolator.hpp>
 #include <dxa/game_client/SnapshotReassembler.hpp>
 
@@ -18,12 +19,12 @@
 #include <cstddef>
 #include <cstdint>
 #include <deque>
+#include <future>
 #include <memory>
 #include <mutex>
 #include <optional>
 #include <stdexcept>
 #include <string>
-#include <thread>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -57,20 +58,19 @@ constexpr auto BindRetryInterval = std::chrono::milliseconds{250};
 } // namespace
 
 struct GameSession::Impl
+    : public std::enable_shared_from_this<GameSession::Impl>
 {
-    explicit Impl(dxa::simulation::NavMesh sourceNavMesh)
+    Impl(
+        dxa::simulation::NavMesh sourceNavMesh,
+        boost::asio::io_context& sourceIo)
         : navMesh{std::move(sourceNavMesh)},
           interpolation{3U, dxa::protocol::MaxClientSnapshotBuffer},
+          io{sourceIo},
           tcpResolver{io},
           udpResolver{io},
           udpSocket{io},
           bindTimer{io}
     {
-    }
-
-    ~Impl()
-    {
-        Stop();
     }
 
     void Start(GameSessionStart sourceStart)
@@ -84,9 +84,8 @@ struct GameSession::Impl
         }
         start = std::move(sourceStart);
         stopRequested.store(false);
-        work.emplace(boost::asio::make_work_guard(io));
-        boost::asio::post(io, [this] { ResolveTcp(); });
-        networkThread = std::thread{[this] { io.run(); }};
+        const auto self = shared_from_this();
+        boost::asio::post(io, [self] { self->ResolveTcp(); });
     }
 
     void ResolveTcp()
@@ -95,58 +94,64 @@ struct GameSession::Impl
         {
             return;
         }
+        const auto self = shared_from_this();
         tcpResolver.async_resolve(
             start.ticket.host,
             std::to_string(start.ticket.tcpPort),
-            [this](
+            [self](
                 const boost::system::error_code error,
                 const tcp::resolver::results_type endpoints) {
-                if (error || stopRequested.load())
+                if (error || self->stopRequested.load())
                 {
-                    if (!stopRequested.load())
+                    if (!self->stopRequested.load())
                     {
-                        state.store(GameSessionState::Closed);
+                        self->state.store(GameSessionState::Closed);
                     }
                     return;
                 }
-                auto socket = std::make_shared<tcp::socket>(io);
+                auto socket = std::make_shared<tcp::socket>(self->io);
                 boost::asio::async_connect(
                     *socket,
                     endpoints,
-                    [this, socket](
+                    [self, socket](
                         const boost::system::error_code connectError,
                         const tcp::endpoint&) {
-                        if (connectError || stopRequested.load())
+                        if (connectError || self->stopRequested.load())
                         {
-                            if (!stopRequested.load())
+                            if (!self->stopRequested.load())
                             {
-                                state.store(GameSessionState::Closed);
+                                self->state.store(GameSessionState::Closed);
                             }
                             return;
                         }
-                        AttachTcp(std::move(*socket));
+                        self->AttachTcp(std::move(*socket));
                     });
             });
     }
 
     void AttachTcp(tcp::socket socket)
     {
+        const std::weak_ptr<Impl> weak = weak_from_this();
         tcpTransport = dxa::protocol::AsioFramedConnection::Create(
             std::move(socket),
-            [this](dxa::protocol::RawFrame frame) {
-                HandleTcpFrame(std::move(frame));
+            [weak](dxa::protocol::RawFrame frame) {
+                if (const auto self = weak.lock())
+                {
+                    self->HandleTcpFrame(std::move(frame));
+                }
             },
-            [this](const boost::system::error_code error) {
+            [weak](const boost::system::error_code error) {
                 static_cast<void>(error);
-                if (stopRequested.load())
+                const auto self = weak.lock();
+                if (!self || self->stopRequested.load())
                 {
                     return;
                 }
-                const GameSessionState current = state.load();
+                const GameSessionState current = self->state.load();
                 if (current != GameSessionState::Finished
                     && current != GameSessionState::ProtocolError)
                 {
-                    state.store(GameSessionState::Closed);
+                    self->state.store(GameSessionState::Closed);
                 }
             });
         tcpTransport->Start();
@@ -225,28 +230,31 @@ struct GameSession::Impl
 
     void ResolveUdp()
     {
+        const auto self = shared_from_this();
         udpResolver.async_resolve(
             udp::v4(),
             start.ticket.host,
             std::to_string(start.ticket.udpPort),
-            [this](
+            [self](
                 const boost::system::error_code error,
                 const udp::resolver::results_type endpoints) {
-                if (error || endpoints.empty() || stopRequested.load())
+                if (error
+                    || endpoints.empty()
+                    || self->stopRequested.load())
                 {
-                    if (!stopRequested.load())
+                    if (!self->stopRequested.load())
                     {
-                        FailProtocol();
+                        self->FailProtocol();
                     }
                     return;
                 }
-                serverUdpEndpoint = *endpoints.begin();
-                udpSocket.open(serverUdpEndpoint.protocol());
-                udpSocket.bind(udp::endpoint{
-                    serverUdpEndpoint.protocol(),
+                self->serverUdpEndpoint = *endpoints.begin();
+                self->udpSocket.open(self->serverUdpEndpoint.protocol());
+                self->udpSocket.bind(udp::endpoint{
+                    self->serverUdpEndpoint.protocol(),
                     0U});
-                ReceiveUdp();
-                SendBind();
+                self->ReceiveUdp();
+                self->SendBind();
             });
     }
 
@@ -272,10 +280,11 @@ struct GameSession::Impl
                 const boost::system::error_code,
                 const std::size_t) {});
         bindTimer.expires_after(BindRetryInterval);
-        bindTimer.async_wait([this](const boost::system::error_code error) {
+        const auto self = shared_from_this();
+        bindTimer.async_wait([self](const boost::system::error_code error) {
             if (!error)
             {
-                SendBind();
+                self->SendBind();
             }
         });
     }
@@ -286,26 +295,28 @@ struct GameSession::Impl
         {
             return;
         }
+        const auto self = shared_from_this();
         udpSocket.async_receive_from(
             boost::asio::buffer(udpBuffer),
             udpRemoteEndpoint,
-            [this](
+            [self](
                 const boost::system::error_code error,
                 const std::size_t received) {
                 if (!error
                     && received <= dxa::protocol::MaxUdpDatagramBytes
-                    && udpRemoteEndpoint == serverUdpEndpoint)
+                    && self->udpRemoteEndpoint == self->serverUdpEndpoint)
                 {
                     const auto decoded = dxa::protocol::DecodeServerDatagram(
-                        std::span{udpBuffer.data(), received});
+                        std::span{self->udpBuffer.data(), received});
                     if (decoded.datagram.has_value())
                     {
-                        HandleServerDatagram(*decoded.datagram);
+                        self->HandleServerDatagram(*decoded.datagram);
                     }
                 }
-                if (udpSocket.is_open() && !stopRequested.load())
+                if (self->udpSocket.is_open()
+                    && !self->stopRequested.load())
                 {
-                    ReceiveUdp();
+                    self->ReceiveUdp();
                 }
             });
     }
@@ -356,17 +367,18 @@ struct GameSession::Impl
 
     void PostInput(const PredictedInput input)
     {
-        boost::asio::post(io, [this, input] {
-            if (stopRequested.load()
-                || state.load() != GameSessionState::Running
-                || !udpSocket.is_open())
+        const auto self = shared_from_this();
+        boost::asio::post(io, [self, input] {
+            if (self->stopRequested.load()
+                || self->state.load() != GameSessionState::Running
+                || !self->udpSocket.is_open())
             {
                 return;
             }
             dxa::protocol::ClientInput datagram;
-            datagram.match = start.ticket.match;
-            datagram.player = start.player;
-            datagram.token = udpToken;
+            datagram.match = self->start.ticket.match;
+            datagram.player = self->start.player;
+            datagram.token = self->udpToken;
             datagram.inputSequence = input.sequence;
             if (input.moveDestination.has_value())
             {
@@ -385,9 +397,9 @@ struct GameSession::Impl
                 dxa::protocol::ClientDatagram{datagram});
             auto bytes = std::make_shared<std::vector<std::byte>>(
                 encoded.bytes);
-            udpSocket.async_send_to(
+            self->udpSocket.async_send_to(
                 boost::asio::buffer(*bytes),
-                serverUdpEndpoint,
+                self->serverUdpEndpoint,
                 [bytes](
                     const boost::system::error_code,
                     const std::size_t) {});
@@ -507,7 +519,8 @@ struct GameSession::Impl
     void FailFromCaller()
     {
         state.store(GameSessionState::ProtocolError);
-        boost::asio::post(io, [this] { CloseNetwork(); });
+        const auto self = shared_from_this();
+        boost::asio::post(io, [self] { self->CloseNetwork(); });
     }
 
     void FailProtocol()
@@ -530,29 +543,30 @@ struct GameSession::Impl
         udpSocket.close(ignored);
     }
 
-    void Stop()
+    void Stop(
+        const bool runtimeStarted,
+        const bool runningOnNetworkThread)
     {
         const bool alreadyStopped = stopRequested.exchange(true);
-        if (!alreadyStopped)
+        if (alreadyStopped)
         {
-            state.store(GameSessionState::Closed);
-            if (networkThread.joinable())
-            {
-                boost::asio::post(io, [this] {
-                    CloseNetwork();
-                    work.reset();
-                });
-            }
-            else
-            {
-                work.reset();
-            }
+            return;
         }
-        if (networkThread.joinable()
-            && networkThread.get_id() != std::this_thread::get_id())
+        state.store(GameSessionState::Closed);
+        if (!runtimeStarted || runningOnNetworkThread)
         {
-            networkThread.join();
+            CloseNetwork();
+            return;
         }
+
+        auto closed = std::make_shared<std::promise<void>>();
+        std::future<void> completed = closed->get_future();
+        const auto self = shared_from_this();
+        boost::asio::post(io, [self, closed] {
+            self->CloseNetwork();
+            closed->set_value();
+        });
+        completed.wait();
     }
 
     dxa::simulation::NavMesh navMesh;
@@ -561,15 +575,12 @@ struct GameSession::Impl
     GameSceneFrame scene;
     mutable std::mutex sceneMutex;
 
-    boost::asio::io_context io;
-    std::optional<boost::asio::executor_work_guard<
-        boost::asio::io_context::executor_type>> work;
+    boost::asio::io_context& io;
     tcp::resolver tcpResolver;
     udp::resolver udpResolver;
     udp::socket udpSocket;
     boost::asio::steady_timer bindTimer;
     std::shared_ptr<dxa::protocol::AsioFramedConnection> tcpTransport;
-    std::thread networkThread;
     GameSessionStart start;
     udp::endpoint serverUdpEndpoint;
     udp::endpoint udpRemoteEndpoint;
@@ -590,11 +601,40 @@ struct GameSession::Impl
 };
 
 GameSession::GameSession(dxa::simulation::NavMesh navMesh)
-    : impl_{std::make_unique<Impl>(std::move(navMesh))}
+    : runtime_{std::make_shared<GameNetworkRuntime>()},
+      ownsRuntime_{true}
 {
+    if (!runtime_->Start())
+    {
+        throw std::runtime_error{"owned game network runtime failed to start"};
+    }
+    impl_ = std::make_shared<Impl>(
+        std::move(navMesh),
+        runtime_->Io());
 }
 
-GameSession::~GameSession() = default;
+GameSession::GameSession(
+    dxa::simulation::NavMesh navMesh,
+    std::shared_ptr<GameNetworkRuntime> runtime)
+    : runtime_{std::move(runtime)}
+{
+    if (!runtime_)
+    {
+        throw std::invalid_argument{"shared game network runtime is required"};
+    }
+    if (!runtime_->Started())
+    {
+        throw std::logic_error{"shared game network runtime must be started"};
+    }
+    impl_ = std::make_shared<Impl>(
+        std::move(navMesh),
+        runtime_->Io());
+}
+
+GameSession::~GameSession()
+{
+    Stop();
+}
 
 void GameSession::Start(GameSessionStart start)
 {
@@ -636,6 +676,15 @@ std::uint64_t GameSession::SnapshotCount() const noexcept
 
 void GameSession::Stop()
 {
-    impl_->Stop();
+    if (impl_)
+    {
+        impl_->Stop(
+            runtime_->Started(),
+            runtime_->RunningOnThisThread());
+    }
+    if (ownsRuntime_)
+    {
+        runtime_->Stop();
+    }
 }
 } // namespace dxa::game_client
