@@ -254,6 +254,21 @@ function Get-DxaNetworkLoadMatchSeed {
     return [uint32]($SeedBase -bxor $low -bxor $high)
 }
 
+function ConvertTo-DxaEvidenceCommandText {
+    [CmdletBinding()]
+    param(
+        [string[]]$CommandLines,
+        [Parameter(Mandatory)]
+        [string]$RepositoryRoot,
+        [Parameter(Mandatory)]
+        [string]$RunDirectory
+    )
+
+    $text = $CommandLines -join "`n"
+    $text = $text.Replace($RunDirectory, '<RUN_DIRECTORY>')
+    return $text.Replace($RepositoryRoot, '<REPOSITORY_ROOT>')
+}
+
 function Get-DxaNearestRankP95 {
     [CmdletBinding()]
     param(

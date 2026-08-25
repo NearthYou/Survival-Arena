@@ -418,9 +418,13 @@ try {
     $clientsPath = Join-Path $outputDirectory 'clients.csv'
     $clientCsv = @($clientRows | ConvertTo-Csv -NoTypeInformation) -join "`n"
     Write-DxaNetworkLoadUtf8 -Path $clientsPath -Contents ($clientCsv + "`n")
+    $commandText = ConvertTo-DxaEvidenceCommandText `
+        -CommandLines $commandLines `
+        -RepositoryRoot $repositoryRoot `
+        -RunDirectory $outputDirectory
     Write-DxaNetworkLoadUtf8 `
         -Path (Join-Path $outputDirectory 'command.txt') `
-        -Contents (($commandLines -join "`n") + "`n")
+        -Contents ($commandText + "`n")
 
     $allLogText = @(
         Get-ChildItem -LiteralPath $outputDirectory -Filter '*.log' -File |

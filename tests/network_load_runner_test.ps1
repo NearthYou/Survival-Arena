@@ -169,6 +169,18 @@ try {
             20260824) {
         throw 'Network load MatchId seed 계산이 잘못됐습니다.'
     }
+    $privateRoot = 'C:\Users\private-user\repo'
+    $privateRun = Join-Path $privateRoot 'docs/run-001'
+    $sanitized = ConvertTo-DxaEvidenceCommandText `
+        -CommandLines @(
+            "$privateRoot\client.exe --output $privateRun") `
+        -RepositoryRoot $privateRoot `
+        -RunDirectory $privateRun
+    if ($sanitized -ne
+            '<REPOSITORY_ROOT>\client.exe --output <RUN_DIRECTORY>' -or
+        $sanitized.Contains('private-user')) {
+        throw 'Network load command path 개인정보 치환이 실패했습니다.'
+    }
 
     $serverExecutable = Join-Path $RepositoryRoot (
         'out/build/windows-msvc-vs-debug/apps/game_server/Debug/' +
