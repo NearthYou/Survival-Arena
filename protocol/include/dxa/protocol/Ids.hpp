@@ -32,4 +32,18 @@ struct EntityId
 
     [[nodiscard]] auto operator<=>(const EntityId&) const = default;
 };
+
+struct WorkerId
+{
+    std::uint32_t value = 0;
+
+    [[nodiscard]] auto operator<=>(const WorkerId&) const = default;
+};
+
+struct ReservationId
+{
+    std::uint64_t value = 0;
+
+    [[nodiscard]] auto operator<=>(const ReservationId&) const = default;
+};
 } // namespace dxa::protocol

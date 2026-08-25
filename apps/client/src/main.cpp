@@ -1,4 +1,5 @@
 #include <dxa/client/ClientOptions.hpp>
+#include <dxa/client/NetworkClientController.hpp>
 #include <dxa/engine/EngineApp.hpp>
 
 #include <Windows.h>
@@ -11,6 +12,7 @@
 #include <filesystem>
 #include <iomanip>
 #include <iostream>
+#include <memory>
 #include <optional>
 #include <sstream>
 #include <stdexcept>
@@ -82,7 +84,7 @@ int main(const int argc, const char* const* argv)
     const dxa::client::ClientOptions& options = *parsed.options;
     spdlog::set_pattern("[%H:%M:%S.%e] [%^%l%$] %v");
     spdlog::info(
-        "client start: adapter={}, size={}x{}, frames={}, hidden={}, vsync={}, asset_scene={}, benchmark={}, render_path={}",
+        "client start: adapter={}, size={}x{}, frames={}, hidden={}, vsync={}, asset_scene={}, benchmark={}, render_path={}, network={}",
         options.adapter == dxa::client::AdapterType::Warp ? "warp" : "hardware",
         options.width,
         options.height,
@@ -91,7 +93,8 @@ int main(const int argc, const char* const* argv)
         options.vsync,
         options.verifyAssetScene,
         options.benchmark.has_value(),
-        dxa::engine::ToString(options.renderPath));
+        dxa::engine::ToString(options.renderPath),
+        options.network.has_value());
 
     std::optional<dxa::engine::BenchmarkRunOptions> engineBenchmark;
     if (options.benchmark.has_value())
@@ -122,10 +125,25 @@ int main(const int argc, const char* const* argv)
 
     try
     {
+        std::unique_ptr<dxa::client::NetworkClientController> network;
+        if (options.network.has_value())
+        {
+            network = std::make_unique<
+                dxa::client::NetworkClientController>(*options.network);
+            network->Start();
+        }
         const std::filesystem::path shaderPath =
             ExecutableDirectory() / L"shaders" / L"forward.hlsl";
         const std::filesystem::path assetRoot = ExecutableDirectory() / L"assets";
-        const int exitCode = dxa::engine::EngineApp{}.Run(engineOptions, shaderPath, assetRoot);
+        const int exitCode = dxa::engine::EngineApp{}.Run(
+            engineOptions,
+            shaderPath,
+            assetRoot,
+            network.get());
+        if (network)
+        {
+            network->Stop();
+        }
         spdlog::info("client stop: exit={}", exitCode);
         return exitCode;
     }

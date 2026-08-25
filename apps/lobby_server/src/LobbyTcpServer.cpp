@@ -159,6 +159,27 @@ struct LobbyTcpServer::State final
         acceptor_.listen(boost::asio::socket_base::max_listen_connections);
     }
 
+    void AttachWorkerControl(
+        boost::asio::io_context& io,
+        const boost::asio::ip::tcp::endpoint endpoint,
+        const WorkerControlServerConfig config)
+    {
+        const std::weak_ptr<State> weak = shared_from_this();
+        workerControl_ = std::make_unique<WorkerControlServer>(
+            io,
+            endpoint,
+            [weak](WorkerEvent event) {
+                if (const auto owner = weak.lock();
+                    owner && !owner->stopping_)
+                {
+                    owner->Route(owner->service_.HandleWorkerEvent(
+                        event,
+                        std::chrono::steady_clock::now()));
+                }
+            },
+            config);
+    }
+
     void Start()
     {
         if (started_ || stopping_)
@@ -166,6 +187,7 @@ struct LobbyTcpServer::State final
             return;
         }
         started_ = true;
+        workerControl_->Start();
         AcceptNext();
     }
 
@@ -180,6 +202,7 @@ struct LobbyTcpServer::State final
         boost::system::error_code ignored;
         acceptor_.cancel(ignored);
         acceptor_.close(ignored);
+        workerControl_->Stop();
 
         std::vector<std::shared_ptr<Session>> sessions;
         sessions.reserve(sessions_.size());
@@ -197,6 +220,11 @@ struct LobbyTcpServer::State final
     [[nodiscard]] std::uint16_t LocalPort() const
     {
         return acceptor_.local_endpoint().port();
+    }
+
+    [[nodiscard]] std::uint16_t WorkerControlPort() const
+    {
+        return workerControl_->LocalPort();
     }
 
     void AcceptNext()
@@ -302,11 +330,18 @@ struct LobbyTcpServer::State final
         {
             LogAudit(event);
         }
+        for (const LobbyRuntimeAction& action : result.actions)
+        {
+            workerControl_->Execute(
+                action,
+                std::chrono::steady_clock::now());
+        }
     }
 
     LobbyService& service_;
     boost::asio::ip::tcp::acceptor acceptor_;
     std::map<ConnectionId, std::shared_ptr<Session>> sessions_;
+    std::unique_ptr<WorkerControlServer> workerControl_;
     bool started_ = false;
     bool stopping_ = false;
 };
@@ -314,9 +349,12 @@ struct LobbyTcpServer::State final
 LobbyTcpServer::LobbyTcpServer(
     boost::asio::io_context& io,
     LobbyService& service,
-    const boost::asio::ip::tcp::endpoint endpoint)
+    const boost::asio::ip::tcp::endpoint endpoint,
+    const boost::asio::ip::tcp::endpoint workerEndpoint,
+    const WorkerControlServerConfig workerConfig)
     : state_{std::make_shared<State>(io, service, endpoint)}
 {
+    state_->AttachWorkerControl(io, workerEndpoint, workerConfig);
 }
 
 LobbyTcpServer::~LobbyTcpServer()
@@ -337,5 +375,10 @@ void LobbyTcpServer::Stop()
 std::uint16_t LobbyTcpServer::LocalPort() const
 {
     return state_->LocalPort();
+}
+
+std::uint16_t LobbyTcpServer::WorkerControlPort() const
+{
+    return state_->WorkerControlPort();
 }
 } // namespace dxa::lobby

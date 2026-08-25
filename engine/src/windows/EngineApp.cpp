@@ -3,14 +3,17 @@
 #include <dxa/engine/AssetSceneRenderer.hpp>
 #include <dxa/engine/ForwardRenderer.hpp>
 #include <dxa/engine/FrameClock.hpp>
+#include <dxa/engine/GroundPlanePicking.hpp>
 #include <dxa/engine/GpuFrameTimer.hpp>
 #include <dxa/engine/GraphicsDevice.hpp>
 #include <dxa/engine/HybridDeferredRenderer.hpp>
 #include <dxa/engine/InputState.hpp>
+#include <dxa/engine/RuntimeScene.hpp>
 #include <dxa/engine/SystemMetrics.hpp>
 #include <dxa/engine/Window.hpp>
 #include <dxa/engine/benchmark/BenchmarkReport.hpp>
 
+#include <algorithm>
 #include <array>
 #include <chrono>
 #include <cstddef>
@@ -29,6 +32,8 @@ constexpr std::uint32_t ExpectedStressObjects = static_cast<std::uint32_t>(
     benchmark::PlayerCount
     + benchmark::AiCount
     + benchmark::StaticInstanceCount);
+constexpr double RuntimeFixedSeconds = 1.0 / 30.0;
+constexpr std::size_t MaximumRuntimeUpdatesPerFrame = 5U;
 
 void ValidateBenchmarkOptions(const EngineRunOptions& options)
 {
@@ -94,9 +99,16 @@ void ApplyGpuResults(
 int EngineApp::Run(
     const EngineRunOptions& options,
     const std::filesystem::path& shaderPath,
-    const std::filesystem::path& assetRoot) const
+    const std::filesystem::path& assetRoot,
+    IRuntimeSceneController* const runtimeScene) const
 {
     ValidateBenchmarkOptions(options);
+    if (runtimeScene != nullptr
+        && options.renderPath != RenderPath::HybridDeferred)
+    {
+        throw std::invalid_argument{
+            "runtime scene requires the hybrid deferred renderer"};
+    }
 
     InputState input;
     Window window;
@@ -116,6 +128,9 @@ int EngineApp::Run(
         false
 #endif
     });
+    std::clog << "graphics adapter="
+              << GetAdapterNameUtf8(graphics.Device())
+              << '\n' << std::flush;
 
     GpuFrameTimer gpuTimer;
     if (options.benchmark.has_value())
@@ -183,6 +198,8 @@ int EngineApp::Run(
     std::size_t gpuBeginRejected = 0;
     std::size_t gpuResolved = 0;
     std::size_t gpuDiscarded = 0;
+    double runtimeAccumulator = 0.0;
+    std::optional<benchmark::SceneVector3> pendingMoveDestination;
     if (options.benchmark.has_value())
     {
         samples.reserve(options.benchmark->measuredFrames);
@@ -201,6 +218,56 @@ int EngineApp::Run(
         }
 
         const FrameTiming timing = clock.Tick(FrameClock::Clock::now());
+        if (runtimeScene != nullptr)
+        {
+            if (input.WasRightPointerPressed())
+            {
+                const PointerPosition pointer = input.Pointer();
+                if (pointer.x >= 0
+                    && pointer.y >= 0
+                    && static_cast<std::uint32_t>(pointer.x) < options.width
+                    && static_cast<std::uint32_t>(pointer.y) < options.height)
+                {
+                    pendingMoveDestination = PointerGroundDestination(
+                        pointer,
+                        options.width,
+                        options.height,
+                        benchmark::SampleStressCamera(timing.frameIndex));
+                }
+            }
+
+            runtimeAccumulator += timing.deltaSeconds;
+            std::size_t updateCount = 0U;
+            while (runtimeAccumulator >= RuntimeFixedSeconds
+                   && updateCount < MaximumRuntimeUpdatesPerFrame)
+            {
+                RuntimeInputFrame runtimeInput;
+                if (updateCount == 0U
+                    && pendingMoveDestination.has_value())
+                {
+                    runtimeInput.moveDestination = pendingMoveDestination;
+                    pendingMoveDestination.reset();
+                }
+                runtimeScene->FixedUpdate(runtimeInput);
+                runtimeAccumulator -= RuntimeFixedSeconds;
+                ++updateCount;
+            }
+            if (updateCount == MaximumRuntimeUpdatesPerFrame)
+            {
+                runtimeAccumulator = std::min(
+                    runtimeAccumulator,
+                    RuntimeFixedSeconds
+                        * static_cast<double>(
+                            MaximumRuntimeUpdatesPerFrame));
+            }
+
+            const RuntimeSceneFrame scene = runtimeScene->SampleScene();
+            hybridRenderer.SetPlayerStates(scene.players);
+            hybridRenderer.SetAiStates(scene.ai);
+            hybridRenderer.SetZoneRadius(scene.zoneRadius);
+            hybridRenderer.SetControlledPlayerPosition(
+                scene.controlledPlayer);
+        }
         const bool measuredFrame = options.benchmark.has_value()
             && timing.frameIndex >= firstMeasuredFrame
             && timing.frameIndex <= finalMeasuredFrame;
@@ -380,6 +447,22 @@ int EngineApp::Run(
                 options.benchmark->startedAt,
                 options.renderPath},
             samples);
+    }
+
+    if (graphics.DebugLayerEnabled())
+    {
+        const std::size_t debugErrors = graphics.DebugErrorCount();
+        std::clog << "DX11 debug layer=enabled errors="
+                  << debugErrors << '\n' << std::flush;
+        if (debugErrors != 0U)
+        {
+            throw std::runtime_error{
+                "DX11 debug layer reported an error or corruption message"};
+        }
+    }
+    else
+    {
+        std::clog << "DX11 debug layer=disabled\n" << std::flush;
     }
 
     return 0;

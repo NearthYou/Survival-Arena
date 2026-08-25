@@ -202,33 +202,9 @@ TEST(LobbyTcpIntegration, RawHandshakeReturnsAssignedPlayer)
     EXPECT_EQ(dxa::protocol::PlayerId{1U}, welcome->player);
 }
 
-TEST(LobbyTcpIntegration, TwoClientsCreateReadyStartAndReceiveDistinctTickets)
-{
-    dxa::test::LobbyNetworkFixture fixture{dxa::test::StaticEndpoint()};
-    const auto host = fixture.AddClient();
-    const auto guest = fixture.AddClient();
-    static_cast<void>(CreateAndReadyTwoPlayers(fixture, host, guest));
-
-    static_cast<void>(host->client->StartMatch());
-    fixture.RunUntil([&host, &guest] {
-        return Latest<dxa::protocol::MatchTicket>(*host) != nullptr
-            && Latest<dxa::protocol::MatchTicket>(*guest) != nullptr;
-    });
-
-    const auto* hostTicket = Latest<dxa::protocol::MatchTicket>(*host);
-    const auto* guestTicket = Latest<dxa::protocol::MatchTicket>(*guest);
-    ASSERT_NE(nullptr, hostTicket);
-    ASSERT_NE(nullptr, guestTicket);
-    EXPECT_NE(hostTicket->ticket, guestTicket->ticket);
-    EXPECT_EQ(dxa::protocol::RoomState::InMatch,
-        Latest<dxa::protocol::RoomSnapshot>(*host)->state);
-    EXPECT_EQ(dxa::protocol::RoomState::InMatch,
-        Latest<dxa::protocol::RoomSnapshot>(*guest)->state);
-}
-
 TEST(LobbyTcpIntegration, WorkerFailureReturnsWaitingSnapshotsAndHostError)
 {
-    dxa::test::LobbyNetworkFixture fixture{std::nullopt};
+    dxa::test::LobbyNetworkFixture fixture;
     const auto host = fixture.AddClient();
     const auto guest = fixture.AddClient();
     static_cast<void>(CreateAndReadyTwoPlayers(fixture, host, guest));
@@ -250,7 +226,7 @@ TEST(LobbyTcpIntegration, WorkerFailureReturnsWaitingSnapshotsAndHostError)
 
 TEST(LobbyTcpIntegration, AcceptsTwentyFourAndRejectsTwentyFifthConnectionFromRoom)
 {
-    dxa::test::LobbyNetworkFixture fixture{dxa::test::StaticEndpoint()};
+    dxa::test::LobbyNetworkFixture fixture;
     const auto clients = fixture.AddWelcomedClients(25U);
     static_cast<void>(clients[0]->client->CreateRoom());
     WaitForMemberCount(fixture, clients[0], 1U);
@@ -278,7 +254,7 @@ TEST(LobbyTcpIntegration, AcceptsTwentyFourAndRejectsTwentyFifthConnectionFromRo
 
 TEST(LobbyTcpIntegration, ClosingHostSocketBroadcastsSuccessor)
 {
-    dxa::test::LobbyNetworkFixture fixture{dxa::test::StaticEndpoint()};
+    dxa::test::LobbyNetworkFixture fixture;
     const auto clients = fixture.AddWelcomedClients(3U);
     static_cast<void>(clients[0]->client->CreateRoom());
     WaitForMemberCount(fixture, clients[0], 1U);
@@ -305,7 +281,7 @@ TEST(LobbyTcpIntegration, ClosingHostSocketBroadcastsSuccessor)
 
 TEST(LobbyTcpIntegration, OversizedHeaderClosesWithoutCreatingRoom)
 {
-    dxa::test::LobbyNetworkFixture fixture{std::nullopt};
+    dxa::test::LobbyNetworkFixture fixture;
     boost::asio::io_context rawIo;
     tcp::socket raw{rawIo};
     raw.connect({

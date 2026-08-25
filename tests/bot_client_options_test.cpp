@@ -59,3 +59,15 @@ TEST(BotClientOptions, RejectsInvalidPortsMissingValuesDuplicatesAndUnknownOptio
     EXPECT_FALSE(Parse({"--room", "7", "--room", "8"}).options.has_value());
     EXPECT_FALSE(Parse({"--room", "7", "--unknown", "1"}).options.has_value());
 }
+
+TEST(BotClientOptions, PlayModeRequiresExactlyOneBot)
+{
+    const auto valid = Parse({"--room", "7", "--count", "1", "--play"});
+    ASSERT_TRUE(valid.options.has_value());
+    EXPECT_TRUE(valid.options->play);
+
+    EXPECT_FALSE(Parse({
+        "--room", "7", "--count", "2", "--play"}).options.has_value());
+    EXPECT_FALSE(Parse({
+        "--room", "7", "--play", "--play"}).options.has_value());
+}

@@ -61,6 +61,11 @@ enum class MatchEndReason
     TimeLimit
 };
 
+enum class ContenderExitReason
+{
+    Disconnected
+};
+
 enum class MatchEventType
 {
     CommandRejected,
@@ -69,7 +74,8 @@ enum class MatchEventType
     ActorHealed,
     DamageApplied,
     ActorDied,
-    MatchFinished
+    MatchFinished,
+    ActorDisconnected
 };
 
 struct MatchCommand
@@ -79,6 +85,15 @@ struct MatchCommand
     std::optional<ActorId> attackTarget = std::nullopt;
 
     [[nodiscard]] bool operator==(const MatchCommand&) const = default;
+};
+
+struct MatchLifecycleCommand
+{
+    ActorId actor = 0U;
+    ContenderExitReason reason = ContenderExitReason::Disconnected;
+
+    [[nodiscard]] bool operator==(
+        const MatchLifecycleCommand&) const = default;
 };
 
 struct MatchEvent

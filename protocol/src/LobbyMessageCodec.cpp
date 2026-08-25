@@ -35,7 +35,7 @@ Overloaded(Functions...) -> Overloaded<Functions...>;
 {
     const auto value = static_cast<std::uint16_t>(error);
     return value >= static_cast<std::uint16_t>(LobbyError::MalformedPayload)
-        && value <= static_cast<std::uint16_t>(LobbyError::InternalError);
+        && value <= static_cast<std::uint16_t>(LobbyError::MatchUnavailable);
 }
 
 [[nodiscard]] bool IsValidHost(const std::string_view host) noexcept
@@ -55,7 +55,8 @@ Overloaded(Functions...) -> Overloaded<Functions...>;
     return IsValidHost(ticket.host)
         && ticket.tcpPort != 0U
         && ticket.udpPort != 0U
-        && ticket.expiresInSeconds == MatchTicketLifetimeSeconds;
+        && ticket.expiresInSeconds > 0U
+        && ticket.expiresInSeconds <= MatchTicketLifetimeSeconds;
 }
 
 template <typename BodyWriter>
@@ -497,6 +498,18 @@ MessageDecodeResult<ClientMessage> DecodeClientMessage(
     case MessageType::RoomSnapshot:
     case MessageType::MatchTicket:
     case MessageType::ErrorResponse:
+    case MessageType::WorkerRegister:
+    case MessageType::WorkerRegistered:
+    case MessageType::ReserveMatch:
+    case MessageType::ReserveMatchReady:
+    case MessageType::ReserveMatchRejected:
+    case MessageType::CancelMatchReservation:
+    case MessageType::MatchReservationCancelled:
+    case MessageType::MatchFinished:
+    case MessageType::GameClientHello:
+    case MessageType::GameServerWelcome:
+    case MessageType::GameServerError:
+    case MessageType::GameMatchResult:
         return Failure<ClientMessage>(DecodeError::InvalidValue);
     }
     return Failure<ClientMessage>(DecodeError::InvalidValue);
@@ -525,6 +538,18 @@ MessageDecodeResult<ServerMessage> DecodeServerMessage(
     case MessageType::LeaveRoomRequest:
     case MessageType::SetReadyRequest:
     case MessageType::StartMatchRequest:
+    case MessageType::WorkerRegister:
+    case MessageType::WorkerRegistered:
+    case MessageType::ReserveMatch:
+    case MessageType::ReserveMatchReady:
+    case MessageType::ReserveMatchRejected:
+    case MessageType::CancelMatchReservation:
+    case MessageType::MatchReservationCancelled:
+    case MessageType::MatchFinished:
+    case MessageType::GameClientHello:
+    case MessageType::GameServerWelcome:
+    case MessageType::GameServerError:
+    case MessageType::GameMatchResult:
         return Failure<ServerMessage>(DecodeError::InvalidValue);
     }
     return Failure<ServerMessage>(DecodeError::InvalidValue);

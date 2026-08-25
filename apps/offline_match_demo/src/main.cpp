@@ -1,13 +1,13 @@
 #include <dxa/engine/FrameClock.hpp>
+#include <dxa/engine/GroundPlanePicking.hpp>
 #include <dxa/engine/GraphicsDevice.hpp>
 #include <dxa/engine/HybridDeferredRenderer.hpp>
 #include <dxa/engine/InputState.hpp>
 #include <dxa/engine/Window.hpp>
 #include <dxa/engine/benchmark/StressScene.hpp>
-#include <dxa/navigation_demo/GroundPicking.hpp>
+#include <dxa/simulation/ArenaMap.hpp>
 #include <dxa/simulation/Combat.hpp>
 #include <dxa/simulation/MatchConfig.hpp>
-#include <dxa/simulation/NavMesh.hpp>
 #include <dxa/simulation/OfflineBotController.hpp>
 #include <dxa/simulation/OfflineMatch.hpp>
 #include <dxa/simulation/SafeZone.hpp>
@@ -139,26 +139,6 @@ struct RenderResult
     }
     path.resize(length);
     return std::filesystem::path{path}.parent_path();
-}
-
-[[nodiscard]] dxa::simulation::NavMesh MakeArenaNavMesh(
-    const dxa::simulation::MatchConfig& config)
-{
-    using dxa::simulation::NavMesh;
-    using dxa::simulation::NavTriangleIndices;
-    const float extent = config.arenaHalfExtent;
-    return NavMesh::Build(
-        {
-            {-extent, -extent},
-            {extent, -extent},
-            {-extent, extent},
-            {extent, extent}
-        },
-        {
-            NavTriangleIndices{{0U, 1U, 2U}},
-            NavTriangleIndices{{1U, 3U, 2U}}
-        },
-        4.0F);
 }
 
 [[nodiscard]] const dxa::simulation::ActorSnapshot& FindActor(
@@ -532,18 +512,24 @@ int RunVisibleMatch(
 
         if (active && input.WasRightPointerPressed())
         {
-            const auto destination = dxa::navigation_demo::PointerGroundDestination(
+            const auto ground = dxa::engine::PointerGroundDestination(
                 input.Pointer(),
                 width,
                 height,
                 dxa::engine::benchmark::SampleStressCamera(timing.frameIndex));
-            if (destination.has_value()
-                && navMesh.FindContainingTriangleGrid(*destination).triangle.has_value())
+            if (ground.has_value())
             {
-                dxa::simulation::MatchCommand command;
-                command.actor = 0U;
-                command.moveDestination = *destination;
-                match.Submit(command);
+                const dxa::simulation::Vec2 destination{
+                    ground->x,
+                    ground->z};
+                if (navMesh.FindContainingTriangleGrid(destination)
+                        .triangle.has_value())
+                {
+                    dxa::simulation::MatchCommand command;
+                    command.actor = 0U;
+                    command.moveDestination = destination;
+                    match.Submit(command);
+                }
             }
         }
 
@@ -668,7 +654,8 @@ int RunDemo(const DemoOptions& options)
 
     dxa::simulation::MatchConfig config = dxa::simulation::DefaultMatchConfig();
     config.seed = options.seed;
-    const dxa::simulation::NavMesh navMesh = MakeArenaNavMesh(config);
+    const dxa::simulation::NavMesh navMesh =
+        dxa::simulation::BuildSurvivalArenaNavMesh();
     dxa::simulation::OfflineMatch match = dxa::simulation::OfflineMatch::Create(
         navMesh,
         config);

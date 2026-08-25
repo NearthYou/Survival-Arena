@@ -34,9 +34,9 @@ void ExpectServerRoundTrip(const ServerMessage& source)
     EXPECT_EQ(source, *decoded.message);
 }
 
-[[nodiscard]] std::array<std::byte, MatchTicketBytes> TicketBytes()
+[[nodiscard]] MatchTicketValue TicketBytes()
 {
-    std::array<std::byte, MatchTicketBytes> ticket{};
+    MatchTicketValue ticket;
     for (std::size_t index = 0; index < ticket.size(); ++index)
     {
         ticket[index] = static_cast<std::byte>(index + 1U);
@@ -191,6 +191,20 @@ TEST(LobbyMessageCodec, EnforcesTicketEndpointAndHostLimits)
     EXPECT_THROW(
         (void)EncodeServerMessage(ServerMessage{maximum}),
         std::invalid_argument);
+
+    maximum.tcpPort = 1U;
+    maximum.expiresInSeconds = 1U;
+    ExpectServerRoundTrip(ServerMessage{maximum});
+
+    maximum.expiresInSeconds = 0U;
+    EXPECT_THROW(
+        (void)EncodeServerMessage(ServerMessage{maximum}),
+        std::invalid_argument);
+
+    maximum.expiresInSeconds = 61U;
+    EXPECT_THROW(
+        (void)EncodeServerMessage(ServerMessage{maximum}),
+        std::invalid_argument);
 }
 
 TEST(LobbyMessageCodec, RejectsDirectionAndInvalidEnumValues)
@@ -211,4 +225,11 @@ TEST(LobbyMessageCodec, RejectsDirectionAndInvalidEnumValues)
     EXPECT_EQ(
         DecodeError::InvalidValue,
         DecodeServerMessage(MessageType::RoomSnapshot, payload).error);
+
+    EXPECT_EQ(
+        DecodeError::InvalidValue,
+        DecodeClientMessage(MessageType::GameClientHello, {}).error);
+    EXPECT_EQ(
+        DecodeError::InvalidValue,
+        DecodeServerMessage(MessageType::GameServerWelcome, {}).error);
 }

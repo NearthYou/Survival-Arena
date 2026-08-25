@@ -3,8 +3,13 @@ add_library(
     STATIC
         src/AsioFramedConnection.cpp
         src/ByteCodec.cpp
+        src/Crc32.cpp
+        src/GameSnapshotCodec.cpp
+        src/GameTcpMessageCodec.cpp
+        src/GameUdpCodec.cpp
         src/LobbyMessageCodec.cpp
         src/TcpFrame.cpp
+        src/WorkerControlMessageCodec.cpp
 )
 find_package(boost_asio CONFIG REQUIRED)
 target_include_directories(

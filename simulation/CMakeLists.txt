@@ -2,6 +2,7 @@ add_library(
     dxa_simulation
     STATIC
         src/AiDecision.cpp
+        src/ArenaMap.cpp
         src/BehaviorTree.cpp
         src/Combat.cpp
         src/Loot.cpp

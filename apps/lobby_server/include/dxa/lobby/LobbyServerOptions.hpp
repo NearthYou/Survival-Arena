@@ -1,7 +1,5 @@
 #pragma once
 
-#include <dxa/lobby/GameWorkerAllocator.hpp>
-
 #include <cstdint>
 #include <optional>
 #include <span>
@@ -14,7 +12,8 @@ struct LobbyServerOptions
 {
     std::string bindAddress = "127.0.0.1";
     std::uint16_t port = 7000U;
-    std::optional<GameEndpoint> worker;
+    std::string workerBindAddress = "127.0.0.1";
+    std::uint16_t workerPort = 7001U;
 };
 
 struct LobbyServerOptionsParseResult

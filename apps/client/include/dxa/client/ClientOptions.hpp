@@ -19,6 +19,13 @@ enum class AdapterType
     Warp
 };
 
+struct NetworkClientOptions
+{
+    std::string lobbyHost = "127.0.0.1";
+    std::uint16_t lobbyPort = 7000U;
+    std::uint8_t expectedPlayers = 2U;
+};
+
 struct ClientOptions
 {
     struct BenchmarkOptions
@@ -40,6 +47,7 @@ struct ClientOptions
     std::uint32_t height = 720;
     dxa::engine::RenderPath renderPath = dxa::engine::RenderPath::Forward;
     std::optional<BenchmarkOptions> benchmark;
+    std::optional<NetworkClientOptions> network;
 };
 
 struct ClientOptionsParseResult
@@ -78,6 +86,12 @@ namespace detail
     bool benchmarkOptionSeen = false;
     bool benchmarkOutputSet = false;
     bool frameLimitExplicit = false;
+    NetworkClientOptions network;
+    bool networkCreateSeen = false;
+    bool networkOptionSeen = false;
+    bool expectedPlayersSeen = false;
+    bool lobbyHostSeen = false;
+    bool lobbyPortSeen = false;
 
     for (std::size_t index = 0; index < arguments.size(); ++index)
     {
@@ -101,6 +115,33 @@ namespace detail
         else if (argument == "--verify-asset-scene")
         {
             options.verifyAssetScene = true;
+        }
+        else if (argument == "--network-create")
+        {
+            if (networkCreateSeen)
+            {
+                return detail::Error("duplicate --network-create");
+            }
+            networkCreateSeen = true;
+        }
+        else if (argument == "--lobby-host")
+        {
+            if (lobbyHostSeen)
+            {
+                return detail::Error("duplicate --lobby-host");
+            }
+            if (index + 1 >= arguments.size())
+            {
+                return detail::Error("--lobby-host requires a value");
+            }
+            lobbyHostSeen = true;
+            networkOptionSeen = true;
+            network.lobbyHost = arguments[++index];
+            if (network.lobbyHost.empty() || network.lobbyHost.size() > 255U)
+            {
+                return detail::Error(
+                    "--lobby-host must contain 1 to 255 bytes");
+            }
         }
         else if (argument == "--render-path")
         {
@@ -128,7 +169,9 @@ namespace detail
             || argument == "--height"
             || argument == "--benchmark-warmup"
             || argument == "--benchmark-frames"
-            || argument == "--benchmark-seed")
+            || argument == "--benchmark-seed"
+            || argument == "--expected-players"
+            || argument == "--lobby-port")
         {
             if (index + 1 >= arguments.size())
             {
@@ -164,6 +207,36 @@ namespace detail
             {
                 benchmark.seed = *parsed;
                 benchmarkOptionSeen = true;
+            }
+            else if (argument == "--expected-players")
+            {
+                if (expectedPlayersSeen)
+                {
+                    return detail::Error("duplicate --expected-players");
+                }
+                expectedPlayersSeen = true;
+                networkOptionSeen = true;
+                if (*parsed < 2U || *parsed > 24U)
+                {
+                    return detail::Error(
+                        "--expected-players must be between 2 and 24");
+                }
+                network.expectedPlayers = static_cast<std::uint8_t>(*parsed);
+            }
+            else if (argument == "--lobby-port")
+            {
+                if (lobbyPortSeen)
+                {
+                    return detail::Error("duplicate --lobby-port");
+                }
+                lobbyPortSeen = true;
+                networkOptionSeen = true;
+                if (*parsed == 0U || *parsed > 65535U)
+                {
+                    return detail::Error(
+                        "--lobby-port must be between 1 and 65535");
+                }
+                network.lobbyPort = static_cast<std::uint16_t>(*parsed);
             }
             else
             {
@@ -234,6 +307,24 @@ namespace detail
         return detail::Error("benchmark options require --benchmark-output");
     }
 
+    if (networkOptionSeen && !networkCreateSeen)
+    {
+        return detail::Error(
+            "network options require --network-create");
+    }
+
+    if (networkCreateSeen
+        && options.renderPath != dxa::engine::RenderPath::HybridDeferred)
+    {
+        return detail::Error(
+            "--network-create requires --render-path hybrid-deferred");
+    }
+
+    if (networkCreateSeen && benchmarkOutputSet)
+    {
+        return detail::Error("network mode cannot run a benchmark");
+    }
+
     if (benchmarkOutputSet)
     {
         if (options.vsync)
@@ -257,6 +348,11 @@ namespace detail
 
         options.frameLimit = benchmark.warmupFrames + benchmark.measuredFrames;
         options.benchmark = std::move(benchmark);
+    }
+
+    if (networkCreateSeen)
+    {
+        options.network = std::move(network);
     }
 
     return ClientOptionsParseResult{options, {}};

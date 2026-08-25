@@ -3,8 +3,10 @@
 #include <gtest/gtest.h>
 
 #include <array>
+#include <bit>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -88,4 +90,41 @@ TEST(ByteCodec, RejectsStringOutsideWriterAndReaderLimits)
     dxa::protocol::ByteReader reader{encodedBytes};
     EXPECT_FALSE(reader.ReadString8(3U).has_value());
     EXPECT_EQ(dxa::protocol::DecodeError::CountLimit, reader.Error());
+}
+
+TEST(ByteCodec, WritesAndReadsLittleEndianFloatBits)
+{
+    dxa::protocol::ByteWriter writer;
+    writer.WriteF32(1.0F);
+    writer.WriteF32(-2.5F);
+    const std::vector<std::byte> bytes = std::move(writer).Finish();
+
+    const std::vector<std::byte> expected{
+        std::byte{0x00}, std::byte{0x00}, std::byte{0x80}, std::byte{0x3F},
+        std::byte{0x00}, std::byte{0x00}, std::byte{0x20}, std::byte{0xC0}};
+    EXPECT_EQ(expected, bytes);
+
+    dxa::protocol::ByteReader reader{bytes};
+    const auto one = reader.ReadF32();
+    const auto negative = reader.ReadF32();
+    ASSERT_TRUE(one.has_value());
+    ASSERT_TRUE(negative.has_value());
+    EXPECT_FLOAT_EQ(1.0F, *one);
+    EXPECT_FLOAT_EQ(-2.5F, *negative);
+    EXPECT_TRUE(reader.Empty());
+}
+
+TEST(ByteCodec, PreservesNonFiniteFloatBitsForSemanticValidation)
+{
+    const float source = std::numeric_limits<float>::quiet_NaN();
+    dxa::protocol::ByteWriter writer;
+    writer.WriteF32(source);
+    const std::vector<std::byte> bytes = std::move(writer).Finish();
+
+    dxa::protocol::ByteReader reader{bytes};
+    const auto decoded = reader.ReadF32();
+    ASSERT_TRUE(decoded.has_value());
+    EXPECT_EQ(std::bit_cast<std::uint32_t>(source),
+              std::bit_cast<std::uint32_t>(*decoded));
+    EXPECT_EQ(dxa::protocol::DecodeError::None, reader.Error());
 }

@@ -102,3 +102,29 @@ TEST(TcpFrame, RejectsHeaderWithWrongByteCount)
     EXPECT_FALSE(decoded.header.has_value());
     EXPECT_EQ(dxa::protocol::FrameHeaderError::InvalidHeaderSize, decoded.error);
 }
+
+TEST(TcpFrame, AcceptsLockedWorkerAndGameMessageTypes)
+{
+    const dxa::protocol::EncodedMessage worker{
+        dxa::protocol::MessageType::WorkerRegister,
+        {std::byte{0x11}}};
+    const dxa::protocol::EncodedMessage game{
+        dxa::protocol::MessageType::GameMatchResult,
+        {std::byte{0x22}}};
+
+    const auto workerFrame = dxa::protocol::EncodeTcpFrame(worker);
+    const auto gameFrame = dxa::protocol::EncodeTcpFrame(game);
+    const auto workerHeader = dxa::protocol::DecodeTcpFrameHeader(
+        std::span<const std::byte>{workerFrame}.first(
+            dxa::protocol::TcpFrameHeaderBytes));
+    const auto gameHeader = dxa::protocol::DecodeTcpFrameHeader(
+        std::span<const std::byte>{gameFrame}.first(
+            dxa::protocol::TcpFrameHeaderBytes));
+
+    ASSERT_TRUE(workerHeader.header.has_value());
+    ASSERT_TRUE(gameHeader.header.has_value());
+    EXPECT_EQ(dxa::protocol::MessageType::WorkerRegister,
+              workerHeader.header->type);
+    EXPECT_EQ(dxa::protocol::MessageType::GameMatchResult,
+              gameHeader.header->type);
+}

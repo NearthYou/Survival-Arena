@@ -11,7 +11,6 @@
 #include <cstddef>
 #include <exception>
 #include <iostream>
-#include <memory>
 #include <string_view>
 #include <vector>
 
@@ -33,28 +32,20 @@ int main(const int argc, const char* const* const argv)
             return 2;
         }
 
-        std::unique_ptr<dxa::lobby::IGameWorkerAllocator> allocator;
-        if (parsed.options->worker.has_value())
-        {
-            allocator = std::make_unique<dxa::lobby::StaticGameWorkerAllocator>(
-                *parsed.options->worker);
-        }
-        else
-        {
-            allocator =
-                std::make_unique<dxa::lobby::UnavailableGameWorkerAllocator>();
-        }
-
         boost::asio::io_context io;
         dxa::lobby::SecureTicketSource ticketSource;
         dxa::lobby::MatchTicketRegistry tickets{ticketSource};
-        dxa::lobby::LobbyService service{*allocator, tickets};
+        dxa::lobby::LobbyService service{tickets};
         dxa::lobby::LobbyTcpServer server{
             io,
             service,
             boost::asio::ip::tcp::endpoint{
                 boost::asio::ip::make_address(parsed.options->bindAddress),
-                parsed.options->port}};
+                parsed.options->port},
+            boost::asio::ip::tcp::endpoint{
+                boost::asio::ip::make_address(
+                    parsed.options->workerBindAddress),
+                parsed.options->workerPort}};
         boost::asio::signal_set signals{io, SIGINT, SIGTERM};
         signals.async_wait(
             [&server](const boost::system::error_code error, const int) {
@@ -66,9 +57,11 @@ int main(const int argc, const char* const* const argv)
 
         server.Start();
         spdlog::info(
-            "lobby_server_listening address={} port={}",
+            "lobby_server_listening address={} port={} worker_address={} worker_port={}",
             parsed.options->bindAddress,
-            server.LocalPort());
+            server.LocalPort(),
+            parsed.options->workerBindAddress,
+            server.WorkerControlPort());
         io.run();
         return 0;
     }

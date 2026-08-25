@@ -9,6 +9,8 @@ namespace
 constexpr std::uint32_t MaximumTicketAttempts = 8U;
 } // namespace
 
+using dxa::protocol::MatchTicketValue;
+
 MatchTicketRegistry::MatchTicketRegistry(ITicketSource& source) noexcept
     : source_{source}
 {

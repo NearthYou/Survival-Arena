@@ -3,6 +3,7 @@ find_package(GTest CONFIG REQUIRED)
 add_executable(
     dxa_tests
     client_options_test.cpp
+    client_lobby_host_flow_test.cpp
     bot_client_options_test.cpp
     engine_benchmark_report_test.cpp
     engine_gpu_pass_timing_test.cpp
@@ -14,6 +15,7 @@ add_executable(
     engine_input_state_test.cpp
     engine_resource_pool_test.cpp
     simulation_ai_decision_test.cpp
+    simulation_arena_map_test.cpp
     simulation_behavior_tree_test.cpp
     simulation_combat_test.cpp
     simulation_loot_test.cpp
@@ -28,8 +30,24 @@ add_executable(
     simulation_benchmark_options_test.cpp
     simulation_spatial_index_test.cpp
     foundation_test.cpp
+    game_authoritative_match_test.cpp
+    game_client_predictor_test.cpp
+    game_fixed_tick_scheduler_test.cpp
+    game_participant_roster_test.cpp
+    game_server_adapter_test.cpp
+    game_server_integration_test.cpp
+    game_server_options_test.cpp
+    game_session_integration_test.cpp
+    game_snapshot_reassembler_test.cpp
+    game_remote_interpolator_test.cpp
+    game_ticket_store_test.cpp
     offline_match_benchmark_options_test.cpp
     protocol_ids_test.cpp
+    protocol_game_types_test.cpp
+    protocol_worker_control_codec_test.cpp
+    protocol_game_tcp_codec_test.cpp
+    protocol_game_udp_codec_test.cpp
+    protocol_game_snapshot_codec_test.cpp
     protocol_byte_codec_test.cpp
     protocol_tcp_frame_test.cpp
     protocol_asio_framed_connection_test.cpp
@@ -41,6 +59,8 @@ add_executable(
     lobby_service_test.cpp
     lobby_tcp_integration_test.cpp
     lobby_ticket_test.cpp
+    lobby_worker_control_integration_test.cpp
+    lobby_worker_registry_test.cpp
 )
 target_link_libraries(
     dxa_tests
@@ -48,13 +68,17 @@ target_link_libraries(
         GTest::gtest_main
         dxa_bot_client_options
         dxa_client_options
+        dxa_client_network
         dxa_engine_core
+        dxa_game_server_core
+        dxa_game_client
         dxa_lobby_client
         dxa_lobby_cli_support
         dxa_lobby_core
         dxa_lobby_server_lib
         dxa_offline_match_benchmark_options
         dxa_protocol
+        dxa_game_common
         dxa_simulation
         dxa_simulation_benchmark_options
 )
@@ -75,6 +99,7 @@ if(WIN32)
             engine_hybrid_deferred_renderer_test.cpp
             engine_window_test.cpp
             navigation_ground_pick_test.cpp
+            network_vertical_slice_test.cpp
     )
     target_link_libraries(
         dxa_tests
@@ -82,7 +107,6 @@ if(WIN32)
             dxa_asset_importer
             dxa_asset_tool_options
             dxa_engine
-            dxa_navigation_demo_core
             dxa_texture_cooker
     )
     target_compile_definitions(
@@ -130,6 +154,14 @@ if(WIN32)
             -RepositoryRoot "${PROJECT_SOURCE_DIR}"
     )
 endif()
+
+add_test(
+    NAME CiWorkflowContract.AvoidsDuplicateBranchAndPullRequestRuns
+    COMMAND
+        ${CMAKE_COMMAND}
+        -DWORKFLOW_FILE=${PROJECT_SOURCE_DIR}/.github/workflows/ci.yml
+        -P ${PROJECT_SOURCE_DIR}/tests/ci_workflow_contract_test.cmake
+)
 
 dxa_enable_project_warnings(dxa_tests)
 

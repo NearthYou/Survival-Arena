@@ -6,6 +6,7 @@
 #include <wrl/client.h>
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
 
 namespace dxa::engine
@@ -32,6 +33,7 @@ public:
     [[nodiscard]] ID3D11DeviceContext* Context() const noexcept;
     [[nodiscard]] ID3D11RenderTargetView* BackBufferRenderTargetView() const noexcept;
     [[nodiscard]] bool DebugLayerEnabled() const noexcept;
+    [[nodiscard]] std::size_t DebugErrorCount() const;
 
 private:
     void CreateTargets(std::uint32_t width, std::uint32_t height);

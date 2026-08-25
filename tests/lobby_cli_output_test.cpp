@@ -62,6 +62,10 @@ TEST(LobbyCliOutput, ShowsPublicWelcomeRoomAndErrorFields)
     const std::string error = FormatLobbyServerMessage(
         ServerMessage{ErrorResponse{3U, LobbyError::RoomFull}});
     EXPECT_NE(std::string::npos, error.find("RoomFull"));
+
+    const std::string unavailable = FormatLobbyServerMessage(
+        ServerMessage{ErrorResponse{4U, LobbyError::MatchUnavailable}});
+    EXPECT_NE(std::string::npos, unavailable.find("MatchUnavailable"));
 }
 
 TEST(LobbyCliOutput, FlushesEachConsoleLine)

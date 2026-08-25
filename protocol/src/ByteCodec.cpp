@@ -1,6 +1,7 @@
 #include <dxa/protocol/ByteCodec.hpp>
 
 #include <algorithm>
+#include <bit>
 #include <limits>
 #include <stdexcept>
 #include <utility>
@@ -45,6 +46,11 @@ void ByteWriter::WriteU64(std::uint64_t value)
         bytes_.push_back(static_cast<std::byte>(value & 0xFFULL));
         value >>= 8U;
     }
+}
+
+void ByteWriter::WriteF32(const float value)
+{
+    WriteU32(std::bit_cast<std::uint32_t>(value));
 }
 
 void ByteWriter::WriteBytes(const std::span<const std::byte> bytes)
@@ -130,6 +136,14 @@ std::optional<std::uint64_t> ByteReader::ReadU64() noexcept
     }
     offset_ += 8U;
     return result;
+}
+
+std::optional<float> ByteReader::ReadF32() noexcept
+{
+    const std::optional<std::uint32_t> bits = ReadU32();
+    return bits.has_value()
+        ? std::optional<float>{std::bit_cast<float>(*bits)}
+        : std::nullopt;
 }
 
 std::optional<std::vector<std::byte>> ByteReader::ReadBytes(const std::size_t count)

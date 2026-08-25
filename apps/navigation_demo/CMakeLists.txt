@@ -1,28 +1,9 @@
 if(WIN32)
-    find_package(directxtk CONFIG REQUIRED)
-
-    add_library(dxa_navigation_demo_core STATIC src/GroundPicking.cpp)
-    target_include_directories(
-        dxa_navigation_demo_core
-        PUBLIC
-            ${CMAKE_CURRENT_SOURCE_DIR}/include
-    )
-    target_link_libraries(
-        dxa_navigation_demo_core
-        PUBLIC
-            dxa_engine_core
-            dxa_simulation
-        PRIVATE
-            Microsoft::DirectXTK
-    )
-    dxa_enable_project_warnings(dxa_navigation_demo_core)
-
     add_executable(dxa_navigation_demo src/main.cpp)
     target_link_libraries(
         dxa_navigation_demo
         PRIVATE
             dxa_engine
-            dxa_navigation_demo_core
             dxa_simulation
     )
     target_compile_definitions(

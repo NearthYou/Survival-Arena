@@ -1,0 +1,74 @@
+#include <dxa/game_server/GameServerOptions.hpp>
+
+#include <gtest/gtest.h>
+
+#include <initializer_list>
+#include <string>
+#include <string_view>
+#include <vector>
+
+namespace
+{
+[[nodiscard]] dxa::game_server::GameServerOptionsParseResult Parse(
+    const std::initializer_list<std::string_view> arguments)
+{
+    const std::vector<std::string_view> values{arguments};
+    return dxa::game_server::ParseGameServerOptions(values);
+}
+} // namespace
+
+TEST(GameServerOptions, DefaultsToLoopbackWorkerAndGamePorts)
+{
+    const auto parsed = Parse({});
+
+    ASSERT_TRUE(parsed.options.has_value());
+    EXPECT_EQ("127.0.0.1", parsed.options->lobbyControlHost);
+    EXPECT_EQ(7001U, parsed.options->lobbyControlPort);
+    EXPECT_EQ(dxa::protocol::WorkerId{1U}, parsed.options->worker);
+    EXPECT_EQ("127.0.0.1", parsed.options->advertisedHost);
+    EXPECT_EQ("127.0.0.1", parsed.options->gameBindAddress);
+    EXPECT_EQ(7100U, parsed.options->gameTcpPort);
+    EXPECT_EQ(7101U, parsed.options->gameUdpPort);
+}
+
+TEST(GameServerOptions, ParsesLoopbackWorkerAndGamePorts)
+{
+    const auto parsed = Parse({
+        "--lobby-control-host", "127.0.0.2",
+        "--lobby-control-port", "7201",
+        "--worker-id", "9",
+        "--advertise-host", "game.example.test",
+        "--game-bind", "0.0.0.0",
+        "--game-tcp-port", "7300",
+        "--game-udp-port", "7301"});
+
+    ASSERT_TRUE(parsed.options.has_value());
+    EXPECT_EQ("127.0.0.2", parsed.options->lobbyControlHost);
+    EXPECT_EQ(7201U, parsed.options->lobbyControlPort);
+    EXPECT_EQ(dxa::protocol::WorkerId{9U}, parsed.options->worker);
+    EXPECT_EQ("game.example.test", parsed.options->advertisedHost);
+    EXPECT_EQ("0.0.0.0", parsed.options->gameBindAddress);
+    EXPECT_EQ(7300U, parsed.options->gameTcpPort);
+    EXPECT_EQ(7301U, parsed.options->gameUdpPort);
+}
+
+TEST(GameServerOptions, RejectsInvalidBoundariesDuplicatesAndUnknownOptions)
+{
+    EXPECT_FALSE(Parse({"--lobby-control-port", "0"}).options.has_value());
+    EXPECT_FALSE(Parse({"--lobby-control-port", "65536"}).options.has_value());
+    EXPECT_FALSE(Parse({"--game-tcp-port", "0"}).options.has_value());
+    EXPECT_FALSE(Parse({"--game-udp-port", "65536"}).options.has_value());
+    EXPECT_FALSE(Parse({"--worker-id", "0"}).options.has_value());
+    EXPECT_FALSE(Parse({"--worker-id", "worker"}).options.has_value());
+    EXPECT_FALSE(Parse({
+        "--lobby-control-host", "not-an-address"}).options.has_value());
+    EXPECT_FALSE(Parse({"--game-bind", "not-an-address"}).options.has_value());
+    EXPECT_FALSE(Parse({"--advertise-host", "bad\nhost"}).options.has_value());
+    EXPECT_FALSE(Parse({"--advertise-host", ""}).options.has_value());
+    const std::string longHost(256U, 'a');
+    EXPECT_FALSE(Parse({"--advertise-host", longHost}).options.has_value());
+    EXPECT_FALSE(Parse({
+        "--game-tcp-port", "7100",
+        "--game-tcp-port", "7101"}).options.has_value());
+    EXPECT_FALSE(Parse({"--unknown", "value"}).options.has_value());
+}

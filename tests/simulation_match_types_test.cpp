@@ -52,7 +52,7 @@ TEST(MatchConfig, LocksCanonicalPopulationTimingAndMovementDefaults)
     EXPECT_NO_THROW(ValidateMatchConfig(config));
 }
 
-TEST(MatchConfig, RejectsNonCanonicalTickContracts)
+TEST(MatchConfig, RejectsInvalidTickContracts)
 {
     MatchConfig config = DefaultMatchConfig();
     config.tickRate = 60U;
@@ -63,12 +63,21 @@ TEST(MatchConfig, RejectsNonCanonicalTickContracts)
     EXPECT_THROW(ValidateMatchConfig(config), std::invalid_argument);
 
     config = DefaultMatchConfig();
-    config.suddenDeathTick = 14399U;
+    config.suddenDeathTick = 0U;
     EXPECT_THROW(ValidateMatchConfig(config), std::invalid_argument);
 
     config = DefaultMatchConfig();
-    config.hardTimeoutTick = 17999U;
+    config.hardTimeoutTick = config.suddenDeathTick;
     EXPECT_THROW(ValidateMatchConfig(config), std::invalid_argument);
+}
+
+TEST(MatchConfig, AllowsInjectedShortServerTiming)
+{
+    MatchConfig config = DefaultMatchConfig();
+    config.suddenDeathTick = 30U;
+    config.hardTimeoutTick = 60U;
+
+    EXPECT_NO_THROW(ValidateMatchConfig(config));
 }
 
 TEST(MatchConfig, RejectsInvalidPopulationAndSpawnAttempts)

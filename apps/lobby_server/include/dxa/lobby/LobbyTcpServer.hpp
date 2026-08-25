@@ -1,6 +1,7 @@
 #pragma once
 
 #include <dxa/lobby/LobbyService.hpp>
+#include <dxa/lobby/WorkerControlServer.hpp>
 
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/ip/tcp.hpp>
@@ -16,7 +17,9 @@ public:
     LobbyTcpServer(
         boost::asio::io_context& io,
         LobbyService& service,
-        boost::asio::ip::tcp::endpoint endpoint);
+        boost::asio::ip::tcp::endpoint endpoint,
+        boost::asio::ip::tcp::endpoint workerEndpoint,
+        WorkerControlServerConfig workerConfig = {});
     ~LobbyTcpServer();
 
     LobbyTcpServer(const LobbyTcpServer&) = delete;
@@ -25,6 +28,7 @@ public:
     void Start();
     void Stop();
     [[nodiscard]] std::uint16_t LocalPort() const;
+    [[nodiscard]] std::uint16_t WorkerControlPort() const;
 
 private:
     struct State;

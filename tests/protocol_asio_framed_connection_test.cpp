@@ -302,3 +302,43 @@ TEST(AsioFramedConnection, ClosesWhenPendingWritesExceedLimit)
     PumpReady(pair.io);
     EXPECT_EQ(1U, closeCount);
 }
+
+TEST(AsioFramedConnection, CloseAfterFlushDeliversFinalFrameThenCloses)
+{
+    AsioSocketPair pair;
+    std::vector<RawFrame> clientFrames;
+    std::size_t serverCloseCount = 0U;
+    std::size_t clientCloseCount = 0U;
+    auto server = AsioFramedConnection::Create(
+        std::move(pair.server),
+        [](RawFrame) {},
+        [&serverCloseCount](const boost::system::error_code) {
+            ++serverCloseCount;
+        });
+    auto client = AsioFramedConnection::Create(
+        std::move(pair.client),
+        [&clientFrames](RawFrame frame) {
+            clientFrames.push_back(std::move(frame));
+        },
+        [&clientCloseCount](const boost::system::error_code) {
+            ++clientCloseCount;
+        });
+    server->Start();
+    client->Start();
+
+    EXPECT_TRUE(server->Send(EncodedMessage{
+        MessageType::GameMatchResult,
+        {std::byte{0x2A}}}));
+    server->CloseAfterFlush();
+    EXPECT_FALSE(server->Send(Message(MessageType::GameMatchResult, {0x2BU})));
+    RunUntil(pair.io, [&] {
+        return clientFrames.size() == 1U
+            && serverCloseCount == 1U
+            && clientCloseCount == 1U;
+    });
+
+    ASSERT_EQ(1U, clientFrames.size());
+    EXPECT_EQ(MessageType::GameMatchResult, clientFrames.front().type);
+    ASSERT_EQ(1U, clientFrames.front().payload.size());
+    EXPECT_EQ(std::byte{0x2A}, clientFrames.front().payload.front());
+}

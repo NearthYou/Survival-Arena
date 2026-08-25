@@ -10,6 +10,8 @@
 
 namespace dxa::engine
 {
+class IRuntimeSceneController;
+
 struct BenchmarkRunOptions
 {
     std::filesystem::path outputDirectory;
@@ -41,6 +43,7 @@ public:
     [[nodiscard]] int Run(
         const EngineRunOptions& options,
         const std::filesystem::path& shaderPath,
-        const std::filesystem::path& assetRoot = {}) const;
+        const std::filesystem::path& assetRoot = {},
+        IRuntimeSceneController* runtimeScene = nullptr) const;
 };
 } // namespace dxa::engine

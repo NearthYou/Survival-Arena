@@ -35,6 +35,7 @@ public:
     void Start();
     [[nodiscard]] bool Send(const EncodedMessage& message);
     void Close();
+    void CloseAfterFlush();
     [[nodiscard]] boost::asio::ip::tcp::socket& Socket() noexcept;
 
 private:
@@ -59,5 +60,6 @@ private:
     bool started_ = false;
     bool closed_ = false;
     bool writeInProgress_ = false;
+    bool closeAfterFlush_ = false;
 };
 } // namespace dxa::protocol

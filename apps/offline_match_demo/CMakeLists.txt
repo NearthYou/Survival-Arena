@@ -4,7 +4,6 @@ if(WIN32)
         dxa_offline_match_demo
         PRIVATE
             dxa_engine
-            dxa_navigation_demo_core
             dxa_simulation
     )
     target_compile_definitions(
