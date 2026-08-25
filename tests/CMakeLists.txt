@@ -32,6 +32,7 @@ add_executable(
     foundation_test.cpp
     game_authoritative_match_test.cpp
     game_client_predictor_test.cpp
+    game_client_snapshot_stream_test.cpp
     game_network_runtime_test.cpp
     game_fixed_tick_scheduler_test.cpp
     game_interest_grid_test.cpp

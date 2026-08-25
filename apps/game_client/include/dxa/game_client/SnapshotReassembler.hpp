@@ -3,12 +3,22 @@
 #include <dxa/protocol/GameSnapshot.hpp>
 #include <dxa/protocol/GameUdpMessages.hpp>
 
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <vector>
 
 namespace dxa::game_client
 {
+struct ReassembledPayload
+{
+    std::uint32_t snapshotId = 0U;
+    std::uint32_t serverTick = 0U;
+    std::uint32_t ackInputSequence = 0U;
+    std::vector<std::byte> bytes;
+};
+
 struct ReassembledSnapshot
 {
     std::uint32_t snapshotId = 0U;
@@ -28,6 +38,8 @@ public:
     SnapshotReassembler& operator=(const SnapshotReassembler&) = delete;
 
     [[nodiscard]] std::optional<ReassembledSnapshot> Push(
+        const dxa::protocol::SnapshotFragment& fragment);
+    [[nodiscard]] std::optional<ReassembledPayload> PushBytes(
         const dxa::protocol::SnapshotFragment& fragment);
     void Reset() noexcept;
 

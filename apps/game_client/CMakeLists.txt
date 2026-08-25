@@ -1,6 +1,8 @@
 add_library(
     dxa_game_client
     STATIC
+        include/dxa/game_client/ClientSnapshotStream.hpp
+        src/ClientSnapshotStream.cpp
         src/ClientPredictor.cpp
         src/GameNetworkRuntime.cpp
         src/GameSession.cpp

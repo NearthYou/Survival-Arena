@@ -112,7 +112,7 @@ SnapshotReassembler::SnapshotReassembler(SnapshotReassembler&&) noexcept =
 SnapshotReassembler& SnapshotReassembler::operator=(
     SnapshotReassembler&&) noexcept = default;
 
-std::optional<ReassembledSnapshot> SnapshotReassembler::Push(
+std::optional<ReassembledPayload> SnapshotReassembler::PushBytes(
     const dxa::protocol::SnapshotFragment& fragment)
 {
     if (impl_ == nullptr)
@@ -183,15 +183,30 @@ std::optional<ReassembledSnapshot> SnapshotReassembler::Push(
     {
         return std::nullopt;
     }
-    auto decoded = dxa::protocol::DecodeGameSnapshot(payload);
+    return ReassembledPayload{
+        metadata.snapshotId,
+        metadata.serverTick,
+        metadata.ackInputSequence,
+        std::move(payload)};
+}
+
+std::optional<ReassembledSnapshot> SnapshotReassembler::Push(
+    const dxa::protocol::SnapshotFragment& fragment)
+{
+    std::optional<ReassembledPayload> payload = PushBytes(fragment);
+    if (!payload.has_value())
+    {
+        return std::nullopt;
+    }
+    auto decoded = dxa::protocol::DecodeGameSnapshot(payload->bytes);
     if (!decoded.snapshot.has_value())
     {
         return std::nullopt;
     }
     return ReassembledSnapshot{
-        metadata.snapshotId,
-        metadata.serverTick,
-        metadata.ackInputSequence,
+        payload->snapshotId,
+        payload->serverTick,
+        payload->ackInputSequence,
         std::move(*decoded.snapshot)};
 }
 

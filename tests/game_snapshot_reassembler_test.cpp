@@ -14,6 +14,7 @@
 namespace
 {
 using dxa::game_client::ReassembledSnapshot;
+using dxa::game_client::ReassembledPayload;
 using dxa::game_client::SnapshotReassembler;
 using dxa::protocol::EntityId;
 using dxa::protocol::GameSnapshot;
@@ -179,6 +180,33 @@ TEST(SnapshotReassembler, HandlesThirtyTwoFragmentBoundaryWithoutDelivery)
     {
         EXPECT_FALSE(reassembler.Push(fragment).has_value());
     }
+}
+
+TEST(SnapshotReassembler, ReturnsVerifiedBytesWithoutDecodingPayload)
+{
+    SnapshotReassembler reassembler;
+    const std::vector<std::byte> payload(
+        dxa::protocol::MaxSnapshotPayloadBytes,
+        std::byte{0xA5});
+    const std::vector<SnapshotFragment> fragments =
+        dxa::protocol::FragmentSnapshot(
+            MatchId{7U},
+            41U,
+            51U,
+            11U,
+            payload);
+
+    std::optional<ReassembledPayload> completed;
+    for (const SnapshotFragment& fragment : fragments)
+    {
+        completed = reassembler.PushBytes(fragment);
+    }
+
+    ASSERT_TRUE(completed.has_value());
+    EXPECT_EQ(41U, completed->snapshotId);
+    EXPECT_EQ(51U, completed->serverTick);
+    EXPECT_EQ(11U, completed->ackInputSequence);
+    EXPECT_EQ(payload, completed->bytes);
 }
 
 TEST(SnapshotReassembler, ResetAllowsFreshLowerIdentityStream)
