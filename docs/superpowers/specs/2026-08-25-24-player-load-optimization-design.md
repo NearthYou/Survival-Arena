@@ -1,6 +1,6 @@
 # 10주차 24인 부하와 snapshot 최적화 설계
 
-- 상태: 검수 대기
+- 상태: 채택
 - 날짜: 2026-08-25
 - 기준 branch: `feat/24-player-load-optimization`
 - 기준 main: `38547c89b751a54256fea245b5f68ead1a48e547`
