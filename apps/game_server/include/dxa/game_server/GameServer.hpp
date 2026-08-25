@@ -10,6 +10,7 @@
 #include <boost/asio/io_context.hpp>
 
 #include <chrono>
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <vector>
@@ -42,6 +43,7 @@ public:
     [[nodiscard]] dxa::game_common::GameTrafficTotals Traffic() const;
     [[nodiscard]] std::vector<ServerMatchMetricsSnapshot>
     CompletedMetrics() const;
+    [[nodiscard]] std::size_t CompletedMetricCount() const;
 
 private:
     struct State;

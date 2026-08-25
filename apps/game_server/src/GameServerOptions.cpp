@@ -64,7 +64,7 @@ GameServerOptionsParseResult ParseGameServerOptions(
     const std::span<const std::string_view> arguments)
 {
     GameServerOptions options;
-    std::array<bool, 7U> seen{};
+    std::array<bool, 9U> seen{};
     for (std::size_t index = 0U; index < arguments.size(); ++index)
     {
         const std::string_view option = arguments[index];
@@ -132,6 +132,27 @@ GameServerOptionsParseResult ParseGameServerOptions(
                     "--game-udp-port must be between 1 and 65535");
             }
             options.gameUdpPort = *parsed;
+        }
+        else if (option == "--replication-mode")
+        {
+            slot = 7U;
+            if (value != "full-state")
+            {
+                return Failure(
+                    "--replication-mode must be full-state");
+            }
+            options.replicationMode =
+                dxa::protocol::ReplicationMode::FullState;
+        }
+        else if (option == "--metrics-output-root")
+        {
+            slot = 8U;
+            if (value.empty() || value.size() > 4096U)
+            {
+                return Failure(
+                    "--metrics-output-root must contain 1 to 4096 bytes");
+            }
+            options.metricsOutputRoot = value;
         }
         else
         {

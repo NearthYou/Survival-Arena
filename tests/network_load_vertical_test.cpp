@@ -31,7 +31,8 @@ TEST(NetworkLoadVertical, WarpHostAndTwentyThreeBotSessionsFinishOneMatch)
             dxa::test::ShortNetworkVerticalMatchConfig()};
         fixture.StartServers();
 
-        dxa::client::NetworkClientController host{fixture.HostOptions(24U)};
+        dxa::client::NetworkClientController host{
+            fixture.HostOptions(24U, true)};
         host.Start();
         fixture.WaitForRoom(host);
 
@@ -65,6 +66,7 @@ TEST(NetworkLoadVertical, WarpHostAndTwentyThreeBotSessionsFinishOneMatch)
                     && session.receivedUdpBytes > 0U;
             }));
         EXPECT_EQ(60U, host.Result()->finishedTick);
+        EXPECT_TRUE(host.ShouldClose());
         EXPECT_GE(host.SnapshotCount(), 2U);
         EXPECT_EQ(24U, fixture.TokenFillCount());
 

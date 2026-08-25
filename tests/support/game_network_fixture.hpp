@@ -782,12 +782,14 @@ public:
     }
 
     [[nodiscard]] dxa::client::NetworkClientOptions HostOptions(
-        const std::uint8_t expectedPlayers) const
+        const std::uint8_t expectedPlayers,
+        const bool exitOnMatchResult = false) const
     {
         return {
             "127.0.0.1",
             network_.LobbyPort(),
-            expectedPlayers};
+            expectedPlayers,
+            exitOnMatchResult};
     }
 
     void WaitForRoom(dxa::client::NetworkClientController& host)

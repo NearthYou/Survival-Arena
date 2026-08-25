@@ -156,6 +156,15 @@ if(WIN32)
             -File "${PROJECT_SOURCE_DIR}/tests/offline_match_benchmark_runner_test.ps1"
             -RepositoryRoot "${PROJECT_SOURCE_DIR}"
     )
+
+    add_test(
+        NAME NetworkLoadRunner.GuardsEvidenceBoundary
+        COMMAND
+            ${DXA_POWERSHELL_EXECUTABLE}
+            -NoProfile
+            -File "${PROJECT_SOURCE_DIR}/tests/network_load_runner_test.ps1"
+            -RepositoryRoot "${PROJECT_SOURCE_DIR}"
+    )
 endif()
 
 add_test(

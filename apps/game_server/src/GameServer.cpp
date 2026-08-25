@@ -332,6 +332,12 @@ struct GameServer::State final
         return metrics;
     }
 
+    [[nodiscard]] std::size_t CompletedMetricCount() const
+    {
+        std::scoped_lock lock{completedMetricsMutex_};
+        return completedMetrics_.size();
+    }
+
     void ConnectControl()
     {
         if (stopping_ || connectingControl_ || controlTransport_)
@@ -987,5 +993,10 @@ dxa::game_common::GameTrafficTotals GameServer::Traffic() const
 std::vector<ServerMatchMetricsSnapshot> GameServer::CompletedMetrics() const
 {
     return state_->CompletedMetrics();
+}
+
+std::size_t GameServer::CompletedMetricCount() const
+{
+    return state_->CompletedMetricCount();
 }
 } // namespace dxa::game_server

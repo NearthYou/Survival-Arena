@@ -256,6 +256,7 @@ struct NetworkClientController::Impl final
             arena.mapId,
             arena.fingerprint});
         activeMatch.store(ticket.match.value);
+        activePlayer.store(player->value);
         {
             std::scoped_lock lock{sessionMutex};
             if (gameSession)
@@ -305,6 +306,10 @@ struct NetworkClientController::Impl final
     {
         if (failed.load())
         {
+            if (options.exitOnMatchResult)
+            {
+                return;
+            }
             throw std::runtime_error{"network client failed"};
         }
         const auto session = Session();
@@ -326,6 +331,11 @@ struct NetworkClientController::Impl final
         if (state == dxa::game_client::GameSessionState::ProtocolError
             || state == dxa::game_client::GameSessionState::Closed)
         {
+            terminalGameError.store(true);
+            if (options.exitOnMatchResult)
+            {
+                return;
+            }
             throw std::runtime_error{"game session failed"};
         }
         if (state == dxa::game_client::GameSessionState::Finished
@@ -338,6 +348,7 @@ struct NetworkClientController::Impl final
                     "game session finished without result"};
             }
             std::cout << "network match=" << result->match.value
+                      << " player=" << activePlayer.load()
                       << " state=finished winner=";
             if (result->hasWinner)
             {
@@ -347,7 +358,17 @@ struct NetworkClientController::Impl final
             {
                 std::cout << "none";
             }
+            const dxa::game_common::GameSessionMetrics metrics =
+                session->Metrics();
             std::cout << " tick=" << result->finishedTick
+                      << " reason="
+                      << static_cast<std::uint32_t>(result->reason)
+                      << " snapshots_applied="
+                      << metrics.snapshotsApplied
+                      << " tcp_received_bytes="
+                      << metrics.traffic.tcpReceivedBytes
+                      << " udp_received_bytes="
+                      << metrics.traffic.udpReceivedBytes
                       << '\n' << std::flush;
         }
         if (state == dxa::game_client::GameSessionState::Running
@@ -462,8 +483,10 @@ struct NetworkClientController::Impl final
     std::atomic<bool> failed{false};
     std::atomic<std::uint64_t> snapshotCount{0U};
     std::atomic<std::uint64_t> activeMatch{0U};
+    std::atomic<std::uint32_t> activePlayer{0U};
     std::atomic<bool> synchronizationReported{false};
     std::atomic<bool> resultReported{false};
+    std::atomic<bool> terminalGameError{false};
 
     mutable std::mutex sessionMutex;
     std::shared_ptr<dxa::game_client::GameSession> gameSession;
@@ -495,6 +518,14 @@ void NetworkClientController::FixedUpdate(
 dxa::engine::RuntimeSceneFrame NetworkClientController::SampleScene()
 {
     return impl_->SampleScene();
+}
+
+bool NetworkClientController::ShouldClose() const noexcept
+{
+    return impl_->options.exitOnMatchResult
+        && (impl_->resultReported.load()
+            || impl_->failed.load()
+            || impl_->terminalGameError.load());
 }
 
 std::optional<dxa::protocol::RoomId> NetworkClientController::Room() const

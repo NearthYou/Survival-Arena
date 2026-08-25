@@ -52,6 +52,19 @@ TEST(GameServerOptions, ParsesLoopbackWorkerAndGamePorts)
     EXPECT_EQ(7301U, parsed.options->gameUdpPort);
 }
 
+TEST(GameServerOptions, ParsesFullStateMetricsOutput)
+{
+    const auto parsed = Parse({
+        "--replication-mode", "full-state",
+        "--metrics-output-root", "out/network-load"});
+
+    ASSERT_TRUE(parsed.options.has_value()) << parsed.error;
+    EXPECT_EQ(
+        dxa::protocol::ReplicationMode::FullState,
+        parsed.options->replicationMode);
+    EXPECT_EQ("out/network-load", parsed.options->metricsOutputRoot);
+}
+
 TEST(GameServerOptions, RejectsInvalidBoundariesDuplicatesAndUnknownOptions)
 {
     EXPECT_FALSE(Parse({"--lobby-control-port", "0"}).options.has_value());
@@ -70,5 +83,11 @@ TEST(GameServerOptions, RejectsInvalidBoundariesDuplicatesAndUnknownOptions)
     EXPECT_FALSE(Parse({
         "--game-tcp-port", "7100",
         "--game-tcp-port", "7101"}).options.has_value());
+    EXPECT_FALSE(Parse({
+        "--replication-mode", "interest-delta"}).options.has_value());
+    EXPECT_FALSE(Parse({"--metrics-output-root", ""}).options.has_value());
+    EXPECT_FALSE(Parse({
+        "--metrics-output-root", "first",
+        "--metrics-output-root", "second"}).options.has_value());
     EXPECT_FALSE(Parse({"--unknown", "value"}).options.has_value());
 }

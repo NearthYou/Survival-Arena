@@ -24,6 +24,7 @@ struct NetworkClientOptions
     std::string lobbyHost = "127.0.0.1";
     std::uint16_t lobbyPort = 7000U;
     std::uint8_t expectedPlayers = 2U;
+    bool exitOnMatchResult = false;
 };
 
 struct ClientOptions
@@ -92,6 +93,7 @@ namespace detail
     bool expectedPlayersSeen = false;
     bool lobbyHostSeen = false;
     bool lobbyPortSeen = false;
+    bool exitOnMatchResultSeen = false;
 
     for (std::size_t index = 0; index < arguments.size(); ++index)
     {
@@ -123,6 +125,16 @@ namespace detail
                 return detail::Error("duplicate --network-create");
             }
             networkCreateSeen = true;
+        }
+        else if (argument == "--exit-on-match-result")
+        {
+            if (exitOnMatchResultSeen)
+            {
+                return detail::Error("duplicate --exit-on-match-result");
+            }
+            exitOnMatchResultSeen = true;
+            networkOptionSeen = true;
+            network.exitOnMatchResult = true;
         }
         else if (argument == "--lobby-host")
         {
@@ -287,12 +299,20 @@ namespace detail
         }
     }
 
-    if (options.hidden && options.frameLimit == 0 && !benchmarkOutputSet)
+    const bool resultDrivenNetworkRun =
+        networkCreateSeen && network.exitOnMatchResult;
+    if (options.hidden
+        && options.frameLimit == 0
+        && !benchmarkOutputSet
+        && !resultDrivenNetworkRun)
     {
         return detail::Error("--hidden requires --frames greater than 0");
     }
 
-    if (options.verifyRender && options.frameLimit == 0 && !benchmarkOutputSet)
+    if (options.verifyRender
+        && options.frameLimit == 0
+        && !benchmarkOutputSet
+        && !resultDrivenNetworkRun)
     {
         return detail::Error("--verify-render requires --frames greater than 0");
     }

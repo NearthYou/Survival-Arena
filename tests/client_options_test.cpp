@@ -248,6 +248,27 @@ TEST(ClientOptions, ParsesNetworkCreateAndRequiresHybridPath)
     EXPECT_FALSE(ParseClientOptions(invalidArguments).options.has_value());
 }
 
+TEST(ClientOptions, NetworkResultCanCloseHiddenClientWithoutFrameLimit)
+{
+    constexpr std::array arguments{
+        std::string_view{"--warp"},
+        std::string_view{"--hidden"},
+        std::string_view{"--verify-render"},
+        std::string_view{"--render-path"},
+        std::string_view{"hybrid-deferred"},
+        std::string_view{"--network-create"},
+        std::string_view{"--expected-players"},
+        std::string_view{"24"},
+        std::string_view{"--exit-on-match-result"}};
+
+    const auto parsed = ParseClientOptions(arguments);
+
+    ASSERT_TRUE(parsed.options.has_value()) << parsed.error;
+    ASSERT_TRUE(parsed.options->network.has_value());
+    EXPECT_TRUE(parsed.options->network->exitOnMatchResult);
+    EXPECT_EQ(0U, parsed.options->frameLimit);
+}
+
 TEST(ClientOptions, EnforcesNetworkPlayerAndOptionBoundaries)
 {
     constexpr std::array twoPlayers{
@@ -285,10 +306,20 @@ TEST(ClientOptions, EnforcesNetworkPlayerAndOptionBoundaries)
     constexpr std::array networkWithoutCreate{
         std::string_view{"--expected-players"},
         std::string_view{"2"}};
+    constexpr std::array exitWithoutCreate{
+        std::string_view{"--exit-on-match-result"}};
+    constexpr std::array duplicateExit{
+        std::string_view{"--render-path"},
+        std::string_view{"hybrid-deferred"},
+        std::string_view{"--network-create"},
+        std::string_view{"--exit-on-match-result"},
+        std::string_view{"--exit-on-match-result"}};
     EXPECT_FALSE(ParseClientOptions(onePlayer).options.has_value());
     EXPECT_FALSE(ParseClientOptions(twentyFivePlayers).options.has_value());
     EXPECT_FALSE(ParseClientOptions(duplicateCreate).options.has_value());
     EXPECT_FALSE(ParseClientOptions(networkWithoutCreate).options.has_value());
+    EXPECT_FALSE(ParseClientOptions(exitWithoutCreate).options.has_value());
+    EXPECT_FALSE(ParseClientOptions(duplicateExit).options.has_value());
 }
 
 TEST(ClientOptions, RejectsNetworkBenchmarkCombination)

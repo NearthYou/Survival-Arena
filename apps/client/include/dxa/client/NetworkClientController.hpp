@@ -23,6 +23,7 @@ public:
     void Start();
     void FixedUpdate(const dxa::engine::RuntimeInputFrame& input) override;
     [[nodiscard]] dxa::engine::RuntimeSceneFrame SampleScene() override;
+    [[nodiscard]] bool ShouldClose() const noexcept override;
     [[nodiscard]] std::optional<dxa::protocol::RoomId> Room() const;
     [[nodiscard]] std::optional<dxa::protocol::GameMatchResult> Result() const;
     [[nodiscard]] std::uint64_t SnapshotCount() const noexcept;

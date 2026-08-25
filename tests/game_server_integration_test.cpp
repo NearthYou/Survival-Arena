@@ -826,7 +826,8 @@ TEST(GameServerIntegration, NetworkHostControllerRunsUntilGameResult)
         dxa::client::NetworkClientOptions{
             "127.0.0.1",
             fixture.LobbyPort(),
-            2U}};
+            2U,
+            true}};
     controller.Start();
     PumpNetworkControllerUntil(
         fixture,
@@ -863,5 +864,6 @@ TEST(GameServerIntegration, NetworkHostControllerRunsUntilGameResult)
 
     EXPECT_TRUE(controller.Result()->hasWinner);
     EXPECT_NO_THROW(controller.FixedUpdate({}));
+    EXPECT_TRUE(controller.ShouldClose());
     controller.Stop();
 }
