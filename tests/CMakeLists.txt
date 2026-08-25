@@ -42,6 +42,7 @@ add_executable(
     game_server_options_test.cpp
     game_session_integration_test.cpp
     game_snapshot_reassembler_test.cpp
+    game_snapshot_replicator_test.cpp
     game_remote_interpolator_test.cpp
     game_ticket_store_test.cpp
     offline_match_benchmark_options_test.cpp
