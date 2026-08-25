@@ -164,6 +164,11 @@ try {
     if ($null -eq $exitProcess.ExitCode -or $exitProcess.ExitCode -ne 7) {
         throw "Redirected process ExitCode가 확정되지 않았습니다: $($exitProcess.ExitCode)"
     }
+    if ((Get-DxaNetworkLoadMatchSeed -MatchId 1) -ne 20260825 -or
+        (Get-DxaNetworkLoadMatchSeed -MatchId ([uint64]4294967297)) -ne
+            20260824) {
+        throw 'Network load MatchId seed 계산이 잘못됐습니다.'
+    }
 
     $serverExecutable = Join-Path $RepositoryRoot (
         'out/build/windows-msvc-vs-debug/apps/game_server/Debug/' +

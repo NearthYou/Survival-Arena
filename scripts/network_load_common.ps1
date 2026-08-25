@@ -242,6 +242,18 @@ function Wait-DxaNetworkLoadProcesses {
     throw 'Network load client process 대기가 시간 초과됐습니다.'
 }
 
+function Get-DxaNetworkLoadMatchSeed {
+    [CmdletBinding()]
+    param(
+        [uint64]$MatchId,
+        [uint32]$SeedBase = 20260824
+    )
+
+    $low = [uint32]($MatchId -band [uint64]4294967295)
+    $high = [uint32]($MatchId -shr 32)
+    return [uint32]($SeedBase -bxor $low -bxor $high)
+}
+
 function Get-DxaNearestRankP95 {
     [CmdletBinding()]
     param(

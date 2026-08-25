@@ -299,9 +299,9 @@ try {
             throw 'Network load client와 bot result가 일치하지 않습니다.'
         }
         $matchId = [uint64]$clientResult.Groups[1].Value
-        $actualSeed = $matchSeedBase `
-            -bxor [uint32]($matchId -band [uint64]0xffffffff) `
-            -bxor [uint32]($matchId -shr 32)
+        $actualSeed = Get-DxaNetworkLoadMatchSeed `
+            -MatchId $matchId `
+            -SeedBase $matchSeedBase
         if ($actualSeed -ne $Seeds[$matchIndex]) {
             throw 'Network load 실제 MatchId의 seed가 요청과 다릅니다.'
         }
