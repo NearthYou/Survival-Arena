@@ -138,4 +138,31 @@ TEST(UdpDatagramQueue, MoveAssignmentCancelsPreviousDelayedDatagrams)
 
     EXPECT_EQ(0U, previousDelivered);
 }
+
+TEST(UdpDatagramQueue, DeliveryCanStopQueueBeforeLaterDueDatagrams)
+{
+    boost::asio::io_context io;
+    UdpDatagramQueue queue{
+        io,
+        {1ms, 0ms, 0U, 1U},
+        DatagramDirection::ServerToClient};
+    std::uint32_t firstDelivered = 0U;
+    std::uint32_t secondDelivered = 0U;
+    ASSERT_EQ(
+        UdpDatagramEnqueueResult::Queued,
+        queue.Enqueue(1U, Bytes(1U), [&](const auto&) {
+            ++firstDelivered;
+            queue.Stop();
+        }));
+    ASSERT_EQ(
+        UdpDatagramEnqueueResult::Queued,
+        queue.Enqueue(1U, Bytes(2U), [&](const auto&) {
+            ++secondDelivered;
+        }));
+
+    io.run_for(50ms);
+
+    EXPECT_EQ(1U, firstDelivered);
+    EXPECT_EQ(0U, secondDelivered);
+}
 } // namespace

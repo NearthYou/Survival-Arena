@@ -13,6 +13,7 @@
 #include <optional>
 #include <stdexcept>
 #include <utility>
+#include <vector>
 
 namespace dxa::game_common
 {
@@ -205,15 +206,23 @@ struct UdpDatagramQueue::State
     void DeliverDue(const std::uint64_t peerKey, Peer& peer)
     {
         const Clock::time_point now = Clock::now();
+        std::vector<Item> due;
         while (!peer.items.empty()
                && peer.items.front().deliveryTime <= now)
         {
-            Item item = std::move(peer.items.front());
+            due.push_back(std::move(peer.items.front()));
             peer.items.pop_front();
+        }
+        Arm(peerKey, peer);
+        for (Item& item : due)
+        {
+            if (stopped.load())
+            {
+                return;
+            }
             item.delivery(item.bytes);
             ++delivered;
         }
-        Arm(peerKey, peer);
     }
 
     boost::asio::io_context& io;
