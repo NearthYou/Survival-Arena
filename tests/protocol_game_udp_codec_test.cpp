@@ -1,6 +1,7 @@
 #include <dxa/protocol/Crc32.hpp>
 #include <dxa/protocol/GameUdpCodec.hpp>
 #include <dxa/protocol/GameUdpMessages.hpp>
+#include <dxa/protocol/ReplicationSnapshotCodec.hpp>
 
 #include <gtest/gtest.h>
 
@@ -189,6 +190,82 @@ TEST(GameUdpCodec, FragmentsPayloadAtTheLockedBoundary)
     EXPECT_EQ(0x060A9727U, fragments[0].fullPayloadCrc32);
     EXPECT_EQ(fragments[0].fullPayloadCrc32,
               fragments[1].fullPayloadCrc32);
+}
+
+TEST(GameUdpCodec, CarriesMaximumQuantizedKeyframeAcrossFragments)
+{
+    SnapshotPayload source;
+    source.header = {
+        SnapshotPayloadKind::Keyframe,
+        SnapshotValueEncoding::Quantized,
+        0U,
+        9U};
+    source.global.phase = NetworkMatchPhase::Running;
+    source.global.safeZoneStage = NetworkSafeZoneStage::Stage1;
+    source.global.safeZoneRadius =
+        std::numeric_limits<std::uint16_t>::max();
+    source.global.aliveContenders = 24U;
+
+    source.actorValues.reserve(MaxSnapshotActors);
+    for (std::uint32_t id = 0U;
+         id < static_cast<std::uint32_t>(MaxSnapshotActors);
+         ++id)
+    {
+        const bool contender = id < 24U;
+        source.actorValues.push_back(QuantizedActorValue{
+            EntityId{id},
+            contender
+                ? NetworkActorRole::Contender
+                : NetworkActorRole::Neutral,
+            contender
+                ? NetworkNeutralArchetype::None
+                : NetworkNeutralArchetype::Melee,
+            {static_cast<std::uint16_t>(id),
+             static_cast<std::uint16_t>(id + 1U)},
+            100U,
+            true,
+            NetworkWeaponType::Blade,
+            0U,
+            0U});
+    }
+    source.lootValues.reserve(MaxSnapshotLoot);
+    for (std::uint32_t id = 0U;
+         id < static_cast<std::uint32_t>(MaxSnapshotLoot);
+         ++id)
+    {
+        source.lootValues.push_back(QuantizedLootValue{
+            id,
+            NetworkLootType::Rifle,
+            {static_cast<std::uint16_t>(id),
+             static_cast<std::uint16_t>(id + 1U)},
+            true});
+    }
+
+    const std::vector<std::byte> encoded = EncodeSnapshotPayload(source);
+    const std::vector<SnapshotFragment> fragments = FragmentSnapshot(
+        MatchId{1U},
+        source.header.payloadSnapshotId,
+        30U,
+        4U,
+        encoded);
+    ASSERT_GT(fragments.size(), 1U);
+
+    std::vector<std::byte> reassembled;
+    reassembled.reserve(encoded.size());
+    for (const SnapshotFragment& fragment : fragments)
+    {
+        EXPECT_EQ(source.header.payloadSnapshotId, fragment.snapshotId);
+        reassembled.insert(
+            reassembled.end(),
+            fragment.bytes.begin(),
+            fragment.bytes.end());
+    }
+    EXPECT_EQ(encoded, reassembled);
+
+    const SnapshotPayloadDecodeResult decoded =
+        DecodeSnapshotPayload(reassembled);
+    ASSERT_TRUE(decoded.payload.has_value());
+    EXPECT_EQ(source, *decoded.payload);
 }
 
 TEST(GameUdpCodec, SupportsThirtyTwoFragmentsAndRejectsPayloadAboveLimit)
