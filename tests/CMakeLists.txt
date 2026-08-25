@@ -34,6 +34,7 @@ add_executable(
     game_client_predictor_test.cpp
     game_network_runtime_test.cpp
     game_fixed_tick_scheduler_test.cpp
+    game_interest_grid_test.cpp
     game_participant_roster_test.cpp
     game_server_adapter_test.cpp
     game_server_integration_test.cpp

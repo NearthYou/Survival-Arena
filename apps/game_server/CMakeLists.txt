@@ -1,11 +1,13 @@
 add_library(
     dxa_game_server_core
     STATIC
+        include/dxa/game_server/InterestGrid.hpp
         src/AuthoritativeMatch.cpp
         src/FixedTickScheduler.cpp
         src/GameServer.cpp
         src/GameServerOptions.cpp
         src/GameTicketStore.cpp
+        src/InterestGrid.cpp
         src/ParticipantRoster.cpp
         src/SecureUdpTokenSource.cpp
         src/ServerMatchMetrics.cpp
