@@ -631,7 +631,15 @@ void SnapshotReplicator::RegisterRecipient(
     }
     impl_->recipients.emplace(
         player,
-        Impl::Recipient{controlledActor});
+        Impl::Recipient{
+            controlledActor,
+            VisibleSet{},
+            0U,
+            0U,
+            0U,
+            0U,
+            false,
+            {}});
 }
 
 bool SnapshotReplicator::AcceptAcknowledgement(

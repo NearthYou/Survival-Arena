@@ -830,7 +830,9 @@ TEST(GameServerIntegration, NetworkHostControllerRunsUntilGameResult)
             "127.0.0.1",
             fixture.LobbyPort(),
             2U,
-            true}};
+            true,
+            dxa::protocol::ReplicationMode::FullState,
+            {}}};
     controller.Start();
     PumpNetworkControllerUntil(
         fixture,

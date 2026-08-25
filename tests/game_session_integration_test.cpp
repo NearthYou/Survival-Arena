@@ -166,7 +166,8 @@ public:
             1U,
             dxa::game_common::SurvivalArenaFingerprint(
                 dxa::simulation::SurvivalArenaMapDefinition()),
-            mode};
+            mode,
+            {}};
     }
 
     void AcceptHelloAndWelcome(
