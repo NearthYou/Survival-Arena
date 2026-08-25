@@ -66,8 +66,7 @@ function Assert-DxaNetworkLoadRequest {
     if ($SoakMinutes -ne 0 -and $SoakMinutes -ne 30) {
         throw 'Network load soak은 0분 또는 30분이어야 합니다.'
     }
-    $expectedSeedCount = if ($SoakMinutes -eq 0) { $Matches } else { 1 }
-    if ($null -eq $Seeds -or $Seeds.Count -ne $expectedSeedCount) {
+    if ($null -eq $Seeds -or $Seeds.Count -ne $Matches) {
         throw 'Network load seed 수가 실행 mode와 일치해야 합니다.'
     }
     if ($BotCount -ne 23) {

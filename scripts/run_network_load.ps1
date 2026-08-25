@@ -104,8 +104,7 @@ function Get-DeterministicSecretPatterns {
     return $patterns
 }
 
-$expectedSeedCount = if ($SoakMinutes -eq 0) { $Matches } else { 1 }
-if ($Seeds.Count -ne $expectedSeedCount) {
+if ($Seeds.Count -ne $Matches) {
     throw 'Seeds 수가 실행 mode와 맞지 않습니다.'
 }
 $matchSeedBase = [uint32]20260824
@@ -383,12 +382,9 @@ try {
         $actualSeed = Get-DxaNetworkLoadMatchSeed `
             -MatchId $matchId `
             -SeedBase $matchSeedBase
-        if ($SoakMinutes -eq 0 -and $actualSeed -ne $Seeds[$matchIndex]) {
+        if ($matchIndex -lt $Seeds.Count -and
+            $actualSeed -ne $Seeds[$matchIndex]) {
             throw 'Network load 실제 MatchId의 seed가 요청과 다릅니다.'
-        }
-        if ($SoakMinutes -gt 0 -and $matchIndex -eq 0 -and
-            $actualSeed -ne $Seeds[0]) {
-            throw 'Network load soak 첫 seed가 요청과 다릅니다.'
         }
         $actualSeeds.Add($actualSeed)
 

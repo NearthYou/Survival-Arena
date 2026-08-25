@@ -275,8 +275,8 @@ try {
         -CommitSha $snapshot.commit_sha `
         -OutputDirectory $output `
         -ReplicationMode interest-delta `
-        -Matches 1 `
-        -Seeds @(20260825) `
+        -Matches 3 `
+        -Seeds @(20260825, 20260826, 20260827) `
         -BotCount 23 `
         -SoakMinutes 30
     if ($soakSnapshot.commit_sha -ne $snapshot.commit_sha) {
