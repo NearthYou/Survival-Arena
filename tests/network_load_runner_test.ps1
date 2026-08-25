@@ -282,6 +282,24 @@ try {
     if ($soakSnapshot.commit_sha -ne $snapshot.commit_sha) {
         throw 'Network load soak guard가 실패했습니다.'
     }
+    $priorEvidence = Join-Path $resolvedTemporaryRoot 'evidence/prior-run/raw.csv'
+    New-Item -ItemType Directory -Path (Split-Path -Parent $priorEvidence) |
+        Out-Null
+    Write-DxaNetworkLoadUtf8 -Path $priorEvidence -Contents "value`n1`n"
+    $evidenceOnlySnapshot = Assert-DxaNetworkLoadRequest `
+        -RepositoryRoot $resolvedTemporaryRoot `
+        -CommitSha $snapshot.commit_sha `
+        -OutputDirectory (Join-Path $resolvedTemporaryRoot 'evidence/run-new') `
+        -ReplicationMode interest-delta `
+        -Matches 1 `
+        -Seeds @(20260825) `
+        -BotCount 23
+    if (-not $evidenceOnlySnapshot.evidence_only_changes) {
+        throw 'Network load guard가 기존 untracked evidence를 구분하지 못했습니다.'
+    }
+    Remove-Item -LiteralPath (Join-Path $resolvedTemporaryRoot 'evidence') `
+        -Recurse `
+        -Force
     $p95 = Get-DxaNearestRankP95 -Values ([double[]](1..20))
     if ($p95 -ne 19.0) {
         throw "Network load nearest-rank P95가 잘못됐습니다: $p95"

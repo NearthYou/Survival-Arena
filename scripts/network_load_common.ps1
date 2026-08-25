@@ -29,6 +29,7 @@ function Get-DxaNetworkLoadGitSnapshot {
         short_sha = $shortSha
         branch = $branch
         clean = $status.Count -eq 0
+        changes = $status
     }
 }
 
@@ -87,12 +88,38 @@ function Assert-DxaNetworkLoadRequest {
     }
 
     $snapshot = Get-DxaNetworkLoadGitSnapshot -RepositoryRoot $resolvedRepository
-    if (-not $snapshot.clean) {
-        throw 'Network load는 깨끗한 commit에서만 실행할 수 있습니다.'
+    $allowedEvidenceRoot = Split-Path -Parent $resolvedOutput
+    $allowedEvidencePrefix = $allowedEvidenceRoot.TrimEnd(
+        [IO.Path]::DirectorySeparatorChar,
+        [IO.Path]::AltDirectorySeparatorChar) +
+        [IO.Path]::DirectorySeparatorChar
+    $unexpectedChanges = [Collections.Generic.List[string]]::new()
+    foreach ($change in $snapshot.changes) {
+        $line = [string]$change
+        if ($line.Length -lt 4 -or $line.Substring(0, 2) -ne '??') {
+            $unexpectedChanges.Add($line)
+            continue
+        }
+        $relativePath = $line.Substring(3).Trim('"').Replace(
+            '/',
+            [IO.Path]::DirectorySeparatorChar)
+        $absolutePath = [IO.Path]::GetFullPath(
+            (Join-Path $resolvedRepository $relativePath))
+        if (-not $absolutePath.StartsWith(
+                $allowedEvidencePrefix,
+                [StringComparison]::OrdinalIgnoreCase)) {
+            $unexpectedChanges.Add($line)
+        }
+    }
+    if ($unexpectedChanges.Count -ne 0) {
+        throw 'Network load는 code와 기존 tracked file이 깨끗한 commit에서만 실행할 수 있습니다.'
     }
     if ($snapshot.commit_sha -ne $CommitSha) {
         throw "Network load HEAD가 요청 SHA와 다릅니다. 예상: $CommitSha, 실제: $($snapshot.commit_sha)"
     }
+    $snapshot | Add-Member `
+        -NotePropertyName evidence_only_changes `
+        -NotePropertyValue (-not $snapshot.clean)
     return $snapshot
 }
 

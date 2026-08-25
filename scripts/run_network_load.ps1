@@ -661,7 +661,9 @@ try {
             commit_sha = $guard.git.commit_sha
             short_sha = $guard.git.short_sha
             branch = $guard.git.branch
-            clean_before_run = $true
+            clean_before_run = $guard.git.clean
+            evidence_only_changes_before_run =
+                $guard.git.evidence_only_changes
         }
         build = [ordered]@{
             preset = $presetSegment
