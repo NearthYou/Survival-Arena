@@ -155,6 +155,14 @@ if(WIN32)
     )
 endif()
 
+add_test(
+    NAME CiWorkflowContract.AvoidsDuplicateBranchAndPullRequestRuns
+    COMMAND
+        ${CMAKE_COMMAND}
+        -DWORKFLOW_FILE=${PROJECT_SOURCE_DIR}/.github/workflows/ci.yml
+        -P ${PROJECT_SOURCE_DIR}/tests/ci_workflow_contract_test.cmake
+)
+
 dxa_enable_project_warnings(dxa_tests)
 
 include(GoogleTest)
