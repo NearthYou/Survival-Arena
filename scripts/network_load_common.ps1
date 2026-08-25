@@ -488,6 +488,11 @@ function Get-DxaNetworkLoadAggregate {
         if ([int]$metadata.participant_count -ne $ExpectedParticipantCount) {
             throw 'Aggregate participant count가 요청과 다릅니다.'
         }
+        foreach ($resultProperty in @('winner', 'reason', 'finished_tick')) {
+            if ($metadata.PSObject.Properties.Name -notcontains $resultProperty) {
+                throw "Aggregate match result field가 없습니다: $resultProperty"
+            }
+        }
         if ([int]$metadata.exit_code -ne 0) {
             ++$failedProcessCount
         }

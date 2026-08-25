@@ -67,6 +67,10 @@ function New-FakeNetworkLoadMatch {
         seed = $Seed
         participant_count = 24
         match_id = $Ordinal
+        room_id = $Ordinal
+        winner = $Ordinal
+        reason = 1
+        finished_tick = 20
         exit_code = $ExitCode
         protocol_errors = 0
         shaped_queue_overflows = 0
@@ -373,6 +377,11 @@ try {
     if ($aggregate.guards.monotonic_working_set_increase) {
         throw 'Network load aggregate가 감소하는 working set을 누수로 판단했습니다.'
     }
+    if ($aggregate.results[0].winner -ne 1 -or
+        $aggregate.results[0].reason -ne 1 -or
+        $aggregate.results[0].finished_tick -ne 20) {
+        throw 'Network load aggregate match result가 누락됐습니다.'
+    }
 
     Assert-AggregateRejectedWithoutResult `
         -Name 'commit SHA mismatch' `
@@ -483,6 +492,16 @@ try {
     }
     if ([regex]::Matches($runnerText, "'--replication-mode'").Count -lt 2) {
         throw 'Network load runner가 server와 DX11 client mode를 함께 고정하지 않았습니다.'
+    }
+    foreach ($resultMarker in @(
+            'winner = $clientResult.Groups[3].Value',
+            'reason = [uint32]$clientResult.Groups[5].Value',
+            'finished_tick = [uint32]$clientResult.Groups[4].Value')) {
+        if ([regex]::Matches(
+                $runnerText,
+                [regex]::Escape($resultMarker)).Count -lt 2) {
+            throw "Network load runner result marker가 없습니다: $resultMarker"
+        }
     }
 
     $serverExecutable = Join-Path $RepositoryRoot (

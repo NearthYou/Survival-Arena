@@ -509,6 +509,9 @@ try {
             participant_count = 24
             match_id = $matchId
             room_id = $roomId
+            winner = $clientResult.Groups[3].Value
+            reason = [uint32]$clientResult.Groups[5].Value
+            finished_tick = [uint32]$clientResult.Groups[4].Value
             exit_code = 0
             protocol_errors = $matchProtocolErrors
             shaped_queue_overflows = $matchQueueOverflows
