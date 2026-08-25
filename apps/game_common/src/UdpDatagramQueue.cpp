@@ -247,7 +247,15 @@ UdpDatagramQueue::~UdpDatagramQueue()
 
 UdpDatagramQueue::UdpDatagramQueue(UdpDatagramQueue&&) noexcept = default;
 UdpDatagramQueue& UdpDatagramQueue::operator=(
-    UdpDatagramQueue&&) noexcept = default;
+    UdpDatagramQueue&& other) noexcept
+{
+    if (this != &other)
+    {
+        Stop();
+        state_ = std::move(other.state_);
+    }
+    return *this;
+}
 
 UdpDatagramEnqueueResult UdpDatagramQueue::Enqueue(
     const std::uint64_t peerKey,

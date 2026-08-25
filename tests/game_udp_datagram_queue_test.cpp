@@ -9,6 +9,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <utility>
 #include <vector>
 
 namespace
@@ -112,5 +113,29 @@ TEST(UdpDatagramQueue, DeliversSamePeerInOrdinalOrder)
     io.run_for(50ms);
     EXPECT_EQ((std::vector<std::uint8_t>{1U, 2U, 3U}), delivered);
     EXPECT_EQ(3U, queue.Metrics().delivered);
+}
+
+TEST(UdpDatagramQueue, MoveAssignmentCancelsPreviousDelayedDatagrams)
+{
+    boost::asio::io_context io;
+    UdpDatagramQueue queue{
+        io,
+        {1ms, 0ms, 0U, 1U},
+        DatagramDirection::ServerToClient};
+    std::uint32_t previousDelivered = 0U;
+    ASSERT_EQ(
+        UdpDatagramEnqueueResult::Queued,
+        queue.Enqueue(1U, Bytes(1U), [&previousDelivered](const auto&) {
+            ++previousDelivered;
+        }));
+
+    UdpDatagramQueue replacement{
+        io,
+        {},
+        DatagramDirection::ServerToClient};
+    queue = std::move(replacement);
+    io.run_for(50ms);
+
+    EXPECT_EQ(0U, previousDelivered);
 }
 } // namespace
