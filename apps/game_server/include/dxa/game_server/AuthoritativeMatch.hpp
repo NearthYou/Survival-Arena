@@ -2,6 +2,7 @@
 
 #include <dxa/game_server/ParticipantRoster.hpp>
 #include <dxa/game_server/ServerMatchMetrics.hpp>
+#include <dxa/game_server/SnapshotReplicator.hpp>
 #include <dxa/game_server/UdpTokenSource.hpp>
 
 #include <dxa/protocol/GameSnapshot.hpp>
@@ -64,7 +65,8 @@ public:
         const dxa::simulation::ArenaMapDefinition& arena,
         dxa::simulation::MatchConfig config,
         IUdpTokenSource& tokenSource,
-        std::chrono::steady_clock::time_point now);
+        std::chrono::steady_clock::time_point now,
+        ReplicationConfig replication = {});
 
     ~AuthoritativeMatch();
     AuthoritativeMatch(AuthoritativeMatch&&) noexcept;

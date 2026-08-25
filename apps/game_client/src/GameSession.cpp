@@ -1,6 +1,7 @@
 #include <dxa/game_client/GameSession.hpp>
 
 #include <dxa/game_client/ClientPredictor.hpp>
+#include <dxa/game_client/ClientSnapshotStream.hpp>
 #include <dxa/game_client/GameNetworkRuntime.hpp>
 #include <dxa/game_client/RemoteInterpolator.hpp>
 #include <dxa/game_client/SnapshotReassembler.hpp>
@@ -9,6 +10,7 @@
 #include <dxa/protocol/AsioFramedConnection.hpp>
 #include <dxa/protocol/GameTcpMessageCodec.hpp>
 #include <dxa/protocol/GameUdpCodec.hpp>
+#include <dxa/protocol/ReplicationSnapshotCodec.hpp>
 #include <dxa/simulation/MatchConfig.hpp>
 
 #include <boost/asio.hpp>
@@ -62,6 +64,12 @@ constexpr auto BindRetryInterval = std::chrono::milliseconds{250};
 struct GameSession::Impl
     : public std::enable_shared_from_this<GameSession::Impl>
 {
+    struct PendingSnapshot
+    {
+        ReassembledSnapshot snapshot;
+        std::vector<dxa::protocol::EntityId> resetInterpolationActors;
+    };
+
     Impl(
         dxa::simulation::NavMesh sourceNavMesh,
         boost::asio::io_context& sourceIo)
@@ -198,7 +206,10 @@ struct GameSession::Impl
                 || welcome->tickRate != dxa::protocol::GameTickRate
                 || welcome->snapshotRate != dxa::protocol::SnapshotRate
                 || welcome->mapId != start.expectedMapId
-                || welcome->navMeshCrc32 != start.expectedNavMeshCrc32)
+                || welcome->navMeshCrc32 != start.expectedNavMeshCrc32
+                || (start.expectedReplicationMode.has_value()
+                    && welcome->replicationMode
+                        != *start.expectedReplicationMode))
             {
                 FailProtocol();
                 return;
@@ -399,10 +410,70 @@ struct GameSession::Impl
             ++discardedSnapshots;
             return;
         }
-        const auto completed = reassembler.Push(fragment);
+        const auto completed = reassembler.PushBytes(fragment);
         if (!completed.has_value())
         {
             return;
+        }
+        const dxa::protocol::SnapshotPayloadDecodeResult decoded =
+            dxa::protocol::DecodeSnapshotPayload(completed->bytes);
+        if (!decoded.payload.has_value())
+        {
+            ++discardedSnapshots;
+            FailProtocol();
+            return;
+        }
+
+        SnapshotApplyResult applied;
+        try
+        {
+            applied = snapshotStream.Apply(
+                completed->snapshotId,
+                *decoded.payload);
+        }
+        catch (const std::exception&)
+        {
+            ++discardedSnapshots;
+            FailProtocol();
+            return;
+        }
+        lastAppliedSnapshotId.store(applied.acknowledgedSnapshotId);
+        const bool requestWasSet = keyframeRequested.exchange(
+            applied.requestKeyframe);
+        if (applied.requestKeyframe && !requestWasSet)
+        {
+            ++keyframeRequests;
+        }
+        if (!applied.world.has_value())
+        {
+            ++snapshotCount;
+            ++discardedSnapshots;
+            return;
+        }
+
+        PendingSnapshot pending;
+        pending.snapshot = ReassembledSnapshot{
+            completed->snapshotId,
+            completed->serverTick,
+            completed->ackInputSequence,
+            std::move(*applied.world)};
+        pending.resetInterpolationActors = std::move(applied.removedActors);
+        pending.resetInterpolationActors.insert(
+            pending.resetInterpolationActors.end(),
+            applied.reenteredActors.begin(),
+            applied.reenteredActors.end());
+        std::sort(
+            pending.resetInterpolationActors.begin(),
+            pending.resetInterpolationActors.end());
+        pending.resetInterpolationActors.erase(
+            std::unique(
+                pending.resetInterpolationActors.begin(),
+                pending.resetInterpolationActors.end()),
+            pending.resetInterpolationActors.end());
+        if (decoded.payload->header.kind
+            != dxa::protocol::SnapshotPayloadKind::Delta)
+        {
+            ++keyframesApplied;
         }
         {
             std::scoped_lock lock{snapshotMutex};
@@ -411,7 +482,7 @@ struct GameSession::Impl
                 snapshotQueue.pop_front();
                 ++droppedSnapshots;
             }
-            snapshotQueue.push_back(*completed);
+            snapshotQueue.push_back(std::move(pending));
         }
         ++snapshotCount;
     }
@@ -431,6 +502,9 @@ struct GameSession::Impl
             datagram.player = self->start.player;
             datagram.token = self->udpToken;
             datagram.inputSequence = input.sequence;
+            datagram.acknowledgedSnapshotId =
+                self->lastAppliedSnapshotId.load();
+            datagram.requestKeyframe = self->keyframeRequested.load();
             if (input.moveDestination.has_value())
             {
                 datagram.hasMoveDestination = true;
@@ -469,7 +543,7 @@ struct GameSession::Impl
         {
             return;
         }
-        std::vector<ReassembledSnapshot> pending;
+        std::vector<PendingSnapshot> pending;
         {
             std::scoped_lock lock{snapshotMutex};
             pending.assign(snapshotQueue.begin(), snapshotQueue.end());
@@ -478,14 +552,15 @@ struct GameSession::Impl
         std::sort(
             pending.begin(),
             pending.end(),
-            [](const ReassembledSnapshot& left,
-               const ReassembledSnapshot& right) {
-                return left.serverTick < right.serverTick;
+            [](const PendingSnapshot& left,
+               const PendingSnapshot& right) {
+                return left.snapshot.serverTick < right.snapshot.serverTick;
             });
 
         bool becameRunning = false;
-        for (ReassembledSnapshot& snapshot : pending)
+        for (PendingSnapshot& queued : pending)
         {
+            ReassembledSnapshot& snapshot = queued.snapshot;
             const dxa::protocol::EntityId actor{localActor.load()};
             const dxa::protocol::NetworkActorSnapshot* local = FindActor(
                 snapshot.snapshot,
@@ -528,6 +603,7 @@ struct GameSession::Impl
                 FailFromCaller();
                 return;
             }
+            interpolation.ForgetActors(queued.resetInterpolationActors);
             interpolation.Push(snapshot);
             const dxa::protocol::GameSnapshot remote =
                 interpolation.Sample(actor);
@@ -627,6 +703,7 @@ struct GameSession::Impl
 
     dxa::simulation::NavMesh navMesh;
     std::unique_ptr<ClientPredictor> predictor;
+    ClientSnapshotStream snapshotStream;
     RemoteInterpolator interpolation;
     GameSceneFrame scene;
     mutable std::mutex sceneMutex;
@@ -645,6 +722,8 @@ struct GameSession::Impl
     SnapshotReassembler reassembler;
     dxa::protocol::UdpSessionToken udpToken;
     std::atomic<std::uint32_t> localActor{0U};
+    std::atomic<std::uint32_t> lastAppliedSnapshotId{0U};
+    std::atomic<bool> keyframeRequested{false};
     std::atomic<GameSessionState> state{GameSessionState::Idle};
     std::atomic<bool> stopRequested{false};
 
@@ -653,11 +732,13 @@ struct GameSession::Impl
     bool measurementStarted = false;
 
     std::mutex snapshotMutex;
-    std::deque<ReassembledSnapshot> snapshotQueue;
+    std::deque<PendingSnapshot> snapshotQueue;
     std::atomic<std::uint64_t> discardedSnapshots{0U};
     std::atomic<std::uint64_t> droppedSnapshots{0U};
     std::atomic<std::uint64_t> snapshotCount{0U};
     std::atomic<std::uint64_t> appliedSnapshotCount{0U};
+    std::atomic<std::uint64_t> keyframesApplied{0U};
+    std::atomic<std::uint64_t> keyframeRequests{0U};
     mutable std::mutex resultMutex;
     std::optional<dxa::protocol::GameMatchResult> matchResult;
 };
@@ -743,6 +824,8 @@ dxa::game_common::GameSessionMetrics GameSession::Metrics() const
     metrics.snapshotsApplied = impl_->appliedSnapshotCount.load();
     metrics.snapshotsDiscarded = impl_->discardedSnapshots.load();
     metrics.snapshotQueueDrops = impl_->droppedSnapshots.load();
+    metrics.keyframesApplied = impl_->keyframesApplied.load();
+    metrics.keyframeRequests = impl_->keyframeRequests.load();
     return metrics;
 }
 

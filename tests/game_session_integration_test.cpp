@@ -6,6 +6,7 @@
 #include <dxa/protocol/GameSnapshotCodec.hpp>
 #include <dxa/protocol/GameTcpMessageCodec.hpp>
 #include <dxa/protocol/GameUdpCodec.hpp>
+#include <dxa/protocol/ReplicationSnapshotCodec.hpp>
 #include <dxa/simulation/ArenaMap.hpp>
 
 #include <gtest/gtest.h>
@@ -148,7 +149,9 @@ public:
     }
 
     [[nodiscard]] GameSessionStart StartFor(
-        const PlayerId player = PlayerId{3U}) const
+        const PlayerId player = PlayerId{3U},
+        const std::optional<dxa::protocol::ReplicationMode> mode =
+            std::nullopt) const
     {
         MatchTicket ticket;
         ticket.match = MatchId{7U};
@@ -162,12 +165,15 @@ public:
             ticket,
             1U,
             dxa::game_common::SurvivalArenaFingerprint(
-                dxa::simulation::SurvivalArenaMapDefinition())};
+                dxa::simulation::SurvivalArenaMapDefinition()),
+            mode};
     }
 
     void AcceptHelloAndWelcome(
         const EntityId actor = EntityId{0U},
-        const std::optional<std::uint32_t> crc = std::nullopt)
+        const std::optional<std::uint32_t> crc = std::nullopt,
+        const dxa::protocol::ReplicationMode mode =
+            dxa::protocol::ReplicationMode::FullState)
     {
         const GameClientHello hello = WaitForHello();
         const GameServerWelcome welcome{
@@ -179,7 +185,7 @@ public:
             1U,
             crc.value_or(dxa::game_common::SurvivalArenaFingerprint(
                 dxa::simulation::SurvivalArenaMapDefinition())),
-            dxa::protocol::ReplicationMode::FullState,
+            mode,
             Token(9U)};
         SendTcp(GameServerMessage{welcome});
     }
@@ -221,6 +227,26 @@ public:
             0U}});
     }
 
+    void SendPayload(
+        const std::uint32_t snapshotId,
+        const std::uint32_t serverTick,
+        const std::uint32_t ack,
+        const dxa::protocol::SnapshotPayload& payload,
+        const bool wrongSource = false,
+        const MatchId match = MatchId{7U})
+    {
+        const auto fragments = dxa::protocol::FragmentSnapshot(
+            match,
+            snapshotId,
+            serverTick,
+            ack,
+            dxa::protocol::EncodeSnapshotPayload(payload));
+        for (const SnapshotFragment& fragment : fragments)
+        {
+            SendUdp(ServerDatagram{fragment}, wrongSource);
+        }
+    }
+
     void SendSnapshot(
         const std::uint32_t snapshotId,
         const std::uint32_t serverTick,
@@ -254,16 +280,20 @@ public:
                 NetworkWeaponType::Blade,
                 0U,
                 0U}};
-        const auto fragments = dxa::protocol::FragmentSnapshot(
-            match,
+        dxa::protocol::SnapshotPayload payload;
+        payload.header = {
+            dxa::protocol::SnapshotPayloadKind::FullState,
+            dxa::protocol::SnapshotValueEncoding::FullPrecision,
+            0U,
+            snapshotId};
+        payload.fullPrecision = std::move(snapshot);
+        SendPayload(
             snapshotId,
             serverTick,
             ack,
-            dxa::protocol::EncodeGameSnapshot(snapshot));
-        for (const SnapshotFragment& fragment : fragments)
-        {
-            SendUdp(ServerDatagram{fragment}, wrongSource);
-        }
+            payload,
+            wrongSource,
+            match);
     }
 
     [[nodiscard]] ClientInput WaitForInput(const std::uint32_t sequence)
@@ -472,6 +502,47 @@ private:
     std::array<std::byte, dxa::protocol::MaxUdpDatagramBytes + 1U>
         udpBuffer_{};
 };
+
+[[nodiscard]] dxa::protocol::SnapshotPayload QuantizedKeyframe(
+    const std::uint32_t snapshotId,
+    const std::uint16_t localX)
+{
+    dxa::protocol::SnapshotPayload payload;
+    payload.header = {
+        dxa::protocol::SnapshotPayloadKind::Keyframe,
+        dxa::protocol::SnapshotValueEncoding::Quantized,
+        0U,
+        snapshotId};
+    payload.global.phase = dxa::protocol::NetworkMatchPhase::Running;
+    payload.global.safeZoneStage =
+        dxa::protocol::NetworkSafeZoneStage::Stage1;
+    payload.global.safeZoneCenter = {32768U, 32768U};
+    payload.global.safeZoneRadius =
+        std::numeric_limits<std::uint16_t>::max();
+    payload.global.aliveContenders = 2U;
+    payload.actorValues = {
+        dxa::protocol::QuantizedActorValue{
+            EntityId{0U},
+            NetworkActorRole::Contender,
+            NetworkNeutralArchetype::None,
+            {localX, 32768U},
+            100U,
+            true,
+            NetworkWeaponType::Blade,
+            0U,
+            0U},
+        dxa::protocol::QuantizedActorValue{
+            EntityId{1U},
+            NetworkActorRole::Contender,
+            NetworkNeutralArchetype::None,
+            {40000U, 32768U},
+            100U,
+            true,
+            NetworkWeaponType::Blade,
+            0U,
+            0U}};
+    return payload;
+}
 } // namespace
 
 TEST(GameSession, AuthenticatesBindsPredictsAndPublishesScene)
@@ -497,6 +568,73 @@ TEST(GameSession, AuthenticatesBindsPredictsAndPublishesScene)
     EXPECT_EQ(EntityId{0U}, scene.localActor);
     EXPECT_EQ(1U, scene.lastAckInputSequence);
     EXPECT_EQ(2U, scene.snapshotCount);
+}
+
+TEST(GameSession, RejectsUnexpectedReplicationModeBeforeUdpBind)
+{
+    FakeGameServer server;
+    GameSession session{dxa::simulation::BuildSurvivalArenaNavMesh()};
+    session.Start(server.StartFor(
+        PlayerId{3U},
+        dxa::protocol::ReplicationMode::InterestDelta));
+    server.AcceptHelloAndWelcome(
+        EntityId{0U},
+        std::nullopt,
+        dxa::protocol::ReplicationMode::FullState);
+
+    WaitUntil([&] {
+        return session.State() == GameSessionState::ProtocolError;
+    });
+    EXPECT_EQ(0U, server.UdpBindCount());
+}
+
+TEST(GameSession, MissingDeltaBaseRequestsAndAppliesRecoveryKeyframe)
+{
+    FakeGameServer server;
+    GameSession session{dxa::simulation::BuildSurvivalArenaNavMesh()};
+    session.Start(server.StartFor(
+        PlayerId{3U},
+        dxa::protocol::ReplicationMode::InterestDelta));
+    server.AcceptHelloAndWelcome(
+        EntityId{0U},
+        std::nullopt,
+        dxa::protocol::ReplicationMode::InterestDelta);
+    server.AcceptUdpBind();
+
+    server.SendPayload(1U, 2U, 0U, QuantizedKeyframe(1U, 32768U));
+    WaitUntil([&] { return session.SnapshotCount() == 1U; });
+    session.FixedUpdate();
+    ASSERT_EQ(GameSessionState::Running, session.State());
+    session.FixedUpdate();
+    const ClientInput first = server.WaitForInput(1U);
+    EXPECT_EQ(1U, first.acknowledgedSnapshotId);
+    EXPECT_FALSE(first.requestKeyframe);
+
+    dxa::protocol::SnapshotPayload missing;
+    missing.header = {
+        dxa::protocol::SnapshotPayloadKind::Delta,
+        dxa::protocol::SnapshotValueEncoding::Quantized,
+        2U,
+        3U};
+    server.SendPayload(3U, 6U, 1U, missing);
+    WaitUntil([&] { return session.SnapshotCount() == 2U; });
+    session.FixedUpdate();
+    const ClientInput requested = server.WaitForInput(2U);
+    EXPECT_EQ(1U, requested.acknowledgedSnapshotId);
+    EXPECT_TRUE(requested.requestKeyframe);
+
+    server.SendPayload(4U, 8U, 2U, QuantizedKeyframe(4U, 33000U));
+    WaitUntil([&] { return session.SnapshotCount() == 3U; });
+    session.FixedUpdate();
+    const ClientInput recovered = server.WaitForInput(3U);
+    EXPECT_EQ(4U, recovered.acknowledgedSnapshotId);
+    EXPECT_FALSE(recovered.requestKeyframe);
+
+    const auto metrics = session.Metrics();
+    EXPECT_EQ(2U, metrics.snapshotsApplied);
+    EXPECT_EQ(1U, metrics.snapshotsDiscarded);
+    EXPECT_EQ(2U, metrics.keyframesApplied);
+    EXPECT_EQ(1U, metrics.keyframeRequests);
 }
 
 TEST(GameSession, MetricsCountGameTrafficAndFreezeAfterResult)

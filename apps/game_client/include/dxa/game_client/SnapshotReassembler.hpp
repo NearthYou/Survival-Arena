@@ -37,8 +37,6 @@ public:
     SnapshotReassembler(const SnapshotReassembler&) = delete;
     SnapshotReassembler& operator=(const SnapshotReassembler&) = delete;
 
-    [[nodiscard]] std::optional<ReassembledSnapshot> Push(
-        const dxa::protocol::SnapshotFragment& fragment);
     [[nodiscard]] std::optional<ReassembledPayload> PushBytes(
         const dxa::protocol::SnapshotFragment& fragment);
     void Reset() noexcept;

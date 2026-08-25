@@ -2,9 +2,11 @@
 
 #include <gtest/gtest.h>
 
+#include <array>
 #include <initializer_list>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace
@@ -65,6 +67,30 @@ TEST(GameServerOptions, ParsesFullStateMetricsOutput)
     EXPECT_EQ("out/network-load", parsed.options->metricsOutputRoot);
 }
 
+TEST(GameServerOptions, ParsesEveryReplicationMode)
+{
+    const std::array cases{
+        std::pair{
+            std::string_view{"full-state"},
+            dxa::protocol::ReplicationMode::FullState},
+        std::pair{
+            std::string_view{"interest-full"},
+            dxa::protocol::ReplicationMode::InterestFullPrecision},
+        std::pair{
+            std::string_view{"interest-quantized"},
+            dxa::protocol::ReplicationMode::InterestQuantized},
+        std::pair{
+            std::string_view{"interest-delta"},
+            dxa::protocol::ReplicationMode::InterestDelta}};
+
+    for (const auto& [name, mode] : cases)
+    {
+        const auto parsed = Parse({"--replication-mode", name});
+        ASSERT_TRUE(parsed.options.has_value()) << parsed.error;
+        EXPECT_EQ(mode, parsed.options->replicationMode);
+    }
+}
+
 TEST(GameServerOptions, RejectsInvalidBoundariesDuplicatesAndUnknownOptions)
 {
     EXPECT_FALSE(Parse({"--lobby-control-port", "0"}).options.has_value());
@@ -84,7 +110,7 @@ TEST(GameServerOptions, RejectsInvalidBoundariesDuplicatesAndUnknownOptions)
         "--game-tcp-port", "7100",
         "--game-tcp-port", "7101"}).options.has_value());
     EXPECT_FALSE(Parse({
-        "--replication-mode", "interest-delta"}).options.has_value());
+        "--replication-mode", "unknown"}).options.has_value());
     EXPECT_FALSE(Parse({"--metrics-output-root", ""}).options.has_value());
     EXPECT_FALSE(Parse({
         "--metrics-output-root", "first",

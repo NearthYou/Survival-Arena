@@ -449,6 +449,7 @@ struct BotCoordinator::Impl final
                         metrics.traffic.udpReceivedBytes;
                     bot.report.discardedSnapshots =
                         metrics.snapshotsDiscarded;
+                    bot.report.keyframesApplied = metrics.keyframesApplied;
                     bot.report.keyframeRequests = metrics.keyframeRequests;
                 }
                 if (receivedSnapshots >= 2U

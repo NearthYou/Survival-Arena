@@ -471,6 +471,12 @@ SnapshotApplyResult ClientSnapshotStream::Apply(
         }
     }
 
+    if (state.requestKeyframe
+        && payload.header.kind == SnapshotPayloadKind::Keyframe)
+    {
+        result.reenteredActors = ActorIds(world);
+    }
+
     state.Store(Impl::Baseline{
         snapshotId,
         std::move(quantized),

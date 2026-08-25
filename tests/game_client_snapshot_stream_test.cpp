@@ -261,6 +261,27 @@ TEST(ClientSnapshotStream, RemoveAndReenterResetInterpolationIdentity)
               reentered.reenteredActors);
 }
 
+TEST(ClientSnapshotStream, RecoveryKeyframeResetsExistingActorIdentity)
+{
+    ClientSnapshotStream stream{32U};
+    (void)stream.Apply(
+        1U,
+        KeyframePayload(1U, {ActorValue(9U, 1000U, 2000U)}));
+    const SnapshotApplyResult missing = stream.Apply(
+        3U,
+        DeltaPayload(2U, 3U));
+    ASSERT_TRUE(missing.requestKeyframe);
+
+    const SnapshotApplyResult recovered = stream.Apply(
+        4U,
+        KeyframePayload(4U, {ActorValue(9U, 3000U, 4000U)}));
+
+    ASSERT_TRUE(recovered.world.has_value());
+    EXPECT_EQ((std::vector<EntityId>{EntityId{9U}}),
+              recovered.reenteredActors);
+    EXPECT_FALSE(recovered.requestKeyframe);
+}
+
 TEST(ClientSnapshotStream, RejectsStaleAndDuplicateWithoutChangingAck)
 {
     ClientSnapshotStream stream{32U};

@@ -62,6 +62,7 @@ TEST(NetworkLoadVertical, WarpHostAndTwentyThreeBotSessionsFinishOneMatch)
             [](const dxa::bot_client::BotSessionReport& session) {
                 return session.exitCode == 0
                     && session.snapshotsApplied >= 2U
+                    && session.keyframesApplied >= 1U
                     && session.receivedTcpBytes > 0U
                     && session.receivedUdpBytes > 0U;
             }));
@@ -91,4 +92,76 @@ TEST(NetworkLoadVertical, WarpHostAndTwentyThreeBotSessionsFinishOneMatch)
               << " bot_sessions=" << botSessions
               << " finished_tick=" << finishedTick
               << " elapsed_ms=" << elapsed.count() << '\n';
+}
+
+TEST(NetworkLoadVertical, EveryReplicationModeMatchesFullStateResult)
+{
+    const auto runMode = [](const dxa::protocol::ReplicationMode mode) {
+        dxa::test::ScopedOutputCapture capture;
+        dxa::protocol::GameMatchResult result;
+        {
+            dxa::test::NetworkVerticalFixture fixture{
+                dxa::test::ShortNetworkVerticalMatchConfig(),
+                mode};
+            fixture.StartServers();
+            dxa::client::NetworkClientController host{
+                fixture.HostOptions(24U, true)};
+            host.Start();
+            fixture.WaitForRoom(host);
+
+            dxa::bot_client::BotCoordinator bots{
+                fixture.BotIo(),
+                fixture.PlayBotOptions(*host.Room(), 23U)};
+            bots.Start();
+            dxa::test::VerticalWatchdog watchdog{20s};
+            const int exitCode = dxa::engine::EngineApp{}.Run(
+                fixture.HiddenWarpHybridOptions(420U),
+                fixture.ShaderPath(),
+                fixture.AssetRoot(),
+                &host);
+            watchdog.Finish();
+            if (exitCode != 0 || watchdog.TimedOut())
+            {
+                throw std::runtime_error{"replication mode WARP run failed"};
+            }
+            fixture.WaitForResults(host, bots, 23U);
+            if (!host.Result().has_value())
+            {
+                throw std::runtime_error{"replication mode has no result"};
+            }
+            const dxa::bot_client::BotCoordinatorReport report = bots.Report();
+            if (!report.result.has_value()
+                || report.sessions.size() != 23U
+                || *report.result != *host.Result()
+                || !std::all_of(
+                    report.sessions.begin(),
+                    report.sessions.end(),
+                    [](const dxa::bot_client::BotSessionReport& session) {
+                        return session.exitCode == 0
+                            && session.snapshotsApplied >= 2U
+                            && session.keyframesApplied >= 1U;
+                    }))
+            {
+                throw std::runtime_error{
+                    "replication mode result parity failed"};
+            }
+            result = *host.Result();
+            bots.Stop();
+            host.Stop();
+            fixture.StopServers();
+        }
+        capture.Finish();
+        EXPECT_EQ(0U, dxa::test::NetworkSecretLeakCount(capture.Text(), 24U));
+        return result;
+    };
+
+    const dxa::protocol::GameMatchResult baseline = runMode(
+        dxa::protocol::ReplicationMode::FullState);
+    for (const dxa::protocol::ReplicationMode mode : {
+             dxa::protocol::ReplicationMode::InterestFullPrecision,
+             dxa::protocol::ReplicationMode::InterestQuantized,
+             dxa::protocol::ReplicationMode::InterestDelta})
+    {
+        EXPECT_EQ(baseline, runMode(mode));
+    }
 }

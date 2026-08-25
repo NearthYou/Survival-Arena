@@ -8,6 +8,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <vector>
 
 namespace dxa::game_server
 {
@@ -25,6 +26,7 @@ struct ReplicationConfig
 struct ReplicationBuild
 {
     dxa::protocol::SnapshotPayload payload;
+    std::vector<std::byte> encodedPayload;
     std::uint32_t visibleActorCount = 0U;
     std::uint32_t visibleLootCount = 0U;
     bool keyframe = false;

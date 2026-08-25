@@ -3,6 +3,7 @@
 #include <dxa/game_common/NetworkMetrics.hpp>
 #include <dxa/game_server/GameServerOptions.hpp>
 #include <dxa/game_server/ServerMatchMetrics.hpp>
+#include <dxa/game_server/SnapshotReplicator.hpp>
 #include <dxa/game_server/UdpTokenSource.hpp>
 
 #include <dxa/simulation/MatchConfig.hpp>
@@ -25,6 +26,7 @@ struct GameServerConfig
     std::chrono::milliseconds authenticationTimeout{5000};
     std::chrono::milliseconds controlReconnectDelay{1000};
     std::shared_ptr<IUdpTokenSource> udpTokenSource;
+    ReplicationConfig replicationConfig;
 };
 
 class GameServer

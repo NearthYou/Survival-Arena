@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <deque>
 #include <optional>
+#include <span>
 
 namespace dxa::game_client
 {
@@ -19,6 +20,8 @@ public:
         std::size_t capacity = dxa::protocol::MaxClientSnapshotBuffer);
 
     void Push(ReassembledSnapshot snapshot);
+    void ForgetActors(
+        std::span<const dxa::protocol::EntityId> actors);
     [[nodiscard]] dxa::protocol::GameSnapshot Sample(
         std::optional<dxa::protocol::EntityId> localActor = std::nullopt) const;
     [[nodiscard]] std::size_t BufferSize() const noexcept;

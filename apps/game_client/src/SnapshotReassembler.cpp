@@ -1,7 +1,6 @@
 #include <dxa/game_client/SnapshotReassembler.hpp>
 
 #include <dxa/protocol/Crc32.hpp>
-#include <dxa/protocol/GameSnapshotCodec.hpp>
 #include <dxa/protocol/GameTypes.hpp>
 
 #include <algorithm>
@@ -188,26 +187,6 @@ std::optional<ReassembledPayload> SnapshotReassembler::PushBytes(
         metadata.serverTick,
         metadata.ackInputSequence,
         std::move(payload)};
-}
-
-std::optional<ReassembledSnapshot> SnapshotReassembler::Push(
-    const dxa::protocol::SnapshotFragment& fragment)
-{
-    std::optional<ReassembledPayload> payload = PushBytes(fragment);
-    if (!payload.has_value())
-    {
-        return std::nullopt;
-    }
-    auto decoded = dxa::protocol::DecodeGameSnapshot(payload->bytes);
-    if (!decoded.snapshot.has_value())
-    {
-        return std::nullopt;
-    }
-    return ReassembledSnapshot{
-        payload->snapshotId,
-        payload->serverTick,
-        payload->ackInputSequence,
-        std::move(*decoded.snapshot)};
 }
 
 void SnapshotReassembler::Reset() noexcept

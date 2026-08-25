@@ -254,7 +254,8 @@ struct NetworkClientController::Impl final
             *player,
             ticket,
             arena.mapId,
-            arena.fingerprint});
+            arena.fingerprint,
+            options.replicationMode});
         activeMatch.store(ticket.match.value);
         activePlayer.store(player->value);
         {

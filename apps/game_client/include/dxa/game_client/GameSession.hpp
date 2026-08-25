@@ -22,6 +22,7 @@ struct GameSessionStart
     dxa::protocol::MatchTicket ticket;
     std::uint32_t expectedMapId = 1U;
     std::uint32_t expectedNavMeshCrc32 = 0U;
+    std::optional<dxa::protocol::ReplicationMode> expectedReplicationMode;
 };
 
 enum class GameSessionState

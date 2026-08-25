@@ -136,13 +136,32 @@ GameServerOptionsParseResult ParseGameServerOptions(
         else if (option == "--replication-mode")
         {
             slot = 7U;
-            if (value != "full-state")
+            if (value == "full-state")
+            {
+                options.replicationMode =
+                    dxa::protocol::ReplicationMode::FullState;
+            }
+            else if (value == "interest-full")
+            {
+                options.replicationMode =
+                    dxa::protocol::ReplicationMode::InterestFullPrecision;
+            }
+            else if (value == "interest-quantized")
+            {
+                options.replicationMode =
+                    dxa::protocol::ReplicationMode::InterestQuantized;
+            }
+            else if (value == "interest-delta")
+            {
+                options.replicationMode =
+                    dxa::protocol::ReplicationMode::InterestDelta;
+            }
+            else
             {
                 return Failure(
-                    "--replication-mode must be full-state");
+                    "--replication-mode must be full-state, interest-full, "
+                    "interest-quantized or interest-delta");
             }
-            options.replicationMode =
-                dxa::protocol::ReplicationMode::FullState;
         }
         else if (option == "--metrics-output-root")
         {

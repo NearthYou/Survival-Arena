@@ -1,6 +1,7 @@
 #pragma once
 
 #include <dxa/engine/RenderPath.hpp>
+#include <dxa/protocol/GameTypes.hpp>
 
 #include <cstdint>
 #include <charconv>
@@ -25,6 +26,8 @@ struct NetworkClientOptions
     std::uint16_t lobbyPort = 7000U;
     std::uint8_t expectedPlayers = 2U;
     bool exitOnMatchResult = false;
+    dxa::protocol::ReplicationMode replicationMode =
+        dxa::protocol::ReplicationMode::FullState;
 };
 
 struct ClientOptions
@@ -93,6 +96,7 @@ namespace detail
     bool expectedPlayersSeen = false;
     bool lobbyHostSeen = false;
     bool lobbyPortSeen = false;
+    bool replicationModeSeen = false;
     bool exitOnMatchResultSeen = false;
 
     for (std::size_t index = 0; index < arguments.size(); ++index)
@@ -153,6 +157,46 @@ namespace detail
             {
                 return detail::Error(
                     "--lobby-host must contain 1 to 255 bytes");
+            }
+        }
+        else if (argument == "--replication-mode")
+        {
+            if (replicationModeSeen)
+            {
+                return detail::Error("duplicate --replication-mode");
+            }
+            if (index + 1 >= arguments.size())
+            {
+                return detail::Error("--replication-mode requires a value");
+            }
+            replicationModeSeen = true;
+            networkOptionSeen = true;
+            const std::string_view value = arguments[++index];
+            if (value == "full-state")
+            {
+                network.replicationMode =
+                    dxa::protocol::ReplicationMode::FullState;
+            }
+            else if (value == "interest-full")
+            {
+                network.replicationMode =
+                    dxa::protocol::ReplicationMode::InterestFullPrecision;
+            }
+            else if (value == "interest-quantized")
+            {
+                network.replicationMode =
+                    dxa::protocol::ReplicationMode::InterestQuantized;
+            }
+            else if (value == "interest-delta")
+            {
+                network.replicationMode =
+                    dxa::protocol::ReplicationMode::InterestDelta;
+            }
+            else
+            {
+                return detail::Error(
+                    "--replication-mode must be full-state, interest-full, "
+                    "interest-quantized or interest-delta");
             }
         }
         else if (argument == "--render-path")

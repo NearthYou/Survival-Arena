@@ -655,6 +655,7 @@ TEST(GameServerIntegration, PlayCoordinatorReportsEverySession)
         [](const dxa::bot_client::BotSessionReport& session) {
             return session.exitCode == 0
                 && session.snapshotsApplied >= 2U
+                && session.keyframesApplied >= 1U
                 && session.receivedTcpBytes > 0U
                 && session.receivedUdpBytes > 0U;
         }));
@@ -673,7 +674,9 @@ TEST(GameServerIntegration, PlayCoordinatorReportsEverySession)
     ASSERT_EQ(1U, serverMetrics.size());
     EXPECT_EQ(report.result->match, serverMetrics.front().match);
     EXPECT_EQ(12U, serverMetrics.front().tickSamples.size());
-    EXPECT_EQ(6U, serverMetrics.front().replicationSamples.size());
+    EXPECT_EQ(
+        6U * report.sessions.size(),
+        serverMetrics.front().replicationSamples.size());
     EXPECT_GT(serverMetrics.front().tcpBytes, 0U);
     EXPECT_GT(serverMetrics.front().udpBytes, 0U);
     EXPECT_GT(serverMetrics.front().payloadBytes, 0U);

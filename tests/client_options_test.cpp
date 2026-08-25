@@ -1,10 +1,12 @@
 #include <dxa/client/ClientOptions.hpp>
+#include <dxa/protocol/GameTypes.hpp>
 #include <dxa/engine/RenderPath.hpp>
 
 #include <gtest/gtest.h>
 
 #include <array>
 #include <string_view>
+#include <utility>
 
 namespace
 {
@@ -267,6 +269,54 @@ TEST(ClientOptions, NetworkResultCanCloseHiddenClientWithoutFrameLimit)
     ASSERT_TRUE(parsed.options->network.has_value());
     EXPECT_TRUE(parsed.options->network->exitOnMatchResult);
     EXPECT_EQ(0U, parsed.options->frameLimit);
+}
+
+TEST(ClientOptions, ParsesEveryNetworkReplicationMode)
+{
+    const std::array cases{
+        std::pair{
+            std::string_view{"full-state"},
+            dxa::protocol::ReplicationMode::FullState},
+        std::pair{
+            std::string_view{"interest-full"},
+            dxa::protocol::ReplicationMode::InterestFullPrecision},
+        std::pair{
+            std::string_view{"interest-quantized"},
+            dxa::protocol::ReplicationMode::InterestQuantized},
+        std::pair{
+            std::string_view{"interest-delta"},
+            dxa::protocol::ReplicationMode::InterestDelta}};
+
+    for (const auto& [name, mode] : cases)
+    {
+        const std::array arguments{
+            std::string_view{"--render-path"},
+            std::string_view{"hybrid-deferred"},
+            std::string_view{"--network-create"},
+            std::string_view{"--replication-mode"},
+            name};
+        const auto parsed = ParseClientOptions(arguments);
+        ASSERT_TRUE(parsed.options.has_value()) << parsed.error;
+        ASSERT_TRUE(parsed.options->network.has_value());
+        EXPECT_EQ(mode, parsed.options->network->replicationMode);
+    }
+
+    constexpr std::array invalid{
+        std::string_view{"--render-path"},
+        std::string_view{"hybrid-deferred"},
+        std::string_view{"--network-create"},
+        std::string_view{"--replication-mode"},
+        std::string_view{"unknown"}};
+    constexpr std::array duplicate{
+        std::string_view{"--render-path"},
+        std::string_view{"hybrid-deferred"},
+        std::string_view{"--network-create"},
+        std::string_view{"--replication-mode"},
+        std::string_view{"full-state"},
+        std::string_view{"--replication-mode"},
+        std::string_view{"interest-delta"}};
+    EXPECT_FALSE(ParseClientOptions(invalid).options.has_value());
+    EXPECT_FALSE(ParseClientOptions(duplicate).options.has_value());
 }
 
 TEST(ClientOptions, EnforcesNetworkPlayerAndOptionBoundaries)

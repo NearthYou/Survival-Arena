@@ -351,6 +351,9 @@ TEST(SnapshotReplicator, FullStatePreservesTheExistingWorld)
     EXPECT_EQ(124U, build.visibleActorCount);
     EXPECT_EQ(60U, build.visibleLootCount);
     EXPECT_FALSE(build.keyframe);
+    EXPECT_EQ(
+        EncodeSnapshotPayload(build.payload),
+        build.encodedPayload);
     EXPECT_EQ(world, RoundTrip(build.payload).fullPrecision);
 }
 
@@ -465,6 +468,9 @@ TEST(SnapshotReplicator, BuildsDeltaAgainstAcknowledgedRecipientView)
     EXPECT_EQ(SnapshotPayloadKind::Delta, delta.payload.header.kind);
     EXPECT_EQ(1U, delta.payload.header.baseSnapshotId);
     EXPECT_FALSE(delta.keyframe);
+    EXPECT_EQ(
+        EncodeSnapshotPayload(delta.payload),
+        delta.encodedPayload);
     EXPECT_EQ(EntityId{7U}, OnlyActorDelta(delta.payload).id);
     EXPECT_EQ(ActorField::Position, OnlyActorDelta(delta.payload).fields);
 }

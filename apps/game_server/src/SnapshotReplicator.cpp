@@ -686,7 +686,7 @@ ReplicationBuild SnapshotReplicator::Build(
             world.actors.size());
         build.visibleLootCount = static_cast<std::uint32_t>(
             world.loot.size());
-        (void)EncodeSnapshotPayload(build.payload);
+        build.encodedPayload = EncodeSnapshotPayload(build.payload);
         recipient.issuedHighWatermark = snapshotId;
         ++recipient.buildOrdinal;
         recipient.keyframeRequested = false;
@@ -792,7 +792,7 @@ ReplicationBuild SnapshotReplicator::Build(
         build.keyframe = true;
     }
 
-    (void)EncodeSnapshotPayload(build.payload);
+    build.encodedPayload = EncodeSnapshotPayload(build.payload);
     impl_->CommitGrid(snapshotId, world, candidateGrid);
     if (currentView.has_value())
     {

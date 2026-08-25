@@ -24,6 +24,7 @@ struct GameSessionMetrics
     std::uint64_t snapshotsApplied = 0U;
     std::uint64_t snapshotsDiscarded = 0U;
     std::uint64_t snapshotQueueDrops = 0U;
+    std::uint64_t keyframesApplied = 0U;
     std::uint64_t keyframeRequests = 0U;
 
     [[nodiscard]] bool operator==(const GameSessionMetrics&) const = default;

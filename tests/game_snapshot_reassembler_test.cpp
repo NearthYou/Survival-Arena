@@ -13,7 +13,6 @@
 
 namespace
 {
-using dxa::game_client::ReassembledSnapshot;
 using dxa::game_client::ReassembledPayload;
 using dxa::game_client::SnapshotReassembler;
 using dxa::protocol::EntityId;
@@ -69,12 +68,12 @@ TEST(SnapshotReassembler, NewerSnapshotDiscardsIncompleteOlderSnapshot)
     const auto older = MakeFragments(10U, 10U, 1U);
     const auto newer = MakeFragments(11U, 11U, 2U);
     ASSERT_GT(older.size(), 1U);
-    EXPECT_FALSE(reassembler.Push(older.front()).has_value());
+    EXPECT_FALSE(reassembler.PushBytes(older.front()).has_value());
 
-    std::optional<ReassembledSnapshot> completed;
+    std::optional<ReassembledPayload> completed;
     for (const SnapshotFragment& fragment : newer)
     {
-        completed = reassembler.Push(fragment);
+        completed = reassembler.PushBytes(fragment);
     }
 
     ASSERT_TRUE(completed.has_value());
@@ -89,16 +88,18 @@ TEST(SnapshotReassembler, AcceptsOutOfOrderFragmentsAndIgnoresExactDuplicate)
     auto fragments = MakeFragments(20U, 30U, 4U);
     ASSERT_GT(fragments.size(), 1U);
 
-    EXPECT_FALSE(reassembler.Push(fragments.back()).has_value());
-    EXPECT_FALSE(reassembler.Push(fragments.back()).has_value());
-    std::optional<ReassembledSnapshot> completed;
+    EXPECT_FALSE(reassembler.PushBytes(fragments.back()).has_value());
+    EXPECT_FALSE(reassembler.PushBytes(fragments.back()).has_value());
+    std::optional<ReassembledPayload> completed;
     for (std::size_t index = 0U; index + 1U < fragments.size(); ++index)
     {
-        completed = reassembler.Push(fragments[index]);
+        completed = reassembler.PushBytes(fragments[index]);
     }
 
     ASSERT_TRUE(completed.has_value());
-    EXPECT_EQ(50U, completed->snapshot.actors.size());
+    EXPECT_EQ(
+        dxa::protocol::EncodeGameSnapshot(Snapshot(50U)),
+        completed->bytes);
 }
 
 TEST(SnapshotReassembler, MetadataMismatchPoisonsCurrentSnapshot)
@@ -106,15 +107,15 @@ TEST(SnapshotReassembler, MetadataMismatchPoisonsCurrentSnapshot)
     SnapshotReassembler reassembler;
     auto fragments = MakeFragments(21U, 31U, 5U);
     ASSERT_GT(fragments.size(), 1U);
-    EXPECT_FALSE(reassembler.Push(fragments[0]).has_value());
+    EXPECT_FALSE(reassembler.PushBytes(fragments[0]).has_value());
     SnapshotFragment mismatch = fragments[1];
     ++mismatch.serverTick;
-    EXPECT_FALSE(reassembler.Push(mismatch).has_value());
+    EXPECT_FALSE(reassembler.PushBytes(mismatch).has_value());
 
-    std::optional<ReassembledSnapshot> completed;
+    std::optional<ReassembledPayload> completed;
     for (const SnapshotFragment& fragment : fragments)
     {
-        completed = reassembler.Push(fragment);
+        completed = reassembler.PushBytes(fragment);
     }
     EXPECT_FALSE(completed.has_value());
 }
@@ -124,23 +125,23 @@ TEST(SnapshotReassembler, RejectsCrcMismatchAndDeliveredReplay)
     SnapshotReassembler reassembler;
     auto corrupt = MakeFragments(22U, 32U, 6U);
     corrupt.back().bytes.back() ^= std::byte{0x01};
-    std::optional<ReassembledSnapshot> completed;
+    std::optional<ReassembledPayload> completed;
     for (const SnapshotFragment& fragment : corrupt)
     {
-        completed = reassembler.Push(fragment);
+        completed = reassembler.PushBytes(fragment);
     }
     EXPECT_FALSE(completed.has_value());
 
     const auto valid = MakeFragments(23U, 33U, 7U);
     for (const SnapshotFragment& fragment : valid)
     {
-        completed = reassembler.Push(fragment);
+        completed = reassembler.PushBytes(fragment);
     }
     ASSERT_TRUE(completed.has_value());
     completed.reset();
     for (const SnapshotFragment& fragment : valid)
     {
-        completed = reassembler.Push(fragment);
+        completed = reassembler.PushBytes(fragment);
     }
     EXPECT_FALSE(completed.has_value());
 }
@@ -150,22 +151,22 @@ TEST(SnapshotReassembler, DropsLateCompleteSnapshotAfterNewerDelivery)
     SnapshotReassembler reassembler;
     const auto older = MakeFragments(30U, 40U, 8U);
     const auto newer = MakeFragments(31U, 41U, 9U);
-    std::optional<ReassembledSnapshot> completed;
+    std::optional<ReassembledPayload> completed;
     for (const SnapshotFragment& fragment : newer)
     {
-        completed = reassembler.Push(fragment);
+        completed = reassembler.PushBytes(fragment);
     }
     ASSERT_TRUE(completed.has_value());
 
     completed.reset();
     for (const SnapshotFragment& fragment : older)
     {
-        completed = reassembler.Push(fragment);
+        completed = reassembler.PushBytes(fragment);
     }
     EXPECT_FALSE(completed.has_value());
 }
 
-TEST(SnapshotReassembler, HandlesThirtyTwoFragmentBoundaryWithoutDelivery)
+TEST(SnapshotReassembler, HandlesThirtyTwoFragmentBoundary)
 {
     SnapshotReassembler reassembler;
     std::vector<std::byte> payload(dxa::protocol::MaxSnapshotPayloadBytes);
@@ -176,10 +177,13 @@ TEST(SnapshotReassembler, HandlesThirtyTwoFragmentBoundaryWithoutDelivery)
         10U,
         payload);
     ASSERT_EQ(32U, fragments.size());
+    std::optional<ReassembledPayload> completed;
     for (const SnapshotFragment& fragment : fragments)
     {
-        EXPECT_FALSE(reassembler.Push(fragment).has_value());
+        completed = reassembler.PushBytes(fragment);
     }
+    ASSERT_TRUE(completed.has_value());
+    EXPECT_EQ(payload, completed->bytes);
 }
 
 TEST(SnapshotReassembler, ReturnsVerifiedBytesWithoutDecodingPayload)
@@ -213,10 +217,10 @@ TEST(SnapshotReassembler, ResetAllowsFreshLowerIdentityStream)
 {
     SnapshotReassembler reassembler;
     const auto high = MakeFragments(100U, 100U, 1U, 2U);
-    std::optional<ReassembledSnapshot> completed;
+    std::optional<ReassembledPayload> completed;
     for (const auto& fragment : high)
     {
-        completed = reassembler.Push(fragment);
+        completed = reassembler.PushBytes(fragment);
     }
     ASSERT_TRUE(completed.has_value());
 
@@ -225,7 +229,7 @@ TEST(SnapshotReassembler, ResetAllowsFreshLowerIdentityStream)
     completed.reset();
     for (const auto& fragment : low)
     {
-        completed = reassembler.Push(fragment);
+        completed = reassembler.PushBytes(fragment);
     }
     EXPECT_TRUE(completed.has_value());
 }

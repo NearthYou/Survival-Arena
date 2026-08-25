@@ -23,6 +23,23 @@
 
 namespace
 {
+[[nodiscard]] std::string_view ReplicationModeName(
+    const dxa::protocol::ReplicationMode mode)
+{
+    switch (mode)
+    {
+    case dxa::protocol::ReplicationMode::FullState:
+        return "full-state";
+    case dxa::protocol::ReplicationMode::InterestFullPrecision:
+        return "interest-full";
+    case dxa::protocol::ReplicationMode::InterestQuantized:
+        return "interest-quantized";
+    case dxa::protocol::ReplicationMode::InterestDelta:
+        return "interest-delta";
+    }
+    throw std::invalid_argument{"replication mode is invalid"};
+}
+
 class ServerMetricsExporter
 {
 public:
@@ -215,10 +232,7 @@ int main(const int argc, const char* const* const argv)
             parsed.options->worker.value,
             server.GameTcpPort(),
             server.GameUdpPort(),
-            parsed.options->replicationMode
-                == dxa::protocol::ReplicationMode::FullState
-                ? "full-state"
-                : "unsupported",
+            ReplicationModeName(parsed.options->replicationMode),
             parsed.options->metricsOutputRoot.empty()
                 ? "disabled"
                 : "enabled");

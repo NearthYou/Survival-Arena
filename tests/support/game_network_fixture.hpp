@@ -378,14 +378,27 @@ public:
     explicit GameNetworkFixture(
         dxa::simulation::MatchConfig config =
             dxa::simulation::DefaultMatchConfig(),
-        std::shared_ptr<dxa::game_server::IUdpTokenSource> tokenSource = {})
+        std::shared_ptr<dxa::game_server::IUdpTokenSource> tokenSource = {},
+        const dxa::protocol::ReplicationMode replicationMode =
+            dxa::protocol::ReplicationMode::FullState)
         : lobby_{},
           worker_{
               lobby_.Io(),
               MakeGameConfig(
                   lobby_.WorkerPort(),
                   std::move(config),
-                  std::move(tokenSource))}
+                  std::move(tokenSource),
+                  replicationMode)}
+    {
+    }
+
+    GameNetworkFixture(
+        dxa::simulation::MatchConfig config,
+        const dxa::protocol::ReplicationMode replicationMode)
+        : GameNetworkFixture(
+              std::move(config),
+              {},
+              replicationMode)
     {
     }
 
@@ -556,12 +569,14 @@ private:
     [[nodiscard]] static dxa::game_server::GameServerConfig MakeGameConfig(
         const std::uint16_t controlPort,
         dxa::simulation::MatchConfig matchConfig,
-        std::shared_ptr<dxa::game_server::IUdpTokenSource> tokenSource)
+        std::shared_ptr<dxa::game_server::IUdpTokenSource> tokenSource,
+        const dxa::protocol::ReplicationMode replicationMode)
     {
         dxa::game_server::GameServerConfig config;
         config.options.lobbyControlPort = controlPort;
         config.options.gameTcpPort = 0U;
         config.options.gameUdpPort = 0U;
+        config.options.replicationMode = replicationMode;
         config.matchConfig = std::move(matchConfig);
         config.udpTokenSource = std::move(tokenSource);
         return config;
@@ -748,9 +763,13 @@ ShortNetworkVerticalMatchConfig()
 class NetworkVerticalFixture
 {
 public:
-    explicit NetworkVerticalFixture(dxa::simulation::MatchConfig matchConfig)
+    explicit NetworkVerticalFixture(
+        dxa::simulation::MatchConfig matchConfig,
+        const dxa::protocol::ReplicationMode replicationMode =
+            dxa::protocol::ReplicationMode::FullState)
         : tokens_{std::make_shared<DeterministicVerticalTokenSource>()},
-          network_{std::move(matchConfig), tokens_}
+          network_{std::move(matchConfig), tokens_, replicationMode},
+          replicationMode_{replicationMode}
     {
     }
 
@@ -789,7 +808,8 @@ public:
             "127.0.0.1",
             network_.LobbyPort(),
             expectedPlayers,
-            exitOnMatchResult};
+            exitOnMatchResult,
+            replicationMode_};
     }
 
     void WaitForRoom(dxa::client::NetworkClientController& host)
@@ -888,6 +908,8 @@ private:
 
     std::shared_ptr<DeterministicVerticalTokenSource> tokens_;
     GameNetworkFixture network_;
+    dxa::protocol::ReplicationMode replicationMode_ =
+        dxa::protocol::ReplicationMode::FullState;
     std::optional<boost::asio::executor_work_guard<
         boost::asio::io_context::executor_type>> botWork_;
     std::thread botThread_;

@@ -3,6 +3,7 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <array>
 #include <cstdint>
 #include <stdexcept>
 
@@ -137,6 +138,20 @@ TEST(RemoteInterpolator, HoldsEarliestAndLatestWhenBracketIsUnavailable)
     EXPECT_FLOAT_EQ(
         4.0F,
         FindActor(noDelay.Sample(), EntityId{4U}).position.x);
+}
+
+TEST(RemoteInterpolator, ReenteredActorDoesNotReuseForgottenPosition)
+{
+    RemoteInterpolator interpolation{1U, 32U};
+    interpolation.Push(SnapshotAt(1U, EntityId{9U}, {0.0F, 0.0F}));
+    interpolation.Push(SnapshotAt(2U, EntityId{9U}, {10.0F, 0.0F}));
+    const std::array forgotten{EntityId{9U}};
+    interpolation.ForgetActors(forgotten);
+    interpolation.Push(SnapshotAt(4U, EntityId{9U}, {100.0F, 0.0F}));
+
+    EXPECT_FLOAT_EQ(
+        100.0F,
+        FindActor(interpolation.Sample(), EntityId{9U}).position.x);
 }
 
 TEST(RemoteInterpolator, KeepsOnlyThirtyTwoNewestSnapshots)

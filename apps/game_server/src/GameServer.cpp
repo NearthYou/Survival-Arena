@@ -238,6 +238,7 @@ struct GameServer::State final
                   ? config_.udpTokenSource
                   : std::make_shared<SecureUdpTokenSource>()}
     {
+        config_.replicationConfig.mode = config_.options.replicationMode;
         if (config_.authenticationTimeout <= std::chrono::milliseconds::zero()
             || config_.controlReconnectDelay
                 <= std::chrono::milliseconds::zero()
@@ -513,7 +514,8 @@ struct GameServer::State final
                 dxa::simulation::SurvivalArenaMapDefinition(),
                 config_.matchConfig,
                 *tokenSource_,
-                std::chrono::steady_clock::now()));
+                std::chrono::steady_clock::now(),
+                config_.replicationConfig));
             activeReservation_ = reservation.reservation;
             activeMatch_ = reservation.match;
             activeServerTick_ = 0U;
