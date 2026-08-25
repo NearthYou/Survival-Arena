@@ -8,6 +8,7 @@
 *.yml text eol=lf
 *.yaml text eol=lf
 *.ps1 text eol=crlf
+*.sh text eol=lf
 assets/runtime/** filter=lfs diff=lfs merge=lfs -text
 docs/benchmarks/network-load/**/*.csv filter=lfs diff=lfs merge=lfs -text
 docs/benchmarks/network-load/**/*.log filter=lfs diff=lfs merge=lfs -text

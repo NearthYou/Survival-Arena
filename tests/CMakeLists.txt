@@ -171,6 +171,17 @@ if(WIN32)
             -File "${PROJECT_SOURCE_DIR}/tests/network_load_runner_test.ps1"
             -RepositoryRoot "${PROJECT_SOURCE_DIR}"
     )
+
+    add_test(
+        NAME ServerInstall.InstallsExecutables
+        COMMAND
+            ${DXA_POWERSHELL_EXECUTABLE}
+            -NoProfile
+            -File "${PROJECT_SOURCE_DIR}/tests/server_install_test.ps1"
+            -CMakeExecutable "${CMAKE_COMMAND}"
+            -BuildDirectory "${PROJECT_BINARY_DIR}"
+            -Configuration "$<CONFIG>"
+    )
 endif()
 
 add_test(

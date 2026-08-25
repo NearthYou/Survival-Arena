@@ -36,3 +36,8 @@ dxa_enable_project_warnings(dxa_game_server_core)
 add_executable(dxa_game_server src/main.cpp)
 target_link_libraries(dxa_game_server PRIVATE dxa_game_server_core)
 dxa_enable_project_warnings(dxa_game_server)
+install(
+    TARGETS dxa_game_server
+    RUNTIME DESTINATION bin
+    COMPONENT Server
+)
