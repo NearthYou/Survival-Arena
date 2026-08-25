@@ -39,7 +39,7 @@ TEST(TcpFrame, EncodesAndDecodesTwelveByteHeaderAndPayload)
 
     const std::vector<std::byte> expected{
         std::byte{0x44}, std::byte{0x58}, std::byte{0x41}, std::byte{0x31},
-        std::byte{0x01}, std::byte{0x00}, std::byte{0x01}, std::byte{0x00},
+        std::byte{0x02}, std::byte{0x00}, std::byte{0x01}, std::byte{0x00},
         std::byte{0x02}, std::byte{0x00}, std::byte{0x00}, std::byte{0x00},
         std::byte{0x11}, std::byte{0x22}};
     EXPECT_EQ(expected, frame);
@@ -84,7 +84,7 @@ TEST(TcpFrame, RejectsWrongMagicVersionAndMessageType)
 
     const auto badVersion = Header(
         0U,
-        static_cast<std::uint16_t>(dxa::protocol::ProtocolVersion + 1U));
+        static_cast<std::uint16_t>(dxa::protocol::ProtocolVersion - 1U));
     EXPECT_EQ(
         dxa::protocol::FrameHeaderError::UnsupportedVersion,
         dxa::protocol::DecodeTcpFrameHeader(badVersion).error);

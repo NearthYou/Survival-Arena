@@ -523,6 +523,7 @@ AuthoritativeMatchResult AuthoritativeMatch::Authenticate(
                 dxa::protocol::SnapshotRate,
                 state.mapId,
                 state.navMeshCrc32,
+                dxa::protocol::ReplicationMode::FullState,
                 token}},
         false});
     state.ResolveStart(now, result);

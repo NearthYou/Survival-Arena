@@ -178,6 +178,7 @@ public:
             1U,
             crc.value_or(dxa::game_common::SurvivalArenaFingerprint(
                 dxa::simulation::SurvivalArenaMapDefinition())),
+            dxa::protocol::ReplicationMode::FullState,
             Token(9U)};
         SendTcp(GameServerMessage{welcome});
     }

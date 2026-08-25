@@ -36,4 +36,14 @@ TEST(GameTypes, LocksNetworkEnvelopeValuesConsumedByFrameCodecs)
     EXPECT_EQ(256U, MaxClientInputHistory);
     EXPECT_EQ(32U, MaxClientSnapshotBuffer);
 }
+
+TEST(GameTypes, LocksReplicationModeWireValues)
+{
+    EXPECT_EQ(1U, static_cast<unsigned>(ReplicationMode::FullState));
+    EXPECT_EQ(2U, static_cast<unsigned>(
+        ReplicationMode::InterestFullPrecision));
+    EXPECT_EQ(3U, static_cast<unsigned>(
+        ReplicationMode::InterestQuantized));
+    EXPECT_EQ(4U, static_cast<unsigned>(ReplicationMode::InterestDelta));
+}
 } // namespace

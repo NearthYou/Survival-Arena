@@ -314,6 +314,7 @@ private:
                                     arena.mapId,
                                     dxa::game_common::
                                         SurvivalArenaFingerprint(arena),
+                                    dxa::protocol::ReplicationMode::FullState,
                                     token}})));
                 },
                 [](const boost::system::error_code) {});

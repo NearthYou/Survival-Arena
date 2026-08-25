@@ -93,6 +93,8 @@ TEST(GameUdpCodec, RoundTripsEveryDatagramDirection)
         PlayerId{2U},
         Token(0x10U),
         3U,
+        0U,
+        false,
         NetworkVec2{1.0F, -2.0F},
         true,
         EntityId{4U},
@@ -104,30 +106,51 @@ TEST(GameUdpCodec, RoundTripsEveryDatagramDirection)
 
 TEST(GameUdpCodec, EncodesTenByteHeaderAndInputFlags)
 {
-    const EncodedDatagram encoded = EncodeClientDatagram(ClientDatagram{
-        ClientInput{
-            MatchId{1U},
-            PlayerId{2U},
-            Token(0x10U),
-            3U,
-            NetworkVec2{1.0F, -2.0F},
-            true,
-            EntityId{4U},
-            true}});
+    ClientInput input;
+    input.match = MatchId{1U};
+    input.player = PlayerId{2U};
+    input.token = Token(0x10U);
+    input.inputSequence = 3U;
+    input.acknowledgedSnapshotId = 0xA1B2C3D4U;
+    input.requestKeyframe = true;
+    input.moveDestination = NetworkVec2{1.0F, -2.0F};
+    input.hasMoveDestination = true;
+    input.attackTarget = EntityId{4U};
+    input.hasAttackTarget = true;
 
-    ASSERT_EQ(55U, encoded.bytes.size());
+    const EncodedDatagram encoded = EncodeClientDatagram(
+        ClientDatagram{input});
+
+    ASSERT_EQ(59U, encoded.bytes.size());
     EXPECT_EQ(UdpDatagramType::ClientInput, encoded.type);
     EXPECT_EQ(std::byte{0x44}, encoded.bytes[0]);
     EXPECT_EQ(std::byte{0x58}, encoded.bytes[1]);
     EXPECT_EQ(std::byte{0x55}, encoded.bytes[2]);
     EXPECT_EQ(std::byte{0x31}, encoded.bytes[3]);
-    EXPECT_EQ(std::byte{0x01}, encoded.bytes[4]);
+    EXPECT_EQ(std::byte{0x02}, encoded.bytes[4]);
     EXPECT_EQ(std::byte{0x00}, encoded.bytes[5]);
     EXPECT_EQ(std::byte{0x03}, encoded.bytes[6]);
     EXPECT_EQ(std::byte{0x00}, encoded.bytes[7]);
-    EXPECT_EQ(std::byte{0x2D}, encoded.bytes[8]);
+    EXPECT_EQ(std::byte{0x31}, encoded.bytes[8]);
     EXPECT_EQ(std::byte{0x00}, encoded.bytes[9]);
-    EXPECT_EQ(std::byte{0x03}, encoded.bytes[42]);
+    EXPECT_EQ(std::byte{0xD4}, encoded.bytes[42]);
+    EXPECT_EQ(std::byte{0xC3}, encoded.bytes[43]);
+    EXPECT_EQ(std::byte{0xB2}, encoded.bytes[44]);
+    EXPECT_EQ(std::byte{0xA1}, encoded.bytes[45]);
+    EXPECT_EQ(std::byte{0x07}, encoded.bytes[46]);
+}
+
+TEST(GameUdpCodec, RoundTripsSnapshotAckAndKeyframeRequest)
+{
+    ClientInput input;
+    input.match = MatchId{7U};
+    input.player = PlayerId{3U};
+    input.token = Token(0x20U);
+    input.inputSequence = 11U;
+    input.acknowledgedSnapshotId = 9U;
+    input.requestKeyframe = true;
+
+    ExpectClientRoundTrip(ClientDatagram{input});
 }
 
 TEST(GameUdpCodec, AcceptsExactlyTwelveHundredBytesAndRejectsOneMore)
@@ -203,7 +226,7 @@ TEST(GameUdpCodec, RejectsBadHeaderLengthAndWrongDirection)
               DecodeClientDatagram(badMagic).error);
 
     std::vector<std::byte> badVersion = bind.bytes;
-    badVersion[4] = std::byte{0x02};
+    badVersion[4] = std::byte{0x01};
     EXPECT_EQ(DecodeError::InvalidValue,
               DecodeClientDatagram(badVersion).error);
 
@@ -240,6 +263,8 @@ TEST(GameUdpCodec, RejectsInvalidInputAndFragmentMetadata)
         PlayerId{2U},
         Token(1U),
         0U,
+        0U,
+        false,
         NetworkVec2{},
         false,
         EntityId{},
@@ -247,6 +272,18 @@ TEST(GameUdpCodec, RejectsInvalidInputAndFragmentMetadata)
     EXPECT_THROW(
         (void)EncodeClientDatagram(ClientDatagram{invalidInput}),
         std::invalid_argument);
+
+    ClientInput validInput;
+    validInput.match = MatchId{1U};
+    validInput.player = PlayerId{2U};
+    validInput.token = Token(1U);
+    validInput.inputSequence = 1U;
+    std::vector<std::byte> unknownInputFlag =
+        EncodeClientDatagram(ClientDatagram{validInput}).bytes;
+    unknownInputFlag[46] = std::byte{0x80};
+    EXPECT_EQ(
+        DecodeError::InvalidValue,
+        DecodeClientDatagram(unknownInputFlag).error);
 
     invalidInput.inputSequence = 1U;
     invalidInput.hasMoveDestination = true;

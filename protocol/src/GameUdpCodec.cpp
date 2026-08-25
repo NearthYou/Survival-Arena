@@ -20,8 +20,9 @@ constexpr std::array UdpMagic{
     std::byte{0x31}};
 constexpr std::uint8_t MoveDestinationFlag = 1U << 0U;
 constexpr std::uint8_t AttackTargetFlag = 1U << 1U;
+constexpr std::uint8_t KeyframeRequestFlag = 1U << 2U;
 constexpr std::uint8_t KnownInputFlags =
-    MoveDestinationFlag | AttackTargetFlag;
+    MoveDestinationFlag | AttackTargetFlag | KeyframeRequestFlag;
 
 template <typename... Functions>
 struct Overloaded : Functions...
@@ -271,9 +272,11 @@ struct ClientIdentity
     ByteReader reader{payload};
     const auto identity = ReadClientIdentity(reader);
     const auto inputSequence = reader.ReadU32();
+    const auto acknowledgedSnapshotId = reader.ReadU32();
     const auto flags = reader.ReadU8();
     if (!identity.has_value()
         || !inputSequence.has_value()
+        || !acknowledgedSnapshotId.has_value()
         || !flags.has_value())
     {
         return ReaderFailure<ClientDatagram>(reader);
@@ -288,6 +291,8 @@ struct ClientIdentity
     input.player = identity->player;
     input.token = identity->token;
     input.inputSequence = *inputSequence;
+    input.acknowledgedSnapshotId = *acknowledgedSnapshotId;
+    input.requestKeyframe = (*flags & KeyframeRequestFlag) != 0U;
     input.hasMoveDestination = (*flags & MoveDestinationFlag) != 0U;
     input.hasAttackTarget = (*flags & AttackTargetFlag) != 0U;
     if (input.hasMoveDestination)
@@ -413,7 +418,12 @@ EncodedDatagram EncodeClientDatagram(const ClientDatagram& datagram)
                         value.player,
                         value.token);
                     writer.WriteU32(value.inputSequence);
+                    writer.WriteU32(value.acknowledgedSnapshotId);
                     std::uint8_t flags = 0U;
+                    if (value.requestKeyframe)
+                    {
+                        flags |= KeyframeRequestFlag;
+                    }
                     if (value.hasMoveDestination)
                     {
                         flags |= MoveDestinationFlag;
