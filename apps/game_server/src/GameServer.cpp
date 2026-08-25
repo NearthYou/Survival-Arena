@@ -474,6 +474,9 @@ struct GameServer::State final
                 return;
             }
             registered_ = true;
+            spdlog::info(
+                "game_server_registered worker={}",
+                registered->worker.value);
             return;
         }
         if (!registered_)
