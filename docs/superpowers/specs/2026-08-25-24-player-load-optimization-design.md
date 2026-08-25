@@ -200,7 +200,7 @@ base가 없거나 payload가 현재 stream과 일치하지 않으면 기존 worl
 
 ### DatagramShaper module
 
-`dxa_protocol`의 UDP adapter 앞에 `DatagramShaper`를 둔다. production 기본 config는 disabled이고 byte를 즉시 전달한다. load run만 다음 config를 사용한다.
+`dxa_protocol`의 UDP adapter 앞에 `DatagramShaper`를 둔다. client와 server는 같은 module을 사용하되 각각 자기 executor와 direction seed를 주입한다. production 기본 config는 disabled이고 byte를 즉시 전달한다. load run만 다음 config를 사용한다.
 
 ```cpp
 struct DatagramShaperConfig
