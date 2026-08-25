@@ -555,7 +555,7 @@ try {
         "- average client received bytes per second: $([Math]::Round($averageClientBytesPerSecond, 3))",
         "- secret leak count: $secretLeakCount",
         '',
-        '이 파일은 raw CSV에서 계산한 실제 결과다. 목표 미달 수치도 그대로 유지한다.'
+        'This report is computed from raw CSV and preserves target misses.'
     )
     Write-DxaNetworkLoadUtf8 `
         -Path (Join-Path $outputDirectory 'RESULT.md') `
