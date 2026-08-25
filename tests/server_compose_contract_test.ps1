@@ -130,6 +130,16 @@ $lobby = $config.services.'lobby-server'
 $game1 = $config.services.'game-server-1'
 $game2 = $config.services.'game-server-2'
 
+Assert-Contains `
+    @($lobby.PSObject.Properties.Name) `
+    'build' `
+    'lobby-server properties'
+foreach ($game in @($game1, $game2)) {
+    if (@($game.PSObject.Properties.Name) -contains 'build') {
+        throw 'game worker가 동일 server image를 중복 build합니다.'
+    }
+}
+
 Assert-CommonSecurity $lobby 'lobby-server'
 Assert-CommonSecurity $game1 'game-server-1'
 Assert-CommonSecurity $game2 'game-server-2'

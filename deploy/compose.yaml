@@ -49,7 +49,6 @@ services:
 
   game-server-1:
     <<: *server-common
-    build: *server-build
     command:
       - /usr/local/bin/dxa_game_server
       - --lobby-control-host
@@ -88,7 +87,6 @@ services:
 
   game-server-2:
     <<: *server-common
-    build: *server-build
     command:
       - /usr/local/bin/dxa_game_server
       - --lobby-control-host
