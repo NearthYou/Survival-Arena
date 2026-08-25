@@ -481,6 +481,9 @@ try {
             throw "Network load runner marker가 없습니다: $requiredRunnerMarker"
         }
     }
+    if ([regex]::Matches($runnerText, "'--replication-mode'").Count -lt 2) {
+        throw 'Network load runner가 server와 DX11 client mode를 함께 고정하지 않았습니다.'
+    }
 
     $serverExecutable = Join-Path $RepositoryRoot (
         'out/build/windows-msvc-vs-debug/apps/game_server/Debug/' +

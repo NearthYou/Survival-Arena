@@ -255,6 +255,7 @@ try {
             '--verify-render',
             '--render-path', 'hybrid-deferred',
             '--network-create',
+            '--replication-mode', $ReplicationMode,
             '--expected-players', '24',
             '--exit-on-match-result',
             '--lobby-host', '127.0.0.1',
