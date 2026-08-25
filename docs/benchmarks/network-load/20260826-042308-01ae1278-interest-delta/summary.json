@@ -1,0 +1,103 @@
+{
+  "schema_version": 2,
+  "commit_sha": "01ae1278a5f304dfd83e289f671a01f1095489f3",
+  "match_count": 3,
+  "seeds": [
+    20260825,
+    20260826,
+    20260827
+  ],
+  "participant_count": 24,
+  "results": [
+    {
+      "schema_version": 2,
+      "commit_sha": "01ae1278a5f304dfd83e289f671a01f1095489f3",
+      "seed": 20260825,
+      "participant_count": 24,
+      "match_id": 1,
+      "room_id": 1,
+      "exit_code": 0,
+      "protocol_errors": 0,
+      "shaped_queue_overflows": 0,
+      "secret_leak_count": 0,
+      "measurement_seconds": 581.0134914,
+      "server_udp_dropped": 0,
+      "server_udp_delayed": 0,
+      "server_udp_delivered": 0
+    },
+    {
+      "schema_version": 2,
+      "commit_sha": "01ae1278a5f304dfd83e289f671a01f1095489f3",
+      "seed": 20260826,
+      "participant_count": 24,
+      "match_id": 2,
+      "room_id": 2,
+      "exit_code": 0,
+      "protocol_errors": 0,
+      "shaped_queue_overflows": 0,
+      "secret_leak_count": 0,
+      "measurement_seconds": 581.0258892,
+      "server_udp_dropped": 0,
+      "server_udp_delayed": 0,
+      "server_udp_delivered": 0
+    },
+    {
+      "schema_version": 2,
+      "commit_sha": "01ae1278a5f304dfd83e289f671a01f1095489f3",
+      "seed": 20260827,
+      "participant_count": 24,
+      "match_id": 3,
+      "room_id": 3,
+      "exit_code": 0,
+      "protocol_errors": 0,
+      "shaped_queue_overflows": 0,
+      "secret_leak_count": 0,
+      "measurement_seconds": 581.0274188,
+      "server_udp_dropped": 0,
+      "server_udp_delayed": 0,
+      "server_udp_delivered": 0
+    }
+  ],
+  "raw": {
+    "tick_sample_count": 52290,
+    "client_row_count": 72,
+    "game_received_bytes": 177698477,
+    "failed_process_count": 0,
+    "protocol_errors": 0,
+    "shaped_queue_overflows": 0,
+    "secret_leak_count": 0,
+    "working_set_sample_count": 696,
+    "game_server_working_set_sample_count": 174,
+    "replication_sample_count": 627480,
+    "server_tcp_bytes": 9024,
+    "server_udp_bytes": 246296604,
+    "payload_bytes": 151118605,
+    "scheduler_overruns": 0,
+    "keyframe_count": 21011,
+    "fallback_keyframe_count": 0,
+    "discarded_snapshots": 0,
+    "keyframe_requests": 0,
+    "udp_datagrams_dropped": 0,
+    "udp_datagrams_delayed": 0
+  },
+  "metrics": {
+    "server_tick_p95_ms": 1.7595,
+    "participant_average_received_kib_per_second": 4.148225,
+    "recipient_received_kib_per_second_p95": 4.324293,
+    "replication_encode_p95_ms": 0.0671
+  },
+  "guards": {
+    "monotonic_working_set_increase": false,
+    "working_set_window_seconds": 900
+  },
+  "run_id": "20260826-042308-01ae1278-interest-delta",
+  "replication_mode": "interest-delta",
+  "impairment_enabled": false,
+  "soak_minutes": 0,
+  "targets": {
+    "server_tick_p95_limit_ms": 33.3,
+    "participant_average_received_limit_kib_per_second": 64.0,
+    "server_tick_pass": true,
+    "participant_average_receive_pass": true
+  }
+}

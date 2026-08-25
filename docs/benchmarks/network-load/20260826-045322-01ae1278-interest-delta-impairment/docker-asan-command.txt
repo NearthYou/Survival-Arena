@@ -1,0 +1,1 @@
+docker run --rm --mount type=bind,source=<REPOSITORY_ROOT>,target=/workspace -w /workspace dxa-linux-asan:local bash -lc 'ASAN_OPTIONS=detect_leaks=1:halt_on_error=1 UBSAN_OPTIONS=halt_on_error=1 timeout 1800s ./out/build/linux-asan/tests/dxa_tests --gtest_filter=GameServerIntegration.PlayCoordinatorReportsEverySession --gtest_repeat=-1'

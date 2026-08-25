@@ -1,0 +1,2 @@
+<REPOSITORY_ROOT>\out\build\windows-msvc-vs-release\apps\client\Release\dxa_client.exe --warp --hidden --verify-render --render-path hybrid-deferred --network-create --replication-mode interest-quantized --expected-players 24 --exit-on-match-result --lobby-host 127.0.0.1 --lobby-port 7827 --width 1920 --height 1080
+<REPOSITORY_ROOT>\out\build\windows-msvc-vs-release\apps\bot_client\Release\dxa_bot_client.exe --host 127.0.0.1 --port 7827 --room 1 --count 23 --play

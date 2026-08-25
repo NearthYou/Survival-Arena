@@ -1,0 +1,69 @@
+{
+  "schema_version": 2,
+  "commit_sha": "01ae1278a5f304dfd83e289f671a01f1095489f3",
+  "match_count": 1,
+  "seeds": [
+    20260825
+  ],
+  "participant_count": 24,
+  "results": [
+    {
+      "schema_version": 2,
+      "commit_sha": "01ae1278a5f304dfd83e289f671a01f1095489f3",
+      "seed": 20260825,
+      "participant_count": 24,
+      "match_id": 1,
+      "room_id": 1,
+      "exit_code": 0,
+      "protocol_errors": 0,
+      "shaped_queue_overflows": 0,
+      "secret_leak_count": 0,
+      "measurement_seconds": 581.0161646,
+      "server_udp_dropped": 0,
+      "server_udp_delayed": 0,
+      "server_udp_delivered": 0
+    }
+  ],
+  "raw": {
+    "tick_sample_count": 17430,
+    "client_row_count": 24,
+    "game_received_bytes": 58872682,
+    "failed_process_count": 0,
+    "protocol_errors": 0,
+    "shaped_queue_overflows": 0,
+    "secret_leak_count": 0,
+    "working_set_sample_count": 232,
+    "game_server_working_set_sample_count": 58,
+    "replication_sample_count": 209160,
+    "server_tcp_bytes": 3008,
+    "server_udp_bytes": 81738218,
+    "payload_bytes": 50088338,
+    "scheduler_overruns": 0,
+    "keyframe_count": 7011,
+    "fallback_keyframe_count": 0,
+    "discarded_snapshots": 0,
+    "keyframe_requests": 0,
+    "udp_datagrams_dropped": 0,
+    "udp_datagrams_delayed": 0
+  },
+  "metrics": {
+    "server_tick_p95_ms": 1.8002,
+    "participant_average_received_kib_per_second": 4.123043,
+    "recipient_received_kib_per_second_p95": 4.246719,
+    "replication_encode_p95_ms": 0.0672
+  },
+  "guards": {
+    "monotonic_working_set_increase": false,
+    "working_set_window_seconds": 900
+  },
+  "run_id": "20260826-041146-01ae1278-interest-delta",
+  "replication_mode": "interest-delta",
+  "impairment_enabled": false,
+  "soak_minutes": 0,
+  "targets": {
+    "server_tick_p95_limit_ms": 33.3,
+    "participant_average_received_limit_kib_per_second": 64.0,
+    "server_tick_pass": true,
+    "participant_average_receive_pass": true
+  }
+}

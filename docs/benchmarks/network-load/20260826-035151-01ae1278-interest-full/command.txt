@@ -1,0 +1,4 @@
+<REPOSITORY_ROOT>\out\build\windows-msvc-vs-release\apps\lobby_server\Release\dxa_lobby_server.exe --bind 127.0.0.1 --port 4193 --worker-bind 127.0.0.1 --worker-port 4194
+<REPOSITORY_ROOT>\out\build\windows-msvc-vs-release\apps\game_server\Release\dxa_game_server.exe --lobby-control-host 127.0.0.1 --lobby-control-port 4194 --advertise-host 127.0.0.1 --game-bind 127.0.0.1 --game-tcp-port 4196 --game-udp-port 51047 --replication-mode interest-full --metrics-output-root <RUN_DIRECTORY>
+<REPOSITORY_ROOT>\out\build\windows-msvc-vs-release\apps\client\Release\dxa_client.exe --warp --hidden --verify-render --render-path hybrid-deferred --network-create --replication-mode interest-full --expected-players 24 --exit-on-match-result --lobby-host 127.0.0.1 --lobby-port 4193 --width 1920 --height 1080
+<REPOSITORY_ROOT>\out\build\windows-msvc-vs-release\apps\bot_client\Release\dxa_bot_client.exe --host 127.0.0.1 --port 4193 --room 1 --count 23 --play
