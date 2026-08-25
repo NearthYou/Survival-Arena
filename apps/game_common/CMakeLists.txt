@@ -1,9 +1,11 @@
 add_library(
     dxa_game_common
     STATIC
+        include/dxa/game_common/UdpDatagramQueue.hpp
         src/ArenaFingerprint.cpp
         src/NetworkMetrics.cpp
         src/SnapshotAdapter.cpp
+        src/UdpDatagramQueue.cpp
 )
 target_include_directories(
     dxa_game_common

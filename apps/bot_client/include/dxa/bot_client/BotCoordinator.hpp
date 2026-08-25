@@ -30,6 +30,10 @@ struct BotSessionReport
     std::uint64_t receivedUdpBytes = 0U;
     std::uint64_t discardedSnapshots = 0U;
     std::uint64_t keyframeRequests = 0U;
+    std::uint64_t udpDatagramsDropped = 0U;
+    std::uint64_t udpDatagramsDelayed = 0U;
+    std::uint64_t udpDatagramsDelivered = 0U;
+    std::uint64_t shapedQueueOverflows = 0U;
     int exitCode = 0;
 };
 

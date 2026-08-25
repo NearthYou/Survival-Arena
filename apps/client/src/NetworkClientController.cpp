@@ -255,7 +255,8 @@ struct NetworkClientController::Impl final
             ticket,
             arena.mapId,
             arena.fingerprint,
-            options.replicationMode});
+            options.replicationMode,
+            options.udpImpairment});
         activeMatch.store(ticket.match.value);
         activePlayer.store(player->value);
         {
@@ -545,6 +546,14 @@ NetworkClientController::Result() const
 std::uint64_t NetworkClientController::SnapshotCount() const noexcept
 {
     return impl_->snapshotCount.load();
+}
+
+dxa::game_common::GameSessionMetrics
+NetworkClientController::Metrics() const
+{
+    const auto session = impl_->Session();
+    return session ? session->Metrics()
+                   : dxa::game_common::GameSessionMetrics{};
 }
 
 void NetworkClientController::Stop()

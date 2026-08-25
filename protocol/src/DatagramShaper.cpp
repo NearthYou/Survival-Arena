@@ -42,16 +42,16 @@ DatagramShaper::DatagramShaper(
 {
     constexpr auto MaximumDuration = std::chrono::milliseconds{5000};
     if (!IsValidDirection(direction_)
-        || config_.latency < std::chrono::milliseconds::zero()
+        || config_.oneWayLatency < std::chrono::milliseconds::zero()
         || config_.jitter < std::chrono::milliseconds::zero()
-        || config_.latency > MaximumDuration
+        || config_.oneWayLatency > MaximumDuration
         || config_.jitter > MaximumDuration
         || config_.lossBasisPoints > 10000U)
     {
         throw std::invalid_argument{"datagram shaper configuration is invalid"};
     }
 
-    enabled_ = config_.latency != std::chrono::milliseconds::zero()
+    enabled_ = config_.oneWayLatency != std::chrono::milliseconds::zero()
         || config_.jitter != std::chrono::milliseconds::zero()
         || config_.lossBasisPoints != 0U;
     if (enabled_ && config_.seed == 0U)
@@ -86,8 +86,13 @@ ShapedDatagramDecision DatagramShaper::Decide(
         - jitter;
     const std::int64_t delay = std::max<std::int64_t>(
         0,
-        config_.latency.count() + jitterOffset);
+        config_.oneWayLatency.count() + jitterOffset);
     decision.delay = std::chrono::milliseconds{delay};
     return decision;
+}
+
+bool DatagramShaper::Enabled() const noexcept
+{
+    return enabled_;
 }
 } // namespace dxa::protocol

@@ -7,10 +7,10 @@ namespace dxa::protocol
 {
 struct DatagramShaperConfig
 {
-    std::chrono::milliseconds latency{0};
+    std::chrono::milliseconds oneWayLatency{0};
     std::chrono::milliseconds jitter{0};
-    std::uint16_t lossBasisPoints = 0U;
-    std::uint64_t seed = 0U;
+    std::uint32_t lossBasisPoints = 0U;
+    std::uint32_t seed = 0U;
 };
 
 enum class DatagramDirection : std::uint8_t
@@ -38,6 +38,7 @@ public:
     [[nodiscard]] ShapedDatagramDecision Decide(
         std::uint64_t peerKey,
         std::uint64_t ordinal) const noexcept;
+    [[nodiscard]] bool Enabled() const noexcept;
 
 private:
     DatagramShaperConfig config_;

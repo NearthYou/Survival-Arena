@@ -7,6 +7,7 @@
 #include <dxa/game_client/SnapshotReassembler.hpp>
 
 #include <dxa/game_common/NetworkMetrics.hpp>
+#include <dxa/game_common/UdpDatagramQueue.hpp>
 #include <dxa/protocol/AsioFramedConnection.hpp>
 #include <dxa/protocol/GameTcpMessageCodec.hpp>
 #include <dxa/protocol/GameUdpCodec.hpp>
@@ -93,6 +94,11 @@ struct GameSession::Impl
             throw std::logic_error{"game session can start only once"};
         }
         start = std::move(sourceStart);
+        udpSendQueue = std::make_unique<dxa::game_common::UdpDatagramQueue>(
+            io,
+            start.udpImpairment,
+            dxa::protocol::DatagramDirection::ClientToServer,
+            start.maximumQueuedUdpDatagramsPerPeer);
         stopRequested.store(false);
         const auto self = shared_from_this();
         boost::asio::post(io, [self] { self->ResolveTcp(); });
@@ -320,15 +326,7 @@ struct GameSession::Impl
                     udpToken}});
         auto bytes = std::make_shared<std::vector<std::byte>>(
             encoded.bytes);
-        traffic.RecordUdp(
-            dxa::protocol::TrafficDirection::Sent,
-            bytes->size());
-        udpSocket.async_send_to(
-            boost::asio::buffer(*bytes),
-            serverUdpEndpoint,
-            [bytes](
-                const boost::system::error_code,
-                const std::size_t) {});
+        SendUdp(std::move(bytes));
         bindTimer.expires_after(BindRetryInterval);
         const auto self = shared_from_this();
         bindTimer.async_wait([self](const boost::system::error_code error) {
@@ -337,6 +335,42 @@ struct GameSession::Impl
                 self->SendBind();
             }
         });
+    }
+
+    void SendUdp(
+        std::shared_ptr<std::vector<std::byte>> bytes)
+    {
+        if (!udpSendQueue)
+        {
+            FailProtocol();
+            return;
+        }
+        const std::weak_ptr<Impl> weak = shared_from_this();
+        const auto result = udpSendQueue->Enqueue(
+            start.player.value,
+            std::move(bytes),
+            [weak](const dxa::game_common::UdpDatagramQueue::Bytes& ready) {
+                const auto self = weak.lock();
+                if (!self
+                    || self->stopRequested.load()
+                    || !self->udpSocket.is_open())
+                {
+                    return;
+                }
+                self->traffic.RecordUdp(
+                    dxa::protocol::TrafficDirection::Sent,
+                    ready->size());
+                self->udpSocket.async_send_to(
+                    boost::asio::buffer(*ready),
+                    self->serverUdpEndpoint,
+                    [ready](
+                        const boost::system::error_code,
+                        const std::size_t) {});
+            });
+        if (result == dxa::game_common::UdpDatagramEnqueueResult::Overflow)
+        {
+            FailProtocol();
+        }
     }
 
     void ReceiveUdp()
@@ -411,6 +445,10 @@ struct GameSession::Impl
             return;
         }
         const auto completed = reassembler.PushBytes(fragment);
+        if (reassembler.TakeRecoveryNeeded())
+        {
+            RequestKeyframe();
+        }
         if (!completed.has_value())
         {
             return;
@@ -438,11 +476,14 @@ struct GameSession::Impl
             return;
         }
         lastAppliedSnapshotId.store(applied.acknowledgedSnapshotId);
-        const bool requestWasSet = keyframeRequested.exchange(
-            applied.requestKeyframe);
-        if (applied.requestKeyframe && !requestWasSet)
+        if (applied.requestKeyframe)
         {
-            ++keyframeRequests;
+            RequestKeyframe();
+        }
+        else if (decoded.payload->header.kind
+                 != dxa::protocol::SnapshotPayloadKind::Delta)
+        {
+            keyframeRequested.store(false);
         }
         if (!applied.world.has_value())
         {
@@ -487,6 +528,14 @@ struct GameSession::Impl
         ++snapshotCount;
     }
 
+    void RequestKeyframe() noexcept
+    {
+        if (!keyframeRequested.exchange(true))
+        {
+            ++keyframeRequests;
+        }
+    }
+
     void PostInput(const PredictedInput input)
     {
         const auto self = shared_from_this();
@@ -522,15 +571,7 @@ struct GameSession::Impl
                 dxa::protocol::ClientDatagram{datagram});
             auto bytes = std::make_shared<std::vector<std::byte>>(
                 encoded.bytes);
-            self->traffic.RecordUdp(
-                dxa::protocol::TrafficDirection::Sent,
-                bytes->size());
-            self->udpSocket.async_send_to(
-                boost::asio::buffer(*bytes),
-                self->serverUdpEndpoint,
-                [bytes](
-                    const boost::system::error_code,
-                    const std::size_t) {});
+            self->SendUdp(std::move(bytes));
         });
     }
 
@@ -663,6 +704,10 @@ struct GameSession::Impl
     void CloseNetwork()
     {
         traffic.Freeze();
+        if (udpSendQueue)
+        {
+            udpSendQueue->Stop();
+        }
         tcpResolver.cancel();
         udpResolver.cancel();
         bindTimer.cancel();
@@ -713,6 +758,7 @@ struct GameSession::Impl
     udp::resolver udpResolver;
     udp::socket udpSocket;
     boost::asio::steady_timer bindTimer;
+    std::unique_ptr<dxa::game_common::UdpDatagramQueue> udpSendQueue;
     std::shared_ptr<dxa::protocol::AsioFramedConnection> tcpTransport;
     GameSessionStart start;
     udp::endpoint serverUdpEndpoint;
@@ -826,6 +872,14 @@ dxa::game_common::GameSessionMetrics GameSession::Metrics() const
     metrics.snapshotQueueDrops = impl_->droppedSnapshots.load();
     metrics.keyframesApplied = impl_->keyframesApplied.load();
     metrics.keyframeRequests = impl_->keyframeRequests.load();
+    if (impl_->udpSendQueue)
+    {
+        const auto shaping = impl_->udpSendQueue->Metrics();
+        metrics.udpDatagramsDropped = shaping.dropped;
+        metrics.udpDatagramsDelayed = shaping.delayed;
+        metrics.udpDatagramsDelivered = shaping.delivered;
+        metrics.shapedQueueOverflows = shaping.overflows;
+    }
     return metrics;
 }
 

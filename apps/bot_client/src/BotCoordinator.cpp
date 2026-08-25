@@ -361,7 +361,9 @@ struct BotCoordinator::Impl final
             player,
             ticket,
             arena->mapId,
-            arena->fingerprint});
+            arena->fingerprint,
+            std::nullopt,
+            options.udpImpairment});
 
         if (gameTickStarted)
         {
@@ -451,6 +453,14 @@ struct BotCoordinator::Impl final
                         metrics.snapshotsDiscarded;
                     bot.report.keyframesApplied = metrics.keyframesApplied;
                     bot.report.keyframeRequests = metrics.keyframeRequests;
+                    bot.report.udpDatagramsDropped =
+                        metrics.udpDatagramsDropped;
+                    bot.report.udpDatagramsDelayed =
+                        metrics.udpDatagramsDelayed;
+                    bot.report.udpDatagramsDelivered =
+                        metrics.udpDatagramsDelivered;
+                    bot.report.shapedQueueOverflows =
+                        metrics.shapedQueueOverflows;
                 }
                 if (receivedSnapshots >= 2U
                     && !bot.synchronizationReported)

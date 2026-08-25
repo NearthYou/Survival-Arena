@@ -39,6 +39,7 @@ public:
 
     [[nodiscard]] std::optional<ReassembledPayload> PushBytes(
         const dxa::protocol::SnapshotFragment& fragment);
+    [[nodiscard]] bool TakeRecoveryNeeded() noexcept;
     void Reset() noexcept;
 
 private:

@@ -1,9 +1,13 @@
 #include <dxa/bot_client/BotClientOptions.hpp>
 
+#include <dxa/protocol/DatagramShaper.hpp>
+
 #include <charconv>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <stdexcept>
 #include <system_error>
 #include <utility>
 
@@ -41,6 +45,10 @@ BotClientOptionsParseResult ParseBotClientOptions(
     bool sawRoom = false;
     bool sawCount = false;
     bool sawPlay = false;
+    bool sawUdpLatency = false;
+    bool sawUdpJitter = false;
+    bool sawUdpLoss = false;
+    bool sawNetworkSeed = false;
     for (std::size_t index = 0; index < arguments.size(); ++index)
     {
         const std::string_view option = arguments[index];
@@ -97,6 +105,55 @@ BotClientOptionsParseResult ParseBotClientOptions(
             }
             options.count = static_cast<std::uint32_t>(*parsed);
         }
+        else if (option == "--udp-latency-ms" && !sawUdpLatency)
+        {
+            sawUdpLatency = true;
+            const auto parsed = ParseUnsigned(value);
+            if (!parsed.has_value()
+                || *parsed > std::numeric_limits<std::uint32_t>::max())
+            {
+                return Failure("udp latency must be a uint32");
+            }
+            options.udpImpairment.oneWayLatency =
+                std::chrono::milliseconds{
+                    static_cast<std::int64_t>(*parsed)};
+        }
+        else if (option == "--udp-jitter-ms" && !sawUdpJitter)
+        {
+            sawUdpJitter = true;
+            const auto parsed = ParseUnsigned(value);
+            if (!parsed.has_value()
+                || *parsed > std::numeric_limits<std::uint32_t>::max())
+            {
+                return Failure("udp jitter must be a uint32");
+            }
+            options.udpImpairment.jitter =
+                std::chrono::milliseconds{
+                    static_cast<std::int64_t>(*parsed)};
+        }
+        else if (option == "--udp-loss-basis-points" && !sawUdpLoss)
+        {
+            sawUdpLoss = true;
+            const auto parsed = ParseUnsigned(value);
+            if (!parsed.has_value()
+                || *parsed > std::numeric_limits<std::uint32_t>::max())
+            {
+                return Failure("udp loss must be a uint32");
+            }
+            options.udpImpairment.lossBasisPoints =
+                static_cast<std::uint32_t>(*parsed);
+        }
+        else if (option == "--network-seed" && !sawNetworkSeed)
+        {
+            sawNetworkSeed = true;
+            const auto parsed = ParseUnsigned(value);
+            if (!parsed.has_value()
+                || *parsed > std::numeric_limits<std::uint32_t>::max())
+            {
+                return Failure("network seed must be a uint32");
+            }
+            options.udpImpairment.seed = static_cast<std::uint32_t>(*parsed);
+        }
         else
         {
             return Failure("unknown or duplicate option: " + std::string{option});
@@ -109,6 +166,16 @@ BotClientOptionsParseResult ParseBotClientOptions(
     if (options.host.empty() || options.host.size() > 255U)
     {
         return Failure("host must contain 1 to 255 bytes");
+    }
+    try
+    {
+        static_cast<void>(dxa::protocol::DatagramShaper{
+            options.udpImpairment,
+            dxa::protocol::DatagramDirection::ClientToServer});
+    }
+    catch (const std::invalid_argument& error)
+    {
+        return Failure(error.what());
     }
     return {std::move(options), {}};
 }

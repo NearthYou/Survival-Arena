@@ -380,7 +380,8 @@ public:
             dxa::simulation::DefaultMatchConfig(),
         std::shared_ptr<dxa::game_server::IUdpTokenSource> tokenSource = {},
         const dxa::protocol::ReplicationMode replicationMode =
-            dxa::protocol::ReplicationMode::FullState)
+            dxa::protocol::ReplicationMode::FullState,
+        dxa::protocol::DatagramShaperConfig udpImpairment = {})
         : lobby_{},
           worker_{
               lobby_.Io(),
@@ -388,17 +389,20 @@ public:
                   lobby_.WorkerPort(),
                   std::move(config),
                   std::move(tokenSource),
-                  replicationMode)}
+                  replicationMode,
+                  std::move(udpImpairment))}
     {
     }
 
     GameNetworkFixture(
         dxa::simulation::MatchConfig config,
-        const dxa::protocol::ReplicationMode replicationMode)
+        const dxa::protocol::ReplicationMode replicationMode,
+        dxa::protocol::DatagramShaperConfig udpImpairment = {})
         : GameNetworkFixture(
               std::move(config),
               {},
-              replicationMode)
+              replicationMode,
+              std::move(udpImpairment))
     {
     }
 
@@ -559,6 +563,12 @@ public:
         return worker_.CompletedMetrics();
     }
 
+    [[nodiscard]] dxa::game_common::UdpDatagramQueueMetrics
+    UdpShapingMetrics() const noexcept
+    {
+        return worker_.UdpShapingMetrics();
+    }
+
     template <typename Condition>
     void RunUntil(Condition condition)
     {
@@ -570,13 +580,15 @@ private:
         const std::uint16_t controlPort,
         dxa::simulation::MatchConfig matchConfig,
         std::shared_ptr<dxa::game_server::IUdpTokenSource> tokenSource,
-        const dxa::protocol::ReplicationMode replicationMode)
+        const dxa::protocol::ReplicationMode replicationMode,
+        dxa::protocol::DatagramShaperConfig udpImpairment)
     {
         dxa::game_server::GameServerConfig config;
         config.options.lobbyControlPort = controlPort;
         config.options.gameTcpPort = 0U;
         config.options.gameUdpPort = 0U;
         config.options.replicationMode = replicationMode;
+        config.options.udpImpairment = std::move(udpImpairment);
         config.matchConfig = std::move(matchConfig);
         config.udpTokenSource = std::move(tokenSource);
         return config;
@@ -766,10 +778,16 @@ public:
     explicit NetworkVerticalFixture(
         dxa::simulation::MatchConfig matchConfig,
         const dxa::protocol::ReplicationMode replicationMode =
-            dxa::protocol::ReplicationMode::FullState)
+            dxa::protocol::ReplicationMode::FullState,
+        dxa::protocol::DatagramShaperConfig udpImpairment = {})
         : tokens_{std::make_shared<DeterministicVerticalTokenSource>()},
-          network_{std::move(matchConfig), tokens_, replicationMode},
-          replicationMode_{replicationMode}
+          network_{
+              std::move(matchConfig),
+              tokens_,
+              replicationMode,
+              udpImpairment},
+          replicationMode_{replicationMode},
+          udpImpairment_{std::move(udpImpairment)}
     {
     }
 
@@ -809,7 +827,8 @@ public:
             network_.LobbyPort(),
             expectedPlayers,
             exitOnMatchResult,
-            replicationMode_};
+            replicationMode_,
+            udpImpairment_};
     }
 
     void WaitForRoom(dxa::client::NetworkClientController& host)
@@ -831,6 +850,7 @@ public:
         options.room = room;
         options.count = count;
         options.play = true;
+        options.udpImpairment = udpImpairment_;
         return options;
     }
 
@@ -879,6 +899,12 @@ public:
         return tokens_->FillCount();
     }
 
+    [[nodiscard]] dxa::game_common::UdpDatagramQueueMetrics
+    UdpShapingMetrics() const noexcept
+    {
+        return network_.UdpShapingMetrics();
+    }
+
     [[nodiscard]] std::filesystem::path ShaderPath() const
     {
         return std::filesystem::path{DXA_TEST_SHADER_PATH};
@@ -910,6 +936,7 @@ private:
     GameNetworkFixture network_;
     dxa::protocol::ReplicationMode replicationMode_ =
         dxa::protocol::ReplicationMode::FullState;
+    dxa::protocol::DatagramShaperConfig udpImpairment_;
     std::optional<boost::asio::executor_work_guard<
         boost::asio::io_context::executor_type>> botWork_;
     std::thread botThread_;

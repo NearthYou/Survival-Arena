@@ -1,6 +1,7 @@
 #pragma once
 
 #include <dxa/protocol/GameTypes.hpp>
+#include <dxa/protocol/DatagramShaper.hpp>
 #include <dxa/protocol/Ids.hpp>
 
 #include <cstdint>
@@ -23,6 +24,7 @@ struct GameServerOptions
     dxa::protocol::ReplicationMode replicationMode =
         dxa::protocol::ReplicationMode::FullState;
     std::string metricsOutputRoot;
+    dxa::protocol::DatagramShaperConfig udpImpairment;
 };
 
 struct GameServerOptionsParseResult

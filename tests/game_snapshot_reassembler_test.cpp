@@ -80,6 +80,29 @@ TEST(SnapshotReassembler, NewerSnapshotDiscardsIncompleteOlderSnapshot)
     EXPECT_EQ(11U, completed->snapshotId);
     EXPECT_EQ(11U, completed->serverTick);
     EXPECT_EQ(2U, completed->ackInputSequence);
+    EXPECT_TRUE(reassembler.TakeRecoveryNeeded());
+    EXPECT_FALSE(reassembler.TakeRecoveryNeeded());
+}
+
+TEST(SnapshotReassembler, SnapshotIdentityGapRequestsRecovery)
+{
+    SnapshotReassembler reassembler;
+    std::optional<ReassembledPayload> completed;
+    for (const SnapshotFragment& fragment : MakeFragments(1U, 1U, 0U, 2U))
+    {
+        completed = reassembler.PushBytes(fragment);
+    }
+    ASSERT_TRUE(completed.has_value());
+    EXPECT_FALSE(reassembler.TakeRecoveryNeeded());
+
+    completed.reset();
+    for (const SnapshotFragment& fragment : MakeFragments(3U, 3U, 0U, 2U))
+    {
+        completed = reassembler.PushBytes(fragment);
+    }
+    ASSERT_TRUE(completed.has_value());
+    EXPECT_TRUE(reassembler.TakeRecoveryNeeded());
+    EXPECT_FALSE(reassembler.TakeRecoveryNeeded());
 }
 
 TEST(SnapshotReassembler, AcceptsOutOfOrderFragmentsAndIgnoresExactDuplicate)

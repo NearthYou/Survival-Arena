@@ -1,14 +1,18 @@
 #include <dxa/game_server/GameServerOptions.hpp>
 
+#include <dxa/protocol/DatagramShaper.hpp>
+
 #include <boost/asio/ip/address.hpp>
 
 #include <algorithm>
 #include <array>
 #include <charconv>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <stdexcept>
 #include <system_error>
 #include <utility>
 
@@ -64,7 +68,7 @@ GameServerOptionsParseResult ParseGameServerOptions(
     const std::span<const std::string_view> arguments)
 {
     GameServerOptions options;
-    std::array<bool, 9U> seen{};
+    std::array<bool, 13U> seen{};
     for (std::size_t index = 0U; index < arguments.size(); ++index)
     {
         const std::string_view option = arguments[index];
@@ -173,6 +177,49 @@ GameServerOptionsParseResult ParseGameServerOptions(
             }
             options.metricsOutputRoot = value;
         }
+        else if (option == "--udp-latency-ms")
+        {
+            slot = 9U;
+            const auto parsed = ParseU32(value);
+            if (!parsed.has_value())
+            {
+                return Failure("--udp-latency-ms must be a uint32");
+            }
+            options.udpImpairment.oneWayLatency =
+                std::chrono::milliseconds{*parsed};
+        }
+        else if (option == "--udp-jitter-ms")
+        {
+            slot = 10U;
+            const auto parsed = ParseU32(value);
+            if (!parsed.has_value())
+            {
+                return Failure("--udp-jitter-ms must be a uint32");
+            }
+            options.udpImpairment.jitter =
+                std::chrono::milliseconds{*parsed};
+        }
+        else if (option == "--udp-loss-basis-points")
+        {
+            slot = 11U;
+            const auto parsed = ParseU32(value);
+            if (!parsed.has_value())
+            {
+                return Failure(
+                    "--udp-loss-basis-points must be a uint32");
+            }
+            options.udpImpairment.lossBasisPoints = *parsed;
+        }
+        else if (option == "--network-seed")
+        {
+            slot = 12U;
+            const auto parsed = ParseU32(value);
+            if (!parsed.has_value())
+            {
+                return Failure("--network-seed must be a uint32");
+            }
+            options.udpImpairment.seed = *parsed;
+        }
         else
         {
             return Failure("unknown option: " + std::string{option});
@@ -206,6 +253,16 @@ GameServerOptionsParseResult ParseGameServerOptions(
     {
         return Failure(
             "--advertise-host must be visible ASCII and at most 255 bytes");
+    }
+    try
+    {
+        static_cast<void>(dxa::protocol::DatagramShaper{
+            options.udpImpairment,
+            dxa::protocol::DatagramDirection::ServerToClient});
+    }
+    catch (const std::invalid_argument& error)
+    {
+        return Failure(error.what());
     }
     return {std::move(options), {}};
 }

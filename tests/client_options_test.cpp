@@ -5,6 +5,7 @@
 #include <gtest/gtest.h>
 
 #include <array>
+#include <chrono>
 #include <string_view>
 #include <utility>
 
@@ -317,6 +318,39 @@ TEST(ClientOptions, ParsesEveryNetworkReplicationMode)
         std::string_view{"interest-delta"}};
     EXPECT_FALSE(ParseClientOptions(invalid).options.has_value());
     EXPECT_FALSE(ParseClientOptions(duplicate).options.has_value());
+}
+
+TEST(ClientOptions, ParsesAndValidatesNetworkUdpImpairmentProfile)
+{
+    using namespace std::chrono_literals;
+    constexpr std::array arguments{
+        std::string_view{"--render-path"},
+        std::string_view{"hybrid-deferred"},
+        std::string_view{"--network-create"},
+        std::string_view{"--udp-latency-ms"},
+        std::string_view{"50"},
+        std::string_view{"--udp-jitter-ms"},
+        std::string_view{"10"},
+        std::string_view{"--udp-loss-basis-points"},
+        std::string_view{"200"},
+        std::string_view{"--network-seed"},
+        std::string_view{"20260825"}};
+    const auto parsed = ParseClientOptions(arguments);
+
+    ASSERT_TRUE(parsed.options.has_value()) << parsed.error;
+    ASSERT_TRUE(parsed.options->network.has_value());
+    EXPECT_EQ(50ms, parsed.options->network->udpImpairment.oneWayLatency);
+    EXPECT_EQ(10ms, parsed.options->network->udpImpairment.jitter);
+    EXPECT_EQ(200U, parsed.options->network->udpImpairment.lossBasisPoints);
+    EXPECT_EQ(20260825U, parsed.options->network->udpImpairment.seed);
+
+    constexpr std::array missingSeed{
+        std::string_view{"--render-path"},
+        std::string_view{"hybrid-deferred"},
+        std::string_view{"--network-create"},
+        std::string_view{"--udp-latency-ms"},
+        std::string_view{"1"}};
+    EXPECT_FALSE(ParseClientOptions(missingSeed).options.has_value());
 }
 
 TEST(ClientOptions, EnforcesNetworkPlayerAndOptionBoundaries)

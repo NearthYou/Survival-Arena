@@ -3,6 +3,7 @@
 #include <gtest/gtest.h>
 
 #include <array>
+#include <chrono>
 #include <initializer_list>
 #include <string>
 #include <string_view>
@@ -89,6 +90,33 @@ TEST(GameServerOptions, ParsesEveryReplicationMode)
         ASSERT_TRUE(parsed.options.has_value()) << parsed.error;
         EXPECT_EQ(mode, parsed.options->replicationMode);
     }
+}
+
+TEST(GameServerOptions, ParsesAndValidatesUdpImpairmentProfile)
+{
+    using namespace std::chrono_literals;
+    const auto parsed = Parse({
+        "--udp-latency-ms", "50",
+        "--udp-jitter-ms", "10",
+        "--udp-loss-basis-points", "200",
+        "--network-seed", "20260825"});
+
+    ASSERT_TRUE(parsed.options.has_value()) << parsed.error;
+    EXPECT_EQ(50ms, parsed.options->udpImpairment.oneWayLatency);
+    EXPECT_EQ(10ms, parsed.options->udpImpairment.jitter);
+    EXPECT_EQ(200U, parsed.options->udpImpairment.lossBasisPoints);
+    EXPECT_EQ(20260825U, parsed.options->udpImpairment.seed);
+
+    EXPECT_FALSE(Parse({"--udp-latency-ms", "1"}).options.has_value());
+    EXPECT_FALSE(Parse({
+        "--udp-latency-ms", "5001",
+        "--network-seed", "1"}).options.has_value());
+    EXPECT_FALSE(Parse({
+        "--udp-jitter-ms", "5001",
+        "--network-seed", "1"}).options.has_value());
+    EXPECT_FALSE(Parse({
+        "--udp-loss-basis-points", "10001",
+        "--network-seed", "1"}).options.has_value());
 }
 
 TEST(GameServerOptions, RejectsInvalidBoundariesDuplicatesAndUnknownOptions)

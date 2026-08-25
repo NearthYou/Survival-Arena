@@ -1,12 +1,14 @@
 #pragma once
 
 #include <dxa/game_common/NetworkMetrics.hpp>
+#include <dxa/protocol/DatagramShaper.hpp>
 #include <dxa/protocol/GameSnapshot.hpp>
 #include <dxa/protocol/GameTcpMessages.hpp>
 #include <dxa/protocol/LobbyMessages.hpp>
 #include <dxa/simulation/Math2.hpp>
 #include <dxa/simulation/NavMesh.hpp>
 
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -23,6 +25,8 @@ struct GameSessionStart
     std::uint32_t expectedMapId = 1U;
     std::uint32_t expectedNavMeshCrc32 = 0U;
     std::optional<dxa::protocol::ReplicationMode> expectedReplicationMode;
+    dxa::protocol::DatagramShaperConfig udpImpairment;
+    std::size_t maximumQueuedUdpDatagramsPerPeer = 256U;
 };
 
 enum class GameSessionState

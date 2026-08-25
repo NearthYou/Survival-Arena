@@ -1,6 +1,7 @@
 #pragma once
 
 #include <dxa/game_common/NetworkMetrics.hpp>
+#include <dxa/game_common/UdpDatagramQueue.hpp>
 #include <dxa/game_server/GameServerOptions.hpp>
 #include <dxa/game_server/ServerMatchMetrics.hpp>
 #include <dxa/game_server/SnapshotReplicator.hpp>
@@ -43,6 +44,8 @@ public:
     [[nodiscard]] std::uint16_t GameTcpPort() const;
     [[nodiscard]] std::uint16_t GameUdpPort() const;
     [[nodiscard]] dxa::game_common::GameTrafficTotals Traffic() const;
+    [[nodiscard]] dxa::game_common::UdpDatagramQueueMetrics
+    UdpShapingMetrics() const noexcept;
     [[nodiscard]] std::vector<ServerMatchMetricsSnapshot>
     CompletedMetrics() const;
     [[nodiscard]] std::size_t CompletedMetricCount() const;

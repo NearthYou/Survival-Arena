@@ -43,6 +43,7 @@ struct GameUdpOutbound
 {
     UdpPeer recipient;
     dxa::protocol::ServerDatagram datagram;
+    std::uint64_t shapingPeerKey = 0U;
 };
 
 struct AuthoritativeMatchResult

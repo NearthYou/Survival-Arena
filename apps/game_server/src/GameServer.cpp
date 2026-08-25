@@ -4,6 +4,7 @@
 #include <dxa/game_server/UdpTokenSource.hpp>
 
 #include <dxa/game_common/NetworkMetrics.hpp>
+#include <dxa/game_common/UdpDatagramQueue.hpp>
 #include <dxa/protocol/AsioFramedConnection.hpp>
 #include <dxa/protocol/GameTcpMessageCodec.hpp>
 #include <dxa/protocol/GameUdpCodec.hpp>
@@ -233,6 +234,10 @@ struct GameServer::State final
           matchTimer_{io},
           gameAcceptor_{io},
           udpSocket_{io},
+          udpSendQueue_{
+              io,
+              config_.options.udpImpairment,
+              dxa::protocol::DatagramDirection::ServerToClient},
           tokenSource_{
               config_.udpTokenSource
                   ? config_.udpTokenSource
@@ -288,6 +293,7 @@ struct GameServer::State final
         controlResolver_.cancel();
         reconnectTimer_.cancel();
         matchTimer_.cancel();
+        udpSendQueue_.Stop();
         gameAcceptor_.cancel(ignored);
         gameAcceptor_.close(ignored);
         udpSocket_.cancel(ignored);
@@ -313,6 +319,12 @@ struct GameServer::State final
     [[nodiscard]] dxa::game_common::GameTrafficTotals Traffic() const
     {
         return gameTraffic_.Totals();
+    }
+
+    [[nodiscard]] dxa::game_common::UdpDatagramQueueMetrics
+    UdpShapingMetrics() const noexcept
+    {
+        return udpSendQueue_.Metrics();
     }
 
     [[nodiscard]] std::vector<ServerMatchMetricsSnapshot>
@@ -787,16 +799,28 @@ struct GameServer::State final
         {
             auto bytes = std::make_shared<std::vector<std::byte>>(
                 dxa::protocol::EncodeServerDatagram(outbound.datagram).bytes);
-            gameTraffic_.RecordUdp(
-                dxa::protocol::TrafficDirection::Sent,
-                bytes->size());
             const udp::endpoint endpoint = ToEndpoint(outbound.recipient);
-            udpSocket_.async_send_to(
-                boost::asio::buffer(*bytes),
-                endpoint,
-                [bytes](
-                    const boost::system::error_code,
-                    const std::size_t) {});
+            const std::weak_ptr<State> weak = shared_from_this();
+            static_cast<void>(udpSendQueue_.Enqueue(
+                outbound.shapingPeerKey,
+                std::move(bytes),
+                [weak, endpoint](
+                    const dxa::game_common::UdpDatagramQueue::Bytes& ready) {
+                    const auto self = weak.lock();
+                    if (!self || self->stopping_ || !self->udpSocket_.is_open())
+                    {
+                        return;
+                    }
+                    self->gameTraffic_.RecordUdp(
+                        dxa::protocol::TrafficDirection::Sent,
+                        ready->size());
+                    self->udpSocket_.async_send_to(
+                        boost::asio::buffer(*ready),
+                        endpoint,
+                        [ready](
+                            const boost::system::error_code,
+                            const std::size_t) {});
+                }));
         }
         catch (const std::exception&)
         {
@@ -932,6 +956,7 @@ struct GameServer::State final
     boost::asio::steady_timer matchTimer_;
     tcp::acceptor gameAcceptor_;
     udp::socket udpSocket_;
+    dxa::game_common::UdpDatagramQueue udpSendQueue_;
     std::shared_ptr<dxa::protocol::AsioFramedConnection> controlTransport_;
     std::map<GameConnectionId, std::shared_ptr<GameSession>> gameSessions_;
     std::map<GameConnectionId, std::shared_ptr<boost::asio::steady_timer>>
@@ -990,6 +1015,12 @@ std::uint16_t GameServer::GameUdpPort() const
 dxa::game_common::GameTrafficTotals GameServer::Traffic() const
 {
     return state_->Traffic();
+}
+
+dxa::game_common::UdpDatagramQueueMetrics
+GameServer::UdpShapingMetrics() const noexcept
+{
+    return state_->UdpShapingMetrics();
 }
 
 std::vector<ServerMatchMetricsSnapshot> GameServer::CompletedMetrics() const

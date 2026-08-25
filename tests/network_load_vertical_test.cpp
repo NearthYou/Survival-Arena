@@ -165,3 +165,80 @@ TEST(NetworkLoadVertical, EveryReplicationModeMatchesFullStateResult)
         EXPECT_EQ(baseline, runMode(mode));
     }
 }
+
+TEST(GameServerIntegration, ImpairmentProfileFinishesWithKeyframeRecovery)
+{
+    const dxa::protocol::DatagramShaperConfig impairment{
+        50ms,
+        10ms,
+        200U,
+        20260825U};
+    std::uint64_t serverDrops = 0U;
+    std::uint64_t clientDrops = 0U;
+    std::uint64_t keyframeRequests = 0U;
+    std::uint64_t queueOverflows = 0U;
+    bool everyBotFinished = false;
+    dxa::test::ScopedOutputCapture capture;
+    {
+        dxa::test::NetworkVerticalFixture fixture{
+            dxa::test::ShortNetworkVerticalMatchConfig(),
+            dxa::protocol::ReplicationMode::InterestDelta,
+            impairment};
+        fixture.StartServers();
+
+        dxa::client::NetworkClientController host{
+            fixture.HostOptions(24U, true)};
+        host.Start();
+        fixture.WaitForRoom(host);
+
+        dxa::bot_client::BotCoordinator bots{
+            fixture.BotIo(),
+            fixture.PlayBotOptions(*host.Room(), 23U)};
+        bots.Start();
+
+        dxa::test::VerticalWatchdog watchdog{20s};
+        EXPECT_EQ(0, dxa::engine::EngineApp{}.Run(
+            fixture.HiddenWarpHybridOptions(480U),
+            fixture.ShaderPath(),
+            fixture.AssetRoot(),
+            &host));
+        watchdog.Finish();
+        EXPECT_FALSE(watchdog.TimedOut());
+        fixture.WaitForResults(host, bots, 23U);
+
+        ASSERT_TRUE(host.Result().has_value());
+        const dxa::bot_client::BotCoordinatorReport report = bots.Report();
+        ASSERT_TRUE(report.result.has_value());
+        ASSERT_EQ(23U, report.sessions.size());
+        EXPECT_EQ(*host.Result(), *report.result);
+        EXPECT_EQ(60U, host.Result()->finishedTick);
+
+        const auto hostMetrics = host.Metrics();
+        const auto serverShaping = fixture.UdpShapingMetrics();
+        clientDrops = hostMetrics.udpDatagramsDropped;
+        keyframeRequests = hostMetrics.keyframeRequests;
+        queueOverflows = hostMetrics.shapedQueueOverflows
+            + serverShaping.overflows;
+        everyBotFinished = true;
+        for (const dxa::bot_client::BotSessionReport& session
+             : report.sessions)
+        {
+            everyBotFinished = everyBotFinished && session.exitCode == 0;
+            clientDrops += session.udpDatagramsDropped;
+            keyframeRequests += session.keyframeRequests;
+            queueOverflows += session.shapedQueueOverflows;
+        }
+        serverDrops = serverShaping.dropped;
+
+        bots.Stop();
+        host.Stop();
+        fixture.StopServers();
+    }
+    capture.Finish();
+    EXPECT_EQ(0U, dxa::test::NetworkSecretLeakCount(capture.Text(), 24U));
+    EXPECT_TRUE(everyBotFinished);
+    EXPECT_EQ(16U, serverDrops);
+    EXPECT_GT(clientDrops, 0U);
+    EXPECT_GT(keyframeRequests, 0U);
+    EXPECT_EQ(0U, queueOverflows);
+}

@@ -411,7 +411,8 @@ struct AuthoritativeMatch::Impl
             {
                 result.udp.push_back(GameUdpOutbound{
                     *session.peer,
-                    dxa::protocol::ServerDatagram{fragment}});
+                    dxa::protocol::ServerDatagram{fragment},
+                    player.value});
             }
             metrics.RecordReplication(
                 encodeDuration,
@@ -626,7 +627,8 @@ AuthoritativeMatchResult AuthoritativeMatch::ReceiveClientDatagram(
                 dxa::protocol::UdpBindAccepted{
                     state.matchId,
                     bind->player,
-                    state.simulation.Snapshot().tick}}});
+                    state.simulation.Snapshot().tick}},
+            bind->player.value});
         state.Stamp(result);
         return result;
     }

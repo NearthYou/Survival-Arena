@@ -570,6 +570,30 @@ TEST(GameSession, AuthenticatesBindsPredictsAndPublishesScene)
     EXPECT_EQ(2U, scene.snapshotCount);
 }
 
+TEST(GameSession, ShapedQueueOverflowIsVisibleFailure)
+{
+    FakeGameServer server;
+    GameSession session{dxa::simulation::BuildSurvivalArenaNavMesh()};
+    GameSessionStart start = server.StartFor();
+    start.udpImpairment = {
+        5000ms,
+        0ms,
+        0U,
+        20260825U};
+    start.maximumQueuedUdpDatagramsPerPeer = 1U;
+    session.Start(std::move(start));
+    server.AcceptHelloAndWelcome();
+
+    WaitUntil([&] {
+        return session.State() == GameSessionState::ProtocolError;
+    });
+
+    const auto metrics = session.Metrics();
+    EXPECT_EQ(1U, metrics.udpDatagramsDelayed);
+    EXPECT_EQ(1U, metrics.shapedQueueOverflows);
+    EXPECT_EQ(0U, metrics.udpDatagramsDelivered);
+}
+
 TEST(GameSession, RejectsUnexpectedReplicationModeBeforeUdpBind)
 {
     FakeGameServer server;

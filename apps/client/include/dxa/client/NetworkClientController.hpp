@@ -2,6 +2,7 @@
 
 #include <dxa/client/ClientOptions.hpp>
 #include <dxa/engine/RuntimeScene.hpp>
+#include <dxa/game_common/NetworkMetrics.hpp>
 #include <dxa/protocol/GameTcpMessages.hpp>
 #include <dxa/protocol/Ids.hpp>
 
@@ -27,6 +28,7 @@ public:
     [[nodiscard]] std::optional<dxa::protocol::RoomId> Room() const;
     [[nodiscard]] std::optional<dxa::protocol::GameMatchResult> Result() const;
     [[nodiscard]] std::uint64_t SnapshotCount() const noexcept;
+    [[nodiscard]] dxa::game_common::GameSessionMetrics Metrics() const;
     void Stop();
 
 private:
