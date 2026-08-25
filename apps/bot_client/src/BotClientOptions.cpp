@@ -110,10 +110,6 @@ BotClientOptionsParseResult ParseBotClientOptions(
     {
         return Failure("host must contain 1 to 255 bytes");
     }
-    if (options.play && options.count != 1U)
-    {
-        return Failure("--play requires --count 1");
-    }
     return {std::move(options), {}};
 }
 } // namespace dxa::bot_client

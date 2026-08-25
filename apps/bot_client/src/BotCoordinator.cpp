@@ -1,5 +1,6 @@
 #include <dxa/bot_client/BotCoordinator.hpp>
 
+#include <dxa/game_client/GameNetworkRuntime.hpp>
 #include <dxa/game_client/GameSession.hpp>
 #include <dxa/game_common/ArenaFingerprint.hpp>
 #include <dxa/lobby_client/LobbyClient.hpp>
@@ -15,6 +16,7 @@
 #include <cstdint>
 #include <exception>
 #include <iostream>
+#include <limits>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -49,9 +51,64 @@ struct BotState
 {
     std::shared_ptr<dxa::lobby_client::LobbyClient> client;
     std::optional<dxa::protocol::PlayerId> player;
+    std::unique_ptr<dxa::game_client::GameSession> gameSession;
+    BotSessionReport report;
     bool readySent = false;
     bool ticketReceived = false;
+    bool finished = false;
+    bool synchronizationReported = false;
+    std::uint32_t destinationState = 0U;
+    std::uint64_t runningTicks = 0U;
 };
+
+struct CanonicalArena
+{
+    dxa::simulation::NavMesh navMesh;
+    std::uint32_t mapId = 0U;
+    std::uint32_t fingerprint = 0U;
+};
+
+[[nodiscard]] CanonicalArena BuildCanonicalArena()
+{
+    dxa::simulation::ArenaMapDefinition definition =
+        dxa::simulation::SurvivalArenaMapDefinition();
+    const std::uint32_t mapId = definition.mapId;
+    const std::uint32_t fingerprint =
+        dxa::game_common::SurvivalArenaFingerprint(definition);
+    dxa::simulation::NavMesh navMesh = dxa::simulation::NavMesh::Build(
+        std::move(definition.vertices),
+        std::move(definition.triangles),
+        definition.gridCellSize);
+    return {
+        std::move(navMesh),
+        mapId,
+        fingerprint};
+}
+
+[[nodiscard]] bool IsAuthenticatedState(
+    const dxa::game_client::GameSessionState state) noexcept
+{
+    return state == dxa::game_client::GameSessionState::BindingUdp
+        || state == dxa::game_client::GameSessionState::Synchronizing
+        || state == dxa::game_client::GameSessionState::Running
+        || state == dxa::game_client::GameSessionState::Finished;
+}
+
+[[nodiscard]] std::uint32_t DestinationSeed(
+    const dxa::protocol::MatchId match,
+    const dxa::protocol::PlayerId player) noexcept
+{
+    return static_cast<std::uint32_t>(match.value)
+        ^ static_cast<std::uint32_t>(match.value >> 32U)
+        ^ player.value * 0x9E3779B9U;
+}
+
+[[nodiscard]] std::size_t NextDestination(BotState& bot) noexcept
+{
+    bot.destinationState = bot.destinationState * 1664525U + 1013904223U;
+    return static_cast<std::size_t>(
+        bot.destinationState % Destinations.size());
+}
 } // namespace
 
 struct BotCoordinator::Impl final
@@ -72,10 +129,6 @@ struct BotCoordinator::Impl final
         {
             throw std::invalid_argument{"bot count must be between 1 and 23"};
         }
-        if (options.play && options.count != 1U)
-        {
-            throw std::invalid_argument{"bot play mode requires one bot"};
-        }
         if (options.room.value == 0U)
         {
             throw std::invalid_argument{"bot room must be nonzero"};
@@ -94,7 +147,21 @@ struct BotCoordinator::Impl final
             throw std::logic_error{"bot coordinator can start only once"};
         }
         started = true;
+        if (options.play)
+        {
+            arena.emplace(BuildCanonicalArena());
+            gameRuntime =
+                std::make_shared<dxa::game_client::GameNetworkRuntime>();
+            if (!gameRuntime->Start())
+            {
+                throw std::runtime_error{"bot game network runtime failed to start"};
+            }
+        }
         bots.resize(options.count);
+        for (BotState& bot : bots)
+        {
+            bot.report.exitCode = 3;
+        }
         const std::weak_ptr<Impl> weak = shared_from_this();
         for (std::size_t index = 0U; index < bots.size(); ++index)
         {
@@ -174,6 +241,10 @@ struct BotCoordinator::Impl final
                     return;
                 }
                 bot.player = welcome->player;
+                {
+                    std::scoped_lock lock{reportMutex};
+                    bot.report.player = welcome->player;
+                }
                 if (!bot.client->JoinRoom(options.room))
                 {
                     Fail("lobby join send failed");
@@ -218,9 +289,13 @@ struct BotCoordinator::Impl final
                 }
                 bot.ticketReceived = true;
                 ++ticketsReceived;
+                {
+                    std::scoped_lock lock{reportMutex};
+                    bot.report.match = ticket->match;
+                }
                 if (options.play)
                 {
-                    StartGame(*bot.player, *ticket);
+                    StartGame(index, *bot.player, *ticket);
                 }
                 else if (ticketsReceived == bots.size())
                 {
@@ -258,23 +333,41 @@ struct BotCoordinator::Impl final
     }
 
     void StartGame(
+        const std::size_t index,
         const dxa::protocol::PlayerId player,
         const dxa::protocol::MatchTicket& ticket)
     {
-        activeMatch.store(ticket.match.value);
+        if (activeMatch.has_value() && *activeMatch != ticket.match)
+        {
+            Fail("bot tickets disagree on match identity");
+            return;
+        }
+        activeMatch = ticket.match;
         std::cout << "bot match assigned: match="
                   << ticket.match.value << '\n' << std::flush;
         lobbyTimer.cancel();
-        const dxa::simulation::ArenaMapDefinition arena =
-            dxa::simulation::SurvivalArenaMapDefinition();
-        gameSession = std::make_unique<dxa::game_client::GameSession>(
-            dxa::simulation::BuildSurvivalArenaNavMesh());
-        gameSession->Start(dxa::game_client::GameSessionStart{
+        if (!gameRuntime || !arena.has_value())
+        {
+            Fail("bot game network runtime is absent");
+            return;
+        }
+
+        BotState& bot = bots.at(index);
+        bot.destinationState = DestinationSeed(ticket.match, player);
+        bot.gameSession = std::make_unique<dxa::game_client::GameSession>(
+            arena->navMesh,
+            gameRuntime);
+        bot.gameSession->Start(dxa::game_client::GameSessionStart{
             player,
             ticket,
-            arena.mapId,
-            dxa::game_common::SurvivalArenaFingerprint(arena)});
+            arena->mapId,
+            arena->fingerprint});
 
+        if (gameTickStarted)
+        {
+            return;
+        }
+        gameTickStarted = true;
         const std::weak_ptr<Impl> weak = shared_from_this();
         gameTimeoutTimer.expires_after(timeouts.game);
         gameTimeoutTimer.async_wait(
@@ -295,7 +388,7 @@ struct BotCoordinator::Impl final
 
     void ScheduleGameTick()
     {
-        if (shuttingDown || !gameSession)
+        if (shuttingDown || !gameTickStarted)
         {
             return;
         }
@@ -315,65 +408,99 @@ struct BotCoordinator::Impl final
 
     void GameTick()
     {
-        if (shuttingDown || !gameSession)
+        if (shuttingDown || !gameTickStarted)
         {
             return;
         }
         try
         {
-            gameSession->FixedUpdate();
-            const std::uint64_t receivedSnapshots =
-                gameSession->SnapshotCount();
-            snapshotCount.store(receivedSnapshots);
-            if (receivedSnapshots >= 2U
-                && !synchronizationReported.exchange(true))
+            bool everySessionAuthenticated = !bots.empty();
+            bool everySessionStarted = !bots.empty();
+            std::uint64_t minimumSnapshots =
+                std::numeric_limits<std::uint64_t>::max();
+            for (std::size_t index = 0U; index < bots.size(); ++index)
             {
-                std::cout << "bot match synchronized: match="
-                          << activeMatch.load()
-                          << " snapshots=" << receivedSnapshots
-                          << '\n' << std::flush;
-            }
-            const dxa::game_client::GameSessionState state =
-                gameSession->State();
-            if (state == dxa::game_client::GameSessionState::BindingUdp
-                || state == dxa::game_client::GameSessionState::Synchronizing
-                || state == dxa::game_client::GameSessionState::Running)
-            {
-                gameAuthenticated.store(true);
-            }
-            if (state == dxa::game_client::GameSessionState::Running)
-            {
-                ++runningTicks;
-                if ((runningTicks - 1U) % 90U == 0U)
+                BotState& bot = bots[index];
+                if (!bot.gameSession)
                 {
-                    if (!gameSession->SetDestination(
-                            Destinations[nextDestination]))
+                    everySessionAuthenticated = false;
+                    everySessionStarted = false;
+                    minimumSnapshots = 0U;
+                    continue;
+                }
+
+                if (!bot.finished)
+                {
+                    bot.gameSession->FixedUpdate();
+                }
+                const std::uint64_t receivedSnapshots =
+                    bot.gameSession->SnapshotCount();
+                minimumSnapshots = std::min(
+                    minimumSnapshots,
+                    receivedSnapshots);
+                {
+                    std::scoped_lock lock{reportMutex};
+                    bot.report.snapshotsApplied = receivedSnapshots;
+                }
+                if (receivedSnapshots >= 2U
+                    && !bot.synchronizationReported)
+                {
+                    bot.synchronizationReported = true;
+                    std::cout << "bot match synchronized: match="
+                              << activeMatch->value
+                              << " player=" << bot.player->value
+                              << " snapshots=" << receivedSnapshots
+                              << '\n' << std::flush;
+                }
+
+                const dxa::game_client::GameSessionState state =
+                    bot.gameSession->State();
+                everySessionAuthenticated =
+                    everySessionAuthenticated
+                    && IsAuthenticatedState(state);
+                if (bot.finished)
+                {
+                    continue;
+                }
+
+                if (state == dxa::game_client::GameSessionState::Running)
+                {
+                    ++bot.runningTicks;
+                    if ((bot.runningTicks - 1U) % 90U == 0U
+                        && !bot.gameSession->SetDestination(
+                            Destinations[NextDestination(bot)]))
                     {
                         Fail("bot destination was rejected");
                         return;
                     }
-                    nextDestination =
-                        (nextDestination + 1U) % Destinations.size();
                 }
-            }
-            else if (state == dxa::game_client::GameSessionState::Finished)
-            {
-                const auto value = gameSession->Result();
-                if (!value.has_value())
+                else if (state ==
+                             dxa::game_client::GameSessionState::Finished)
                 {
-                    Fail("game finished without result");
+                    const auto value = bot.gameSession->Result();
+                    if (!value.has_value())
+                    {
+                        Fail("game finished without result");
+                        return;
+                    }
+                    FinishGame(index, *value);
+                    if (shuttingDown)
+                    {
+                        return;
+                    }
+                }
+                else if (state ==
+                             dxa::game_client::GameSessionState::ProtocolError
+                         || state ==
+                             dxa::game_client::GameSessionState::Closed)
+                {
+                    Fail("game session failed");
                     return;
                 }
-                FinishGame(*value);
-                return;
             }
-            else if (state ==
-                         dxa::game_client::GameSessionState::ProtocolError
-                     || state == dxa::game_client::GameSessionState::Closed)
-            {
-                Fail("game session failed");
-                return;
-            }
+            gameAuthenticated.store(everySessionAuthenticated);
+            snapshotCount.store(
+                everySessionStarted ? minimumSnapshots : 0U);
         }
         catch (const std::exception& error)
         {
@@ -388,22 +515,71 @@ struct BotCoordinator::Impl final
 
     void FinishLobby()
     {
+        {
+            std::scoped_lock lock{reportMutex};
+            for (BotState& bot : bots)
+            {
+                bot.report.exitCode = 0;
+            }
+        }
         exitCode.store(0);
         std::cout << "bot tickets received: "
                   << ticketsReceived << '/' << bots.size() << '\n';
         Shutdown();
     }
 
-    void FinishGame(const dxa::protocol::GameMatchResult& value)
+    void FinishGame(
+        const std::size_t index,
+        const dxa::protocol::GameMatchResult& value)
     {
+        BotState& bot = bots.at(index);
+        bool mismatch = false;
         {
-            std::scoped_lock lock{resultMutex};
-            result = value;
+            std::scoped_lock lock{reportMutex};
+            mismatch = bot.report.match != value.match
+                || (result.has_value() && *result != value);
+            if (!mismatch)
+            {
+                if (!result.has_value())
+                {
+                    result = value;
+                }
+                bot.report.exitCode = 0;
+            }
         }
+        if (mismatch)
+        {
+            Fail("bot game results disagree");
+            return;
+        }
+        if (bot.finished)
+        {
+            return;
+        }
+        bot.finished = true;
+        ++finishedSessions;
+        if (finishedSessions != bots.size())
+        {
+            return;
+        }
+        gameAuthenticated.store(true);
         exitCode.store(0);
         std::cout << "bot match finished: match="
-                  << value.match.value << '\n';
+                  << value.match.value
+                  << " sessions=" << finishedSessions << '\n';
         Shutdown();
+    }
+
+    void SetUnfinishedExitCode(const int code)
+    {
+        std::scoped_lock lock{reportMutex};
+        for (BotState& bot : bots)
+        {
+            if (!bot.finished)
+            {
+                bot.report.exitCode = code;
+            }
+        }
     }
 
     void Timeout(const std::string& phase)
@@ -412,6 +588,7 @@ struct BotCoordinator::Impl final
         {
             return;
         }
+        SetUnfinishedExitCode(4);
         exitCode.store(4);
         std::cerr << "bot " << phase << " timed out\n";
         Shutdown();
@@ -423,6 +600,7 @@ struct BotCoordinator::Impl final
         {
             return;
         }
+        SetUnfinishedExitCode(3);
         exitCode.store(3);
         std::cerr << "bot protocol failure: " << reason << '\n';
         Shutdown();
@@ -438,16 +616,20 @@ struct BotCoordinator::Impl final
         lobbyTimer.cancel();
         gameTimer.cancel();
         gameTimeoutTimer.cancel();
-        if (gameSession)
-        {
-            gameSession->Stop();
-        }
         for (BotState& bot : bots)
         {
+            if (bot.gameSession)
+            {
+                bot.gameSession->Stop();
+            }
             if (bot.client)
             {
                 bot.client->Close();
             }
+        }
+        if (gameRuntime)
+        {
+            gameRuntime->Stop();
         }
         done.store(true);
     }
@@ -459,22 +641,22 @@ struct BotCoordinator::Impl final
     boost::asio::steady_timer gameTimer;
     boost::asio::steady_timer gameTimeoutTimer;
     std::vector<BotState> bots;
-    std::unique_ptr<dxa::game_client::GameSession> gameSession;
+    std::optional<CanonicalArena> arena;
+    std::shared_ptr<dxa::game_client::GameNetworkRuntime> gameRuntime;
     std::chrono::steady_clock::time_point gameEpoch;
     std::chrono::steady_clock::time_point nextGameTick;
     std::size_t ticketsReceived = 0U;
-    std::size_t nextDestination = 0U;
-    std::uint64_t runningTicks = 0U;
+    std::size_t finishedSessions = 0U;
     std::uint64_t gameTickOrdinal = 0U;
     std::atomic<bool> gameAuthenticated{false};
     std::atomic<std::uint64_t> snapshotCount{0U};
-    std::atomic<std::uint64_t> activeMatch{0U};
-    std::atomic<bool> synchronizationReported{false};
-    mutable std::mutex resultMutex;
+    std::optional<dxa::protocol::MatchId> activeMatch;
+    mutable std::mutex reportMutex;
     std::optional<dxa::protocol::GameMatchResult> result;
     std::atomic<int> exitCode{3};
     std::atomic<bool> done{false};
     bool started = false;
+    bool gameTickStarted = false;
     bool shuttingDown = false;
 };
 
@@ -508,8 +690,22 @@ std::uint64_t BotCoordinator::SnapshotCount() const noexcept
 
 std::optional<dxa::protocol::GameMatchResult> BotCoordinator::Result() const
 {
-    std::scoped_lock lock{impl_->resultMutex};
+    std::scoped_lock lock{impl_->reportMutex};
     return impl_->result;
+}
+
+BotCoordinatorReport BotCoordinator::Report() const
+{
+    BotCoordinatorReport report;
+    std::scoped_lock lock{impl_->reportMutex};
+    report.sessions.reserve(impl_->bots.size());
+    for (const BotState& bot : impl_->bots)
+    {
+        report.sessions.push_back(bot.report);
+    }
+    report.result = impl_->result;
+    report.exitCode = impl_->exitCode.load();
+    return report;
 }
 
 int BotCoordinator::ExitCode() const noexcept

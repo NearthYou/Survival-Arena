@@ -32,7 +32,7 @@ int main(const int argc, const char* const* const argv)
         dxa::bot_client::BotCoordinator coordinator{io, *parsed.options};
         coordinator.Start();
         io.run();
-        return coordinator.ExitCode();
+        return coordinator.Report().exitCode;
     }
     catch (const std::exception& error)
     {
