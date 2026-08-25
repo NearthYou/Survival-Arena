@@ -150,8 +150,19 @@ try {
         'alpha',
         'path with space',
         'quote"value')
-    if ($quoted -ne '"alpha" "path with space" "quote\"value"') {
+    if ($quoted -ne 'alpha "path with space" "quote\"value"') {
         throw "Network load process argument quoting이 잘못됐습니다: $quoted"
+    }
+    $exitStdout = Join-Path $resolvedTemporaryRoot 'exit.stdout.log'
+    $exitStderr = Join-Path $resolvedTemporaryRoot 'exit.stderr.log'
+    $exitProcess = Start-DxaLoggedProcess `
+        -FilePath $env:ComSpec `
+        -Arguments @('/c', 'exit', '7') `
+        -StdoutPath $exitStdout `
+        -StderrPath $exitStderr
+    Wait-DxaNetworkLoadProcesses -Processes @($exitProcess) -TimeoutSeconds 5
+    if ($null -eq $exitProcess.ExitCode -or $exitProcess.ExitCode -ne 7) {
+        throw "Redirected process ExitCode가 확정되지 않았습니다: $($exitProcess.ExitCode)"
     }
 
     $serverExecutable = Join-Path $RepositoryRoot (
@@ -185,13 +196,11 @@ try {
         '--metrics-output-root', $metricsDirectory)
     $serverStdout = Join-Path $resolvedTemporaryRoot 'server.stdout.log'
     $serverStderr = Join-Path $resolvedTemporaryRoot 'server.stderr.log'
-    $server = Start-Process `
+    $server = Start-DxaLoggedProcess `
         -FilePath $serverExecutable `
-        -ArgumentList $serverArguments `
-        -RedirectStandardOutput $serverStdout `
-        -RedirectStandardError $serverStderr `
-        -WindowStyle Hidden `
-        -PassThru
+        -Arguments $serverArguments `
+        -StdoutPath $serverStdout `
+        -StderrPath $serverStderr
     try {
         $deadline = [DateTimeOffset]::UtcNow.AddSeconds(5)
         $tickPath = Join-Path $metricsDirectory 'server-ticks.csv'
@@ -222,20 +231,17 @@ try {
     finally {
         $server.Refresh()
         if (-not $server.HasExited) {
-            Stop-Process -Id $server.Id -Force
-            $server.WaitForExit(5000) | Out-Null
+            Stop-DxaProcessTreeIfRunning -Process $server
         }
     }
 
-    $duplicate = Start-Process `
+    $duplicate = Start-DxaLoggedProcess `
         -FilePath $serverExecutable `
-        -ArgumentList $serverArguments `
-        -RedirectStandardOutput (Join-Path $resolvedTemporaryRoot 'duplicate.stdout.log') `
-        -RedirectStandardError (Join-Path $resolvedTemporaryRoot 'duplicate.stderr.log') `
-        -WindowStyle Hidden `
-        -PassThru
+        -Arguments $serverArguments `
+        -StdoutPath (Join-Path $resolvedTemporaryRoot 'duplicate.stdout.log') `
+        -StderrPath (Join-Path $resolvedTemporaryRoot 'duplicate.stderr.log')
     if (-not $duplicate.WaitForExit(5000)) {
-        Stop-Process -Id $duplicate.Id -Force
+        Stop-DxaProcessTreeIfRunning -Process $duplicate
         throw '기존 metrics CSV를 사용한 server가 종료되지 않았습니다.'
     }
     if ($duplicate.ExitCode -eq 0) {

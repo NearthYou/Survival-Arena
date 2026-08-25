@@ -154,8 +154,92 @@ function ConvertTo-DxaProcessArgumentString {
 
     return (@($Arguments | ForEach-Object {
         $value = [string]$_
-        '"' + $value.Replace('"', '\"') + '"'
+        if ($value -notmatch '[\s"]') {
+            $value
+        }
+        else {
+            '"' + $value.Replace('"', '\"') + '"'
+        }
     }) -join ' ')
+}
+
+function Start-DxaLoggedProcess {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$FilePath,
+
+        [object[]]$Arguments,
+
+        [Parameter(Mandatory)]
+        [string]$StdoutPath,
+
+        [Parameter(Mandatory)]
+        [string]$StderrPath
+    )
+
+    if (-not (Test-Path -LiteralPath $FilePath -PathType Leaf)) {
+        throw "Network load executable을 찾지 못했습니다: $FilePath"
+    }
+    $targetArguments = ConvertTo-DxaProcessArgumentString -Arguments $Arguments
+    $targetCommand = '"' + $FilePath + '" ' + $targetArguments
+    $targetCommand += ' 1>"' + $StdoutPath + '" 2>"' + $StderrPath + '"'
+    $startInfo = [Diagnostics.ProcessStartInfo]::new()
+    $startInfo.FileName = $env:ComSpec
+    $startInfo.Arguments = '/d /s /c "' + $targetCommand + '"'
+    $startInfo.UseShellExecute = $false
+    $startInfo.CreateNoWindow = $true
+    $startInfo.WindowStyle = [Diagnostics.ProcessWindowStyle]::Hidden
+    $process = [Diagnostics.Process]::new()
+    $process.StartInfo = $startInfo
+    if (-not $process.Start()) {
+        throw "Network load process를 시작하지 못했습니다: $FilePath"
+    }
+    return $process
+}
+
+function Stop-DxaProcessTreeIfRunning {
+    [CmdletBinding()]
+    param(
+        [AllowNull()]
+        [Diagnostics.Process]$Process
+    )
+
+    if ($null -eq $Process) {
+        return
+    }
+    $Process.Refresh()
+    if (-not $Process.HasExited) {
+        & taskkill /PID $Process.Id /T /F 2>&1 | Out-Null
+        $Process.WaitForExit(5000) | Out-Null
+    }
+}
+
+function Wait-DxaNetworkLoadProcesses {
+    [CmdletBinding()]
+    param(
+        [Diagnostics.Process[]]$Processes,
+        [int]$TimeoutSeconds
+    )
+
+    $deadline = [DateTimeOffset]::UtcNow.AddSeconds($TimeoutSeconds)
+    while ([DateTimeOffset]::UtcNow -lt $deadline) {
+        $allExited = $true
+        foreach ($process in $Processes) {
+            $process.Refresh()
+            if (-not $process.HasExited) {
+                $allExited = $false
+            }
+        }
+        if ($allExited) {
+            foreach ($process in $Processes) {
+                $process.WaitForExit()
+            }
+            return
+        }
+        Start-Sleep -Milliseconds 100
+    }
+    throw 'Network load client process 대기가 시간 초과됐습니다.'
 }
 
 function Get-DxaNearestRankP95 {

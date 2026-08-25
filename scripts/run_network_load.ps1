@@ -45,26 +45,6 @@ function Get-FreeUdpPort {
     }
 }
 
-function Start-LoggedProcess {
-    param(
-        [string]$FilePath,
-        [object[]]$Arguments,
-        [string]$StdoutPath,
-        [string]$StderrPath
-    )
-
-    if (-not (Test-Path -LiteralPath $FilePath -PathType Leaf)) {
-        throw "Network load executable을 찾지 못했습니다: $FilePath"
-    }
-    return Start-Process `
-        -FilePath $FilePath `
-        -ArgumentList (ConvertTo-DxaProcessArgumentString -Arguments $Arguments) `
-        -RedirectStandardOutput $StdoutPath `
-        -RedirectStandardError $StderrPath `
-        -WindowStyle Hidden `
-        -PassThru
-}
-
 function Read-ProcessLog {
     param([string]$StdoutPath, [string]$StderrPath)
 
@@ -102,42 +82,6 @@ function Wait-LogPattern {
         Start-Sleep -Milliseconds 100
     }
     throw "Process log 대기가 시간 초과됐습니다. pattern=$Pattern"
-}
-
-function Wait-Processes {
-    param(
-        [Diagnostics.Process[]]$Processes,
-        [int]$TimeoutSeconds
-    )
-
-    $deadline = [DateTimeOffset]::UtcNow.AddSeconds($TimeoutSeconds)
-    while ([DateTimeOffset]::UtcNow -lt $deadline) {
-        $allExited = $true
-        foreach ($process in $Processes) {
-            $process.Refresh()
-            if (-not $process.HasExited) {
-                $allExited = $false
-            }
-        }
-        if ($allExited) {
-            return
-        }
-        Start-Sleep -Milliseconds 100
-    }
-    throw 'Network load client process 대기가 시간 초과됐습니다.'
-}
-
-function Stop-ProcessIfRunning {
-    param([AllowNull()][Diagnostics.Process]$Process)
-
-    if ($null -eq $Process) {
-        return
-    }
-    $Process.Refresh()
-    if (-not $Process.HasExited) {
-        Stop-Process -Id $Process.Id -Force
-        $Process.WaitForExit(5000) | Out-Null
-    }
 }
 
 function Get-DeterministicSecretPatterns {
@@ -228,7 +172,7 @@ try {
         '--worker-bind', '127.0.0.1',
         '--worker-port', $workerPort)
     $commandLines.Add("$lobbyExecutable $(ConvertTo-DxaProcessArgumentString $lobbyArguments)")
-    $lobbyProcess = Start-LoggedProcess `
+    $lobbyProcess = Start-DxaLoggedProcess `
         -FilePath $lobbyExecutable `
         -Arguments $lobbyArguments `
         -StdoutPath $lobbyStdout `
@@ -252,7 +196,7 @@ try {
         '--replication-mode', $ReplicationMode,
         '--metrics-output-root', $outputDirectory)
     $commandLines.Add("$gameExecutable $(ConvertTo-DxaProcessArgumentString $gameArguments)")
-    $gameProcess = Start-LoggedProcess `
+    $gameProcess = Start-DxaLoggedProcess `
         -FilePath $gameExecutable `
         -Arguments $gameArguments `
         -StdoutPath $gameStdout `
@@ -281,7 +225,7 @@ try {
             '--width', '1920',
             '--height', '1080')
         $commandLines.Add("$clientExecutable $(ConvertTo-DxaProcessArgumentString $clientArguments)")
-        $clientProcess = Start-LoggedProcess `
+        $clientProcess = Start-DxaLoggedProcess `
             -FilePath $clientExecutable `
             -Arguments $clientArguments `
             -StdoutPath $clientStdout `
@@ -304,13 +248,15 @@ try {
             '--count', '23',
             '--play')
         $commandLines.Add("$botExecutable $(ConvertTo-DxaProcessArgumentString $botArguments)")
-        $botProcess = Start-LoggedProcess `
+        $botProcess = Start-DxaLoggedProcess `
             -FilePath $botExecutable `
             -Arguments $botArguments `
             -StdoutPath $botStdout `
             -StderrPath $botStderr
 
-        Wait-Processes -Processes @($botProcess, $clientProcess) -TimeoutSeconds 660
+        Wait-DxaNetworkLoadProcesses `
+            -Processes @($botProcess, $clientProcess) `
+            -TimeoutSeconds 660
         $botProcess.Refresh()
         $clientProcess.Refresh()
         if ($botProcess.ExitCode -ne 0 -or $clientProcess.ExitCode -ne 0) {
@@ -464,9 +410,9 @@ try {
         }
     }
 
-    Stop-ProcessIfRunning -Process $gameProcess
+    Stop-DxaProcessTreeIfRunning -Process $gameProcess
     $gameProcess = $null
-    Stop-ProcessIfRunning -Process $lobbyProcess
+    Stop-DxaProcessTreeIfRunning -Process $lobbyProcess
     $lobbyProcess = $null
 
     $clientsPath = Join-Path $outputDirectory 'clients.csv'
@@ -626,8 +572,8 @@ try {
     Write-Output $outputDirectory
 }
 finally {
-    Stop-ProcessIfRunning -Process $botProcess
-    Stop-ProcessIfRunning -Process $clientProcess
-    Stop-ProcessIfRunning -Process $gameProcess
-    Stop-ProcessIfRunning -Process $lobbyProcess
+    Stop-DxaProcessTreeIfRunning -Process $botProcess
+    Stop-DxaProcessTreeIfRunning -Process $clientProcess
+    Stop-DxaProcessTreeIfRunning -Process $gameProcess
+    Stop-DxaProcessTreeIfRunning -Process $lobbyProcess
 }
