@@ -58,6 +58,58 @@ namespace
     });
 }
 
+[[nodiscard]] bool IsAsciiAlphanumeric(const char value) noexcept
+{
+    return (value >= '0' && value <= '9')
+        || (value >= 'A' && value <= 'Z')
+        || (value >= 'a' && value <= 'z');
+}
+
+[[nodiscard]] bool IsDnsHost(const std::string_view host) noexcept
+{
+    if (host.empty() || host.size() > 253U)
+    {
+        return false;
+    }
+
+    std::size_t labelStart = 0U;
+    while (labelStart < host.size())
+    {
+        const std::size_t dot = host.find('.', labelStart);
+        const std::size_t labelEnd =
+            dot == std::string_view::npos ? host.size() : dot;
+        const std::size_t labelLength = labelEnd - labelStart;
+        if (labelLength == 0U
+            || labelLength > 63U
+            || !IsAsciiAlphanumeric(host[labelStart])
+            || !IsAsciiAlphanumeric(host[labelEnd - 1U]))
+        {
+            return false;
+        }
+        for (std::size_t index = labelStart; index < labelEnd; ++index)
+        {
+            if (!IsAsciiAlphanumeric(host[index]) && host[index] != '-')
+            {
+                return false;
+            }
+        }
+        if (dot == std::string_view::npos)
+        {
+            return true;
+        }
+        labelStart = dot + 1U;
+    }
+    return false;
+}
+
+[[nodiscard]] bool IsIpAddressOrDnsHost(
+    const std::string_view host) noexcept
+{
+    boost::system::error_code addressError;
+    static_cast<void>(boost::asio::ip::make_address(host, addressError));
+    return !addressError || IsDnsHost(host);
+}
+
 [[nodiscard]] GameServerOptionsParseResult Failure(std::string error)
 {
     return {std::nullopt, std::move(error)};
@@ -232,16 +284,12 @@ GameServerOptionsParseResult ParseGameServerOptions(
         seen[slot] = true;
     }
 
-    boost::system::error_code addressError;
-    static_cast<void>(boost::asio::ip::make_address(
-        options.lobbyControlHost,
-        addressError));
-    if (addressError)
+    if (!IsIpAddressOrDnsHost(options.lobbyControlHost))
     {
         return Failure(
-            "--lobby-control-host must be a numeric IP address");
+            "--lobby-control-host must be an IP address or DNS hostname");
     }
-    addressError.clear();
+    boost::system::error_code addressError;
     static_cast<void>(boost::asio::ip::make_address(
         options.gameBindAddress,
         addressError));
