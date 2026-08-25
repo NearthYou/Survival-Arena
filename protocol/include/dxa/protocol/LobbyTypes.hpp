@@ -5,7 +5,7 @@
 
 namespace dxa::protocol
 {
-inline constexpr std::uint16_t ProtocolVersion = 1U;
+inline constexpr std::uint16_t ProtocolVersion = 2U;
 inline constexpr std::size_t TcpFrameHeaderBytes = 12U;
 inline constexpr std::size_t MaxTcpFrameBytes = 65536U;
 inline constexpr std::size_t MaxTcpPayloadBytes = MaxTcpFrameBytes - TcpFrameHeaderBytes;

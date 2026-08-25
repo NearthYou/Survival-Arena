@@ -1,7 +1,6 @@
 #include <dxa/game_client/SnapshotReassembler.hpp>
 
 #include <dxa/protocol/Crc32.hpp>
-#include <dxa/protocol/GameSnapshotCodec.hpp>
 #include <dxa/protocol/GameTypes.hpp>
 
 #include <algorithm>
@@ -97,8 +96,23 @@ struct SnapshotReassembler::Impl
         highestSnapshotId = fragment.snapshotId;
     }
 
+    void NoteReplacement(const std::uint32_t snapshotId) noexcept
+    {
+        if (!highestSnapshotId.has_value())
+        {
+            return;
+        }
+        const bool skippedSnapshot = snapshotId > *highestSnapshotId
+            && snapshotId - *highestSnapshotId > 1U;
+        if (active.has_value() || skippedSnapshot)
+        {
+            recoveryNeeded = true;
+        }
+    }
+
     std::optional<std::uint32_t> highestSnapshotId;
     std::optional<Assembly> active;
+    bool recoveryNeeded = false;
 };
 
 SnapshotReassembler::SnapshotReassembler()
@@ -112,7 +126,7 @@ SnapshotReassembler::SnapshotReassembler(SnapshotReassembler&&) noexcept =
 SnapshotReassembler& SnapshotReassembler::operator=(
     SnapshotReassembler&&) noexcept = default;
 
-std::optional<ReassembledSnapshot> SnapshotReassembler::Push(
+std::optional<ReassembledPayload> SnapshotReassembler::PushBytes(
     const dxa::protocol::SnapshotFragment& fragment)
 {
     if (impl_ == nullptr)
@@ -125,6 +139,7 @@ std::optional<ReassembledSnapshot> SnapshotReassembler::Push(
         if (!state.highestSnapshotId.has_value()
             || fragment.snapshotId > *state.highestSnapshotId)
         {
+            state.NoteReplacement(fragment.snapshotId);
             state.highestSnapshotId = fragment.snapshotId;
             state.active.reset();
         }
@@ -139,6 +154,7 @@ std::optional<ReassembledSnapshot> SnapshotReassembler::Push(
     if (!state.highestSnapshotId.has_value()
         || fragment.snapshotId > *state.highestSnapshotId)
     {
+        state.NoteReplacement(fragment.snapshotId);
         state.Begin(fragment);
     }
     else if (!state.active.has_value())
@@ -147,6 +163,7 @@ std::optional<ReassembledSnapshot> SnapshotReassembler::Push(
     }
     else if (!state.MetadataMatches(fragment))
     {
+        state.recoveryNeeded = true;
         state.active.reset();
         return std::nullopt;
     }
@@ -156,6 +173,7 @@ std::optional<ReassembledSnapshot> SnapshotReassembler::Push(
     {
         if (*destination != fragment.bytes)
         {
+            state.recoveryNeeded = true;
             state.active.reset();
         }
         return std::nullopt;
@@ -181,18 +199,25 @@ std::optional<ReassembledSnapshot> SnapshotReassembler::Push(
     if (payload.size() != metadata.fullPayloadBytes
         || dxa::protocol::Crc32(payload) != metadata.fullPayloadCrc32)
     {
+        state.recoveryNeeded = true;
         return std::nullopt;
     }
-    auto decoded = dxa::protocol::DecodeGameSnapshot(payload);
-    if (!decoded.snapshot.has_value())
-    {
-        return std::nullopt;
-    }
-    return ReassembledSnapshot{
+    return ReassembledPayload{
         metadata.snapshotId,
         metadata.serverTick,
         metadata.ackInputSequence,
-        std::move(*decoded.snapshot)};
+        std::move(payload)};
+}
+
+bool SnapshotReassembler::TakeRecoveryNeeded() noexcept
+{
+    if (!impl_)
+    {
+        return false;
+    }
+    const bool needed = impl_->recoveryNeeded;
+    impl_->recoveryNeeded = false;
+    return needed;
 }
 
 void SnapshotReassembler::Reset() noexcept
@@ -201,6 +226,7 @@ void SnapshotReassembler::Reset() noexcept
     {
         impl_->highestSnapshotId.reset();
         impl_->active.reset();
+        impl_->recoveryNeeded = false;
     }
 }
 } // namespace dxa::game_client

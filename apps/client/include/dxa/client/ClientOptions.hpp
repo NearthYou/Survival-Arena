@@ -1,14 +1,18 @@
 #pragma once
 
 #include <dxa/engine/RenderPath.hpp>
+#include <dxa/protocol/DatagramShaper.hpp>
+#include <dxa/protocol/GameTypes.hpp>
 
 #include <cstdint>
 #include <charconv>
+#include <chrono>
 #include <limits>
 #include <optional>
 #include <span>
 #include <string>
 #include <string_view>
+#include <stdexcept>
 #include <utility>
 
 namespace dxa::client
@@ -24,6 +28,10 @@ struct NetworkClientOptions
     std::string lobbyHost = "127.0.0.1";
     std::uint16_t lobbyPort = 7000U;
     std::uint8_t expectedPlayers = 2U;
+    bool exitOnMatchResult = false;
+    dxa::protocol::ReplicationMode replicationMode =
+        dxa::protocol::ReplicationMode::FullState;
+    dxa::protocol::DatagramShaperConfig udpImpairment;
 };
 
 struct ClientOptions
@@ -92,6 +100,12 @@ namespace detail
     bool expectedPlayersSeen = false;
     bool lobbyHostSeen = false;
     bool lobbyPortSeen = false;
+    bool replicationModeSeen = false;
+    bool udpLatencySeen = false;
+    bool udpJitterSeen = false;
+    bool udpLossSeen = false;
+    bool networkSeedSeen = false;
+    bool exitOnMatchResultSeen = false;
 
     for (std::size_t index = 0; index < arguments.size(); ++index)
     {
@@ -124,6 +138,16 @@ namespace detail
             }
             networkCreateSeen = true;
         }
+        else if (argument == "--exit-on-match-result")
+        {
+            if (exitOnMatchResultSeen)
+            {
+                return detail::Error("duplicate --exit-on-match-result");
+            }
+            exitOnMatchResultSeen = true;
+            networkOptionSeen = true;
+            network.exitOnMatchResult = true;
+        }
         else if (argument == "--lobby-host")
         {
             if (lobbyHostSeen)
@@ -141,6 +165,46 @@ namespace detail
             {
                 return detail::Error(
                     "--lobby-host must contain 1 to 255 bytes");
+            }
+        }
+        else if (argument == "--replication-mode")
+        {
+            if (replicationModeSeen)
+            {
+                return detail::Error("duplicate --replication-mode");
+            }
+            if (index + 1 >= arguments.size())
+            {
+                return detail::Error("--replication-mode requires a value");
+            }
+            replicationModeSeen = true;
+            networkOptionSeen = true;
+            const std::string_view value = arguments[++index];
+            if (value == "full-state")
+            {
+                network.replicationMode =
+                    dxa::protocol::ReplicationMode::FullState;
+            }
+            else if (value == "interest-full")
+            {
+                network.replicationMode =
+                    dxa::protocol::ReplicationMode::InterestFullPrecision;
+            }
+            else if (value == "interest-quantized")
+            {
+                network.replicationMode =
+                    dxa::protocol::ReplicationMode::InterestQuantized;
+            }
+            else if (value == "interest-delta")
+            {
+                network.replicationMode =
+                    dxa::protocol::ReplicationMode::InterestDelta;
+            }
+            else
+            {
+                return detail::Error(
+                    "--replication-mode must be full-state, interest-full, "
+                    "interest-quantized or interest-delta");
             }
         }
         else if (argument == "--render-path")
@@ -161,6 +225,66 @@ namespace detail
             else
             {
                 return detail::Error("--render-path must be forward or hybrid-deferred");
+            }
+        }
+        else if (
+            argument == "--udp-latency-ms"
+            || argument == "--udp-jitter-ms"
+            || argument == "--udp-loss-basis-points"
+            || argument == "--network-seed")
+        {
+            bool* seen = nullptr;
+            if (argument == "--udp-latency-ms")
+            {
+                seen = &udpLatencySeen;
+            }
+            else if (argument == "--udp-jitter-ms")
+            {
+                seen = &udpJitterSeen;
+            }
+            else if (argument == "--udp-loss-basis-points")
+            {
+                seen = &udpLossSeen;
+            }
+            else
+            {
+                seen = &networkSeedSeen;
+            }
+            if (*seen)
+            {
+                return detail::Error(
+                    "duplicate " + std::string{argument});
+            }
+            if (index + 1U >= arguments.size())
+            {
+                return detail::Error(
+                    std::string{argument} + " requires a value");
+            }
+            const auto parsed = detail::ParseUnsigned(arguments[++index]);
+            if (!parsed.has_value())
+            {
+                return detail::Error(
+                    std::string{argument} + " must be a uint32");
+            }
+            *seen = true;
+            networkOptionSeen = true;
+            if (argument == "--udp-latency-ms")
+            {
+                network.udpImpairment.oneWayLatency =
+                    std::chrono::milliseconds{*parsed};
+            }
+            else if (argument == "--udp-jitter-ms")
+            {
+                network.udpImpairment.jitter =
+                    std::chrono::milliseconds{*parsed};
+            }
+            else if (argument == "--udp-loss-basis-points")
+            {
+                network.udpImpairment.lossBasisPoints = *parsed;
+            }
+            else
+            {
+                network.udpImpairment.seed = *parsed;
             }
         }
         else if (
@@ -287,12 +411,20 @@ namespace detail
         }
     }
 
-    if (options.hidden && options.frameLimit == 0 && !benchmarkOutputSet)
+    const bool resultDrivenNetworkRun =
+        networkCreateSeen && network.exitOnMatchResult;
+    if (options.hidden
+        && options.frameLimit == 0
+        && !benchmarkOutputSet
+        && !resultDrivenNetworkRun)
     {
         return detail::Error("--hidden requires --frames greater than 0");
     }
 
-    if (options.verifyRender && options.frameLimit == 0 && !benchmarkOutputSet)
+    if (options.verifyRender
+        && options.frameLimit == 0
+        && !benchmarkOutputSet
+        && !resultDrivenNetworkRun)
     {
         return detail::Error("--verify-render requires --frames greater than 0");
     }
@@ -352,6 +484,16 @@ namespace detail
 
     if (networkCreateSeen)
     {
+        try
+        {
+            static_cast<void>(dxa::protocol::DatagramShaper{
+                network.udpImpairment,
+                dxa::protocol::DatagramDirection::ClientToServer});
+        }
+        catch (const std::invalid_argument& error)
+        {
+            return detail::Error(error.what());
+        }
         options.network = std::move(network);
     }
 

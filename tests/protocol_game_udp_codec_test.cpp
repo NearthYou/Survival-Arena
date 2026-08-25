@@ -1,6 +1,7 @@
 #include <dxa/protocol/Crc32.hpp>
 #include <dxa/protocol/GameUdpCodec.hpp>
 #include <dxa/protocol/GameUdpMessages.hpp>
+#include <dxa/protocol/ReplicationSnapshotCodec.hpp>
 
 #include <gtest/gtest.h>
 
@@ -93,6 +94,8 @@ TEST(GameUdpCodec, RoundTripsEveryDatagramDirection)
         PlayerId{2U},
         Token(0x10U),
         3U,
+        0U,
+        false,
         NetworkVec2{1.0F, -2.0F},
         true,
         EntityId{4U},
@@ -104,30 +107,51 @@ TEST(GameUdpCodec, RoundTripsEveryDatagramDirection)
 
 TEST(GameUdpCodec, EncodesTenByteHeaderAndInputFlags)
 {
-    const EncodedDatagram encoded = EncodeClientDatagram(ClientDatagram{
-        ClientInput{
-            MatchId{1U},
-            PlayerId{2U},
-            Token(0x10U),
-            3U,
-            NetworkVec2{1.0F, -2.0F},
-            true,
-            EntityId{4U},
-            true}});
+    ClientInput input;
+    input.match = MatchId{1U};
+    input.player = PlayerId{2U};
+    input.token = Token(0x10U);
+    input.inputSequence = 3U;
+    input.acknowledgedSnapshotId = 0xA1B2C3D4U;
+    input.requestKeyframe = true;
+    input.moveDestination = NetworkVec2{1.0F, -2.0F};
+    input.hasMoveDestination = true;
+    input.attackTarget = EntityId{4U};
+    input.hasAttackTarget = true;
 
-    ASSERT_EQ(55U, encoded.bytes.size());
+    const EncodedDatagram encoded = EncodeClientDatagram(
+        ClientDatagram{input});
+
+    ASSERT_EQ(59U, encoded.bytes.size());
     EXPECT_EQ(UdpDatagramType::ClientInput, encoded.type);
     EXPECT_EQ(std::byte{0x44}, encoded.bytes[0]);
     EXPECT_EQ(std::byte{0x58}, encoded.bytes[1]);
     EXPECT_EQ(std::byte{0x55}, encoded.bytes[2]);
     EXPECT_EQ(std::byte{0x31}, encoded.bytes[3]);
-    EXPECT_EQ(std::byte{0x01}, encoded.bytes[4]);
+    EXPECT_EQ(std::byte{0x02}, encoded.bytes[4]);
     EXPECT_EQ(std::byte{0x00}, encoded.bytes[5]);
     EXPECT_EQ(std::byte{0x03}, encoded.bytes[6]);
     EXPECT_EQ(std::byte{0x00}, encoded.bytes[7]);
-    EXPECT_EQ(std::byte{0x2D}, encoded.bytes[8]);
+    EXPECT_EQ(std::byte{0x31}, encoded.bytes[8]);
     EXPECT_EQ(std::byte{0x00}, encoded.bytes[9]);
-    EXPECT_EQ(std::byte{0x03}, encoded.bytes[42]);
+    EXPECT_EQ(std::byte{0xD4}, encoded.bytes[42]);
+    EXPECT_EQ(std::byte{0xC3}, encoded.bytes[43]);
+    EXPECT_EQ(std::byte{0xB2}, encoded.bytes[44]);
+    EXPECT_EQ(std::byte{0xA1}, encoded.bytes[45]);
+    EXPECT_EQ(std::byte{0x07}, encoded.bytes[46]);
+}
+
+TEST(GameUdpCodec, RoundTripsSnapshotAckAndKeyframeRequest)
+{
+    ClientInput input;
+    input.match = MatchId{7U};
+    input.player = PlayerId{3U};
+    input.token = Token(0x20U);
+    input.inputSequence = 11U;
+    input.acknowledgedSnapshotId = 9U;
+    input.requestKeyframe = true;
+
+    ExpectClientRoundTrip(ClientDatagram{input});
 }
 
 TEST(GameUdpCodec, AcceptsExactlyTwelveHundredBytesAndRejectsOneMore)
@@ -168,6 +192,82 @@ TEST(GameUdpCodec, FragmentsPayloadAtTheLockedBoundary)
               fragments[1].fullPayloadCrc32);
 }
 
+TEST(GameUdpCodec, CarriesMaximumQuantizedKeyframeAcrossFragments)
+{
+    SnapshotPayload source;
+    source.header = {
+        SnapshotPayloadKind::Keyframe,
+        SnapshotValueEncoding::Quantized,
+        0U,
+        9U};
+    source.global.phase = NetworkMatchPhase::Running;
+    source.global.safeZoneStage = NetworkSafeZoneStage::Stage1;
+    source.global.safeZoneRadius =
+        std::numeric_limits<std::uint16_t>::max();
+    source.global.aliveContenders = 24U;
+
+    source.actorValues.reserve(MaxSnapshotActors);
+    for (std::uint32_t id = 0U;
+         id < static_cast<std::uint32_t>(MaxSnapshotActors);
+         ++id)
+    {
+        const bool contender = id < 24U;
+        source.actorValues.push_back(QuantizedActorValue{
+            EntityId{id},
+            contender
+                ? NetworkActorRole::Contender
+                : NetworkActorRole::Neutral,
+            contender
+                ? NetworkNeutralArchetype::None
+                : NetworkNeutralArchetype::Melee,
+            {static_cast<std::uint16_t>(id),
+             static_cast<std::uint16_t>(id + 1U)},
+            100U,
+            true,
+            NetworkWeaponType::Blade,
+            0U,
+            0U});
+    }
+    source.lootValues.reserve(MaxSnapshotLoot);
+    for (std::uint32_t id = 0U;
+         id < static_cast<std::uint32_t>(MaxSnapshotLoot);
+         ++id)
+    {
+        source.lootValues.push_back(QuantizedLootValue{
+            id,
+            NetworkLootType::Rifle,
+            {static_cast<std::uint16_t>(id),
+             static_cast<std::uint16_t>(id + 1U)},
+            true});
+    }
+
+    const std::vector<std::byte> encoded = EncodeSnapshotPayload(source);
+    const std::vector<SnapshotFragment> fragments = FragmentSnapshot(
+        MatchId{1U},
+        source.header.payloadSnapshotId,
+        30U,
+        4U,
+        encoded);
+    ASSERT_GT(fragments.size(), 1U);
+
+    std::vector<std::byte> reassembled;
+    reassembled.reserve(encoded.size());
+    for (const SnapshotFragment& fragment : fragments)
+    {
+        EXPECT_EQ(source.header.payloadSnapshotId, fragment.snapshotId);
+        reassembled.insert(
+            reassembled.end(),
+            fragment.bytes.begin(),
+            fragment.bytes.end());
+    }
+    EXPECT_EQ(encoded, reassembled);
+
+    const SnapshotPayloadDecodeResult decoded =
+        DecodeSnapshotPayload(reassembled);
+    ASSERT_TRUE(decoded.payload.has_value());
+    EXPECT_EQ(source, *decoded.payload);
+}
+
 TEST(GameUdpCodec, SupportsThirtyTwoFragmentsAndRejectsPayloadAboveLimit)
 {
     const auto maximum = FragmentSnapshot(
@@ -203,7 +303,7 @@ TEST(GameUdpCodec, RejectsBadHeaderLengthAndWrongDirection)
               DecodeClientDatagram(badMagic).error);
 
     std::vector<std::byte> badVersion = bind.bytes;
-    badVersion[4] = std::byte{0x02};
+    badVersion[4] = std::byte{0x01};
     EXPECT_EQ(DecodeError::InvalidValue,
               DecodeClientDatagram(badVersion).error);
 
@@ -240,6 +340,8 @@ TEST(GameUdpCodec, RejectsInvalidInputAndFragmentMetadata)
         PlayerId{2U},
         Token(1U),
         0U,
+        0U,
+        false,
         NetworkVec2{},
         false,
         EntityId{},
@@ -247,6 +349,18 @@ TEST(GameUdpCodec, RejectsInvalidInputAndFragmentMetadata)
     EXPECT_THROW(
         (void)EncodeClientDatagram(ClientDatagram{invalidInput}),
         std::invalid_argument);
+
+    ClientInput validInput;
+    validInput.match = MatchId{1U};
+    validInput.player = PlayerId{2U};
+    validInput.token = Token(1U);
+    validInput.inputSequence = 1U;
+    std::vector<std::byte> unknownInputFlag =
+        EncodeClientDatagram(ClientDatagram{validInput}).bytes;
+    unknownInputFlag[46] = std::byte{0x80};
+    EXPECT_EQ(
+        DecodeError::InvalidValue,
+        DecodeClientDatagram(unknownInputFlag).error);
 
     invalidInput.inputSequence = 1U;
     invalidInput.hasMoveDestination = true;

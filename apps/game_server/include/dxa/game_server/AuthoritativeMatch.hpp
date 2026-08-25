@@ -1,6 +1,8 @@
 #pragma once
 
 #include <dxa/game_server/ParticipantRoster.hpp>
+#include <dxa/game_server/ServerMatchMetrics.hpp>
+#include <dxa/game_server/SnapshotReplicator.hpp>
 #include <dxa/game_server/UdpTokenSource.hpp>
 
 #include <dxa/protocol/GameSnapshot.hpp>
@@ -41,6 +43,7 @@ struct GameUdpOutbound
 {
     UdpPeer recipient;
     dxa::protocol::ServerDatagram datagram;
+    std::uint64_t shapingPeerKey = 0U;
 };
 
 struct AuthoritativeMatchResult
@@ -63,7 +66,8 @@ public:
         const dxa::simulation::ArenaMapDefinition& arena,
         dxa::simulation::MatchConfig config,
         IUdpTokenSource& tokenSource,
-        std::chrono::steady_clock::time_point now);
+        std::chrono::steady_clock::time_point now,
+        ReplicationConfig replication = {});
 
     ~AuthoritativeMatch();
     AuthoritativeMatch(AuthoritativeMatch&&) noexcept;
@@ -86,6 +90,8 @@ public:
     NextDeadline() const;
     [[nodiscard]] bool Started() const noexcept;
     [[nodiscard]] dxa::protocol::GameSnapshot Snapshot() const;
+    [[nodiscard]] ServerMatchMetricsSnapshot Metrics(
+        dxa::game_common::GameTrafficTotals traffic = {}) const;
 
 private:
     struct Impl;

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <dxa/protocol/Ids.hpp>
+#include <dxa/protocol/DatagramShaper.hpp>
 
 #include <cstdint>
 #include <optional>
@@ -17,6 +18,7 @@ struct BotClientOptions
     dxa::protocol::RoomId room;
     std::uint32_t count = 1U;
     bool play = false;
+    dxa::protocol::DatagramShaperConfig udpImpairment;
 };
 
 struct BotClientOptionsParseResult

@@ -105,12 +105,18 @@ public:
         return frame;
     }
 
+    [[nodiscard]] bool ShouldClose() const noexcept override
+    {
+        return closeAfterSamples != 0U && sampleCount >= closeAfterSamples;
+    }
+
     dxa::engine::RuntimeSceneFrame frame;
     std::vector<dxa::engine::RuntimeInputFrame> inputs;
     std::size_t sampleCount = 0U;
     std::size_t updatesSinceSample = 0U;
     std::size_t maxUpdatesPerSample = 0U;
     bool delayFirstSample = false;
+    std::size_t closeAfterSamples = 0U;
 };
 
 TEST(EngineApp, RenderVerificationRejectsQuitBeforeFirstFrame)
@@ -242,6 +248,21 @@ TEST(EngineApp, RendersRuntimeSceneThroughWarp)
     EXPECT_GT(scene.sampleCount, 0U);
     EXPECT_GT(scene.inputs.size(), 0U);
     EXPECT_EQ(5U, scene.maxUpdatesPerSample);
+}
+
+TEST(EngineApp, RendersAndVerifiesFrameBeforeRuntimeClose)
+{
+    ScriptedRuntimeScene scene;
+    scene.closeAfterSamples = 2U;
+
+    EXPECT_EQ(
+        0,
+        dxa::engine::EngineApp{}.Run(
+            HiddenHybridOptions(120U),
+            std::filesystem::path{DXA_TEST_SHADER_PATH},
+            std::filesystem::path{DXA_TEST_ASSET_ROOT},
+            &scene));
+    EXPECT_EQ(2U, scene.sampleCount);
 }
 
 TEST(EngineApp, RejectsRuntimeSceneWithForwardRenderer)

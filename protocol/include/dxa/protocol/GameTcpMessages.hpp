@@ -26,6 +26,7 @@ struct GameServerWelcome
     std::uint16_t snapshotRate = SnapshotRate;
     std::uint32_t mapId = 1U;
     std::uint32_t navMeshCrc32 = 0U;
+    ReplicationMode replicationMode = ReplicationMode::FullState;
     UdpSessionToken udpToken;
 
     [[nodiscard]] bool operator==(const GameServerWelcome&) const = default;

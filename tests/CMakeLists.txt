@@ -32,15 +32,22 @@ add_executable(
     foundation_test.cpp
     game_authoritative_match_test.cpp
     game_client_predictor_test.cpp
+    game_client_snapshot_stream_test.cpp
+    game_datagram_shaper_test.cpp
+    game_network_runtime_test.cpp
     game_fixed_tick_scheduler_test.cpp
+    game_interest_grid_test.cpp
     game_participant_roster_test.cpp
     game_server_adapter_test.cpp
     game_server_integration_test.cpp
+    game_server_metrics_test.cpp
     game_server_options_test.cpp
     game_session_integration_test.cpp
     game_snapshot_reassembler_test.cpp
+    game_snapshot_replicator_test.cpp
     game_remote_interpolator_test.cpp
     game_ticket_store_test.cpp
+    game_udp_datagram_queue_test.cpp
     offline_match_benchmark_options_test.cpp
     protocol_ids_test.cpp
     protocol_game_types_test.cpp
@@ -48,6 +55,7 @@ add_executable(
     protocol_game_tcp_codec_test.cpp
     protocol_game_udp_codec_test.cpp
     protocol_game_snapshot_codec_test.cpp
+    protocol_replication_snapshot_codec_test.cpp
     protocol_byte_codec_test.cpp
     protocol_tcp_frame_test.cpp
     protocol_asio_framed_connection_test.cpp
@@ -99,6 +107,7 @@ if(WIN32)
             engine_hybrid_deferred_renderer_test.cpp
             engine_window_test.cpp
             navigation_ground_pick_test.cpp
+            network_load_vertical_test.cpp
             network_vertical_slice_test.cpp
     )
     target_link_libraries(
@@ -151,6 +160,15 @@ if(WIN32)
             ${DXA_POWERSHELL_EXECUTABLE}
             -NoProfile
             -File "${PROJECT_SOURCE_DIR}/tests/offline_match_benchmark_runner_test.ps1"
+            -RepositoryRoot "${PROJECT_SOURCE_DIR}"
+    )
+
+    add_test(
+        NAME NetworkLoadRunner.GuardsEvidenceBoundary
+        COMMAND
+            ${DXA_POWERSHELL_EXECUTABLE}
+            -NoProfile
+            -File "${PROJECT_SOURCE_DIR}/tests/network_load_runner_test.ps1"
             -RepositoryRoot "${PROJECT_SOURCE_DIR}"
     )
 endif()

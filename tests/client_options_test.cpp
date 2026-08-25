@@ -1,10 +1,13 @@
 #include <dxa/client/ClientOptions.hpp>
+#include <dxa/protocol/GameTypes.hpp>
 #include <dxa/engine/RenderPath.hpp>
 
 #include <gtest/gtest.h>
 
 #include <array>
+#include <chrono>
 #include <string_view>
+#include <utility>
 
 namespace
 {
@@ -248,6 +251,108 @@ TEST(ClientOptions, ParsesNetworkCreateAndRequiresHybridPath)
     EXPECT_FALSE(ParseClientOptions(invalidArguments).options.has_value());
 }
 
+TEST(ClientOptions, NetworkResultCanCloseHiddenClientWithoutFrameLimit)
+{
+    constexpr std::array arguments{
+        std::string_view{"--warp"},
+        std::string_view{"--hidden"},
+        std::string_view{"--verify-render"},
+        std::string_view{"--render-path"},
+        std::string_view{"hybrid-deferred"},
+        std::string_view{"--network-create"},
+        std::string_view{"--expected-players"},
+        std::string_view{"24"},
+        std::string_view{"--exit-on-match-result"}};
+
+    const auto parsed = ParseClientOptions(arguments);
+
+    ASSERT_TRUE(parsed.options.has_value()) << parsed.error;
+    ASSERT_TRUE(parsed.options->network.has_value());
+    EXPECT_TRUE(parsed.options->network->exitOnMatchResult);
+    EXPECT_EQ(0U, parsed.options->frameLimit);
+}
+
+TEST(ClientOptions, ParsesEveryNetworkReplicationMode)
+{
+    const std::array cases{
+        std::pair{
+            std::string_view{"full-state"},
+            dxa::protocol::ReplicationMode::FullState},
+        std::pair{
+            std::string_view{"interest-full"},
+            dxa::protocol::ReplicationMode::InterestFullPrecision},
+        std::pair{
+            std::string_view{"interest-quantized"},
+            dxa::protocol::ReplicationMode::InterestQuantized},
+        std::pair{
+            std::string_view{"interest-delta"},
+            dxa::protocol::ReplicationMode::InterestDelta}};
+
+    for (const auto& [name, mode] : cases)
+    {
+        const std::array arguments{
+            std::string_view{"--render-path"},
+            std::string_view{"hybrid-deferred"},
+            std::string_view{"--network-create"},
+            std::string_view{"--replication-mode"},
+            name};
+        const auto parsed = ParseClientOptions(arguments);
+        ASSERT_TRUE(parsed.options.has_value()) << parsed.error;
+        ASSERT_TRUE(parsed.options->network.has_value());
+        EXPECT_EQ(mode, parsed.options->network->replicationMode);
+    }
+
+    constexpr std::array invalid{
+        std::string_view{"--render-path"},
+        std::string_view{"hybrid-deferred"},
+        std::string_view{"--network-create"},
+        std::string_view{"--replication-mode"},
+        std::string_view{"unknown"}};
+    constexpr std::array duplicate{
+        std::string_view{"--render-path"},
+        std::string_view{"hybrid-deferred"},
+        std::string_view{"--network-create"},
+        std::string_view{"--replication-mode"},
+        std::string_view{"full-state"},
+        std::string_view{"--replication-mode"},
+        std::string_view{"interest-delta"}};
+    EXPECT_FALSE(ParseClientOptions(invalid).options.has_value());
+    EXPECT_FALSE(ParseClientOptions(duplicate).options.has_value());
+}
+
+TEST(ClientOptions, ParsesAndValidatesNetworkUdpImpairmentProfile)
+{
+    using namespace std::chrono_literals;
+    constexpr std::array arguments{
+        std::string_view{"--render-path"},
+        std::string_view{"hybrid-deferred"},
+        std::string_view{"--network-create"},
+        std::string_view{"--udp-latency-ms"},
+        std::string_view{"50"},
+        std::string_view{"--udp-jitter-ms"},
+        std::string_view{"10"},
+        std::string_view{"--udp-loss-basis-points"},
+        std::string_view{"200"},
+        std::string_view{"--network-seed"},
+        std::string_view{"20260825"}};
+    const auto parsed = ParseClientOptions(arguments);
+
+    ASSERT_TRUE(parsed.options.has_value()) << parsed.error;
+    ASSERT_TRUE(parsed.options->network.has_value());
+    EXPECT_EQ(50ms, parsed.options->network->udpImpairment.oneWayLatency);
+    EXPECT_EQ(10ms, parsed.options->network->udpImpairment.jitter);
+    EXPECT_EQ(200U, parsed.options->network->udpImpairment.lossBasisPoints);
+    EXPECT_EQ(20260825U, parsed.options->network->udpImpairment.seed);
+
+    constexpr std::array missingSeed{
+        std::string_view{"--render-path"},
+        std::string_view{"hybrid-deferred"},
+        std::string_view{"--network-create"},
+        std::string_view{"--udp-latency-ms"},
+        std::string_view{"1"}};
+    EXPECT_FALSE(ParseClientOptions(missingSeed).options.has_value());
+}
+
 TEST(ClientOptions, EnforcesNetworkPlayerAndOptionBoundaries)
 {
     constexpr std::array twoPlayers{
@@ -285,10 +390,20 @@ TEST(ClientOptions, EnforcesNetworkPlayerAndOptionBoundaries)
     constexpr std::array networkWithoutCreate{
         std::string_view{"--expected-players"},
         std::string_view{"2"}};
+    constexpr std::array exitWithoutCreate{
+        std::string_view{"--exit-on-match-result"}};
+    constexpr std::array duplicateExit{
+        std::string_view{"--render-path"},
+        std::string_view{"hybrid-deferred"},
+        std::string_view{"--network-create"},
+        std::string_view{"--exit-on-match-result"},
+        std::string_view{"--exit-on-match-result"}};
     EXPECT_FALSE(ParseClientOptions(onePlayer).options.has_value());
     EXPECT_FALSE(ParseClientOptions(twentyFivePlayers).options.has_value());
     EXPECT_FALSE(ParseClientOptions(duplicateCreate).options.has_value());
     EXPECT_FALSE(ParseClientOptions(networkWithoutCreate).options.has_value());
+    EXPECT_FALSE(ParseClientOptions(exitWithoutCreate).options.has_value());
+    EXPECT_FALSE(ParseClientOptions(duplicateExit).options.has_value());
 }
 
 TEST(ClientOptions, RejectsNetworkBenchmarkCombination)

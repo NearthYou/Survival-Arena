@@ -70,6 +70,24 @@ void RemoteInterpolator::Push(ReassembledSnapshot snapshot)
     }
 }
 
+void RemoteInterpolator::ForgetActors(
+    const std::span<const dxa::protocol::EntityId> actors)
+{
+    if (actors.empty())
+    {
+        return;
+    }
+    for (ReassembledSnapshot& snapshot : snapshots_)
+    {
+        std::erase_if(
+            snapshot.snapshot.actors,
+            [actors](const dxa::protocol::NetworkActorSnapshot& actor) {
+                return std::find(actors.begin(), actors.end(), actor.id)
+                    != actors.end();
+            });
+    }
+}
+
 dxa::protocol::GameSnapshot RemoteInterpolator::Sample(
     const std::optional<dxa::protocol::EntityId> localActor) const
 {

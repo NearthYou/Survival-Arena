@@ -1,12 +1,17 @@
 #include <dxa/game_client/GameSession.hpp>
 
 #include <dxa/game_client/ClientPredictor.hpp>
+#include <dxa/game_client/ClientSnapshotStream.hpp>
+#include <dxa/game_client/GameNetworkRuntime.hpp>
 #include <dxa/game_client/RemoteInterpolator.hpp>
 #include <dxa/game_client/SnapshotReassembler.hpp>
 
+#include <dxa/game_common/NetworkMetrics.hpp>
+#include <dxa/game_common/UdpDatagramQueue.hpp>
 #include <dxa/protocol/AsioFramedConnection.hpp>
 #include <dxa/protocol/GameTcpMessageCodec.hpp>
 #include <dxa/protocol/GameUdpCodec.hpp>
+#include <dxa/protocol/ReplicationSnapshotCodec.hpp>
 #include <dxa/simulation/MatchConfig.hpp>
 
 #include <boost/asio.hpp>
@@ -18,12 +23,13 @@
 #include <cstddef>
 #include <cstdint>
 #include <deque>
+#include <future>
+#include <limits>
 #include <memory>
 #include <mutex>
 #include <optional>
 #include <stdexcept>
 #include <string>
-#include <thread>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -57,20 +63,25 @@ constexpr auto BindRetryInterval = std::chrono::milliseconds{250};
 } // namespace
 
 struct GameSession::Impl
+    : public std::enable_shared_from_this<GameSession::Impl>
 {
-    explicit Impl(dxa::simulation::NavMesh sourceNavMesh)
+    struct PendingSnapshot
+    {
+        ReassembledSnapshot snapshot;
+        std::vector<dxa::protocol::EntityId> resetInterpolationActors;
+    };
+
+    Impl(
+        dxa::simulation::NavMesh sourceNavMesh,
+        boost::asio::io_context& sourceIo)
         : navMesh{std::move(sourceNavMesh)},
           interpolation{3U, dxa::protocol::MaxClientSnapshotBuffer},
+          io{sourceIo},
           tcpResolver{io},
           udpResolver{io},
           udpSocket{io},
           bindTimer{io}
     {
-    }
-
-    ~Impl()
-    {
-        Stop();
     }
 
     void Start(GameSessionStart sourceStart)
@@ -83,10 +94,14 @@ struct GameSession::Impl
             throw std::logic_error{"game session can start only once"};
         }
         start = std::move(sourceStart);
+        udpSendQueue = std::make_unique<dxa::game_common::UdpDatagramQueue>(
+            io,
+            start.udpImpairment,
+            dxa::protocol::DatagramDirection::ClientToServer,
+            start.maximumQueuedUdpDatagramsPerPeer);
         stopRequested.store(false);
-        work.emplace(boost::asio::make_work_guard(io));
-        boost::asio::post(io, [this] { ResolveTcp(); });
-        networkThread = std::thread{[this] { io.run(); }};
+        const auto self = shared_from_this();
+        boost::asio::post(io, [self] { self->ResolveTcp(); });
     }
 
     void ResolveTcp()
@@ -95,58 +110,72 @@ struct GameSession::Impl
         {
             return;
         }
+        const auto self = shared_from_this();
         tcpResolver.async_resolve(
             start.ticket.host,
             std::to_string(start.ticket.tcpPort),
-            [this](
+            [self](
                 const boost::system::error_code error,
                 const tcp::resolver::results_type endpoints) {
-                if (error || stopRequested.load())
+                if (error || self->stopRequested.load())
                 {
-                    if (!stopRequested.load())
+                    if (!self->stopRequested.load())
                     {
-                        state.store(GameSessionState::Closed);
+                        self->state.store(GameSessionState::Closed);
                     }
                     return;
                 }
-                auto socket = std::make_shared<tcp::socket>(io);
+                auto socket = std::make_shared<tcp::socket>(self->io);
                 boost::asio::async_connect(
                     *socket,
                     endpoints,
-                    [this, socket](
+                    [self, socket](
                         const boost::system::error_code connectError,
                         const tcp::endpoint&) {
-                        if (connectError || stopRequested.load())
+                        if (connectError || self->stopRequested.load())
                         {
-                            if (!stopRequested.load())
+                            if (!self->stopRequested.load())
                             {
-                                state.store(GameSessionState::Closed);
+                                self->state.store(GameSessionState::Closed);
                             }
                             return;
                         }
-                        AttachTcp(std::move(*socket));
+                        self->AttachTcp(std::move(*socket));
                     });
             });
     }
 
     void AttachTcp(tcp::socket socket)
     {
+        const std::weak_ptr<Impl> weak = weak_from_this();
         tcpTransport = dxa::protocol::AsioFramedConnection::Create(
             std::move(socket),
-            [this](dxa::protocol::RawFrame frame) {
-                HandleTcpFrame(std::move(frame));
+            [weak](dxa::protocol::RawFrame frame) {
+                if (const auto self = weak.lock())
+                {
+                    self->HandleTcpFrame(std::move(frame));
+                }
             },
-            [this](const boost::system::error_code error) {
+            [weak](const boost::system::error_code error) {
                 static_cast<void>(error);
-                if (stopRequested.load())
+                const auto self = weak.lock();
+                if (!self || self->stopRequested.load())
                 {
                     return;
                 }
-                const GameSessionState current = state.load();
+                const GameSessionState current = self->state.load();
                 if (current != GameSessionState::Finished
                     && current != GameSessionState::ProtocolError)
                 {
-                    state.store(GameSessionState::Closed);
+                    self->state.store(GameSessionState::Closed);
+                }
+            },
+            [weak](
+                const dxa::protocol::TrafficDirection direction,
+                const std::size_t bytes) {
+                if (const auto self = weak.lock())
+                {
+                    self->ObserveTcp(direction, bytes);
                 }
             });
         tcpTransport->Start();
@@ -183,11 +212,19 @@ struct GameSession::Impl
                 || welcome->tickRate != dxa::protocol::GameTickRate
                 || welcome->snapshotRate != dxa::protocol::SnapshotRate
                 || welcome->mapId != start.expectedMapId
-                || welcome->navMeshCrc32 != start.expectedNavMeshCrc32)
+                || welcome->navMeshCrc32 != start.expectedNavMeshCrc32
+                || (start.expectedReplicationMode.has_value()
+                    && welcome->replicationMode
+                        != *start.expectedReplicationMode))
             {
                 FailProtocol();
                 return;
             }
+            dxa::game_common::GameTrafficTotals initialTraffic;
+            initialTraffic.tcpReceivedBytes = pendingWelcomeTcpReceivedBytes;
+            traffic.Start(initialTraffic);
+            measurementStarted = true;
+            measurementStartedAt = std::chrono::steady_clock::now();
             localActor.store(welcome->actor.value);
             udpToken = welcome->udpToken;
             state.store(GameSessionState::BindingUdp);
@@ -220,33 +257,62 @@ struct GameSession::Impl
         boost::system::error_code ignored;
         udpSocket.cancel(ignored);
         udpSocket.close(ignored);
+        measurementNanoseconds.store(static_cast<std::uint64_t>(
+            std::chrono::duration_cast<std::chrono::nanoseconds>(
+                std::chrono::steady_clock::now() - measurementStartedAt)
+                .count()));
+        traffic.Freeze();
         state.store(GameSessionState::Finished);
+    }
+
+    void ObserveTcp(
+        const dxa::protocol::TrafficDirection direction,
+        const std::size_t bytes)
+    {
+        if (measurementStarted)
+        {
+            traffic.RecordTcp(direction, bytes);
+            return;
+        }
+        if (direction == dxa::protocol::TrafficDirection::Received)
+        {
+            const std::uint64_t value = static_cast<std::uint64_t>(bytes);
+            const std::uint64_t maximum =
+                std::numeric_limits<std::uint64_t>::max();
+            pendingWelcomeTcpReceivedBytes =
+                value > maximum - pendingWelcomeTcpReceivedBytes
+                ? maximum
+                : pendingWelcomeTcpReceivedBytes + value;
+        }
     }
 
     void ResolveUdp()
     {
+        const auto self = shared_from_this();
         udpResolver.async_resolve(
             udp::v4(),
             start.ticket.host,
             std::to_string(start.ticket.udpPort),
-            [this](
+            [self](
                 const boost::system::error_code error,
                 const udp::resolver::results_type endpoints) {
-                if (error || endpoints.empty() || stopRequested.load())
+                if (error
+                    || endpoints.empty()
+                    || self->stopRequested.load())
                 {
-                    if (!stopRequested.load())
+                    if (!self->stopRequested.load())
                     {
-                        FailProtocol();
+                        self->FailProtocol();
                     }
                     return;
                 }
-                serverUdpEndpoint = *endpoints.begin();
-                udpSocket.open(serverUdpEndpoint.protocol());
-                udpSocket.bind(udp::endpoint{
-                    serverUdpEndpoint.protocol(),
+                self->serverUdpEndpoint = *endpoints.begin();
+                self->udpSocket.open(self->serverUdpEndpoint.protocol());
+                self->udpSocket.bind(udp::endpoint{
+                    self->serverUdpEndpoint.protocol(),
                     0U});
-                ReceiveUdp();
-                SendBind();
+                self->ReceiveUdp();
+                self->SendBind();
             });
     }
 
@@ -265,19 +331,51 @@ struct GameSession::Impl
                     udpToken}});
         auto bytes = std::make_shared<std::vector<std::byte>>(
             encoded.bytes);
-        udpSocket.async_send_to(
-            boost::asio::buffer(*bytes),
-            serverUdpEndpoint,
-            [bytes](
-                const boost::system::error_code,
-                const std::size_t) {});
+        SendUdp(std::move(bytes));
         bindTimer.expires_after(BindRetryInterval);
-        bindTimer.async_wait([this](const boost::system::error_code error) {
+        const auto self = shared_from_this();
+        bindTimer.async_wait([self](const boost::system::error_code error) {
             if (!error)
             {
-                SendBind();
+                self->SendBind();
             }
         });
+    }
+
+    void SendUdp(
+        std::shared_ptr<std::vector<std::byte>> bytes)
+    {
+        if (!udpSendQueue)
+        {
+            FailProtocol();
+            return;
+        }
+        const std::weak_ptr<Impl> weak = shared_from_this();
+        const auto result = udpSendQueue->Enqueue(
+            start.player.value,
+            std::move(bytes),
+            [weak](const dxa::game_common::UdpDatagramQueue::Bytes& ready) {
+                const auto self = weak.lock();
+                if (!self
+                    || self->stopRequested.load()
+                    || !self->udpSocket.is_open())
+                {
+                    return;
+                }
+                self->traffic.RecordUdp(
+                    dxa::protocol::TrafficDirection::Sent,
+                    ready->size());
+                self->udpSocket.async_send_to(
+                    boost::asio::buffer(*ready),
+                    self->serverUdpEndpoint,
+                    [ready](
+                        const boost::system::error_code,
+                        const std::size_t) {});
+            });
+        if (result == dxa::game_common::UdpDatagramEnqueueResult::Overflow)
+        {
+            FailProtocol();
+        }
     }
 
     void ReceiveUdp()
@@ -286,26 +384,34 @@ struct GameSession::Impl
         {
             return;
         }
+        const auto self = shared_from_this();
         udpSocket.async_receive_from(
             boost::asio::buffer(udpBuffer),
             udpRemoteEndpoint,
-            [this](
+            [self](
                 const boost::system::error_code error,
                 const std::size_t received) {
+                if (!error)
+                {
+                    self->traffic.RecordUdp(
+                        dxa::protocol::TrafficDirection::Received,
+                        received);
+                }
                 if (!error
                     && received <= dxa::protocol::MaxUdpDatagramBytes
-                    && udpRemoteEndpoint == serverUdpEndpoint)
+                    && self->udpRemoteEndpoint == self->serverUdpEndpoint)
                 {
                     const auto decoded = dxa::protocol::DecodeServerDatagram(
-                        std::span{udpBuffer.data(), received});
+                        std::span{self->udpBuffer.data(), received});
                     if (decoded.datagram.has_value())
                     {
-                        HandleServerDatagram(*decoded.datagram);
+                        self->HandleServerDatagram(*decoded.datagram);
                     }
                 }
-                if (udpSocket.is_open() && !stopRequested.load())
+                if (self->udpSocket.is_open()
+                    && !self->stopRequested.load())
                 {
-                    ReceiveUdp();
+                    self->ReceiveUdp();
                 }
             });
     }
@@ -329,18 +435,91 @@ struct GameSession::Impl
         if (current != GameSessionState::Synchronizing
             && current != GameSessionState::Running)
         {
+            if (std::holds_alternative<dxa::protocol::SnapshotFragment>(
+                    datagram))
+            {
+                ++discardedSnapshots;
+            }
             return;
         }
         const auto& fragment =
             std::get<dxa::protocol::SnapshotFragment>(datagram);
         if (fragment.match != start.ticket.match)
         {
+            ++discardedSnapshots;
             return;
         }
-        const auto completed = reassembler.Push(fragment);
+        const auto completed = reassembler.PushBytes(fragment);
+        if (reassembler.TakeRecoveryNeeded())
+        {
+            RequestKeyframe();
+        }
         if (!completed.has_value())
         {
             return;
+        }
+        const dxa::protocol::SnapshotPayloadDecodeResult decoded =
+            dxa::protocol::DecodeSnapshotPayload(completed->bytes);
+        if (!decoded.payload.has_value())
+        {
+            ++discardedSnapshots;
+            FailProtocol();
+            return;
+        }
+
+        SnapshotApplyResult applied;
+        try
+        {
+            applied = snapshotStream.Apply(
+                completed->snapshotId,
+                *decoded.payload);
+        }
+        catch (const std::exception&)
+        {
+            ++discardedSnapshots;
+            FailProtocol();
+            return;
+        }
+        lastAppliedSnapshotId.store(applied.acknowledgedSnapshotId);
+        if (applied.requestKeyframe)
+        {
+            RequestKeyframe();
+        }
+        else if (decoded.payload->header.kind
+                 != dxa::protocol::SnapshotPayloadKind::Delta)
+        {
+            keyframeRequested.store(false);
+        }
+        if (!applied.world.has_value())
+        {
+            ++snapshotCount;
+            ++discardedSnapshots;
+            return;
+        }
+
+        PendingSnapshot pending;
+        pending.snapshot = ReassembledSnapshot{
+            completed->snapshotId,
+            completed->serverTick,
+            completed->ackInputSequence,
+            std::move(*applied.world)};
+        pending.resetInterpolationActors = std::move(applied.removedActors);
+        pending.resetInterpolationActors.insert(
+            pending.resetInterpolationActors.end(),
+            applied.reenteredActors.begin(),
+            applied.reenteredActors.end());
+        std::sort(
+            pending.resetInterpolationActors.begin(),
+            pending.resetInterpolationActors.end());
+        pending.resetInterpolationActors.erase(
+            std::unique(
+                pending.resetInterpolationActors.begin(),
+                pending.resetInterpolationActors.end()),
+            pending.resetInterpolationActors.end());
+        if (decoded.payload->header.kind
+            != dxa::protocol::SnapshotPayloadKind::Delta)
+        {
+            ++keyframesApplied;
         }
         {
             std::scoped_lock lock{snapshotMutex};
@@ -349,25 +528,37 @@ struct GameSession::Impl
                 snapshotQueue.pop_front();
                 ++droppedSnapshots;
             }
-            snapshotQueue.push_back(*completed);
+            snapshotQueue.push_back(std::move(pending));
         }
         ++snapshotCount;
     }
 
+    void RequestKeyframe() noexcept
+    {
+        if (!keyframeRequested.exchange(true))
+        {
+            ++keyframeRequests;
+        }
+    }
+
     void PostInput(const PredictedInput input)
     {
-        boost::asio::post(io, [this, input] {
-            if (stopRequested.load()
-                || state.load() != GameSessionState::Running
-                || !udpSocket.is_open())
+        const auto self = shared_from_this();
+        boost::asio::post(io, [self, input] {
+            if (self->stopRequested.load()
+                || self->state.load() != GameSessionState::Running
+                || !self->udpSocket.is_open())
             {
                 return;
             }
             dxa::protocol::ClientInput datagram;
-            datagram.match = start.ticket.match;
-            datagram.player = start.player;
-            datagram.token = udpToken;
+            datagram.match = self->start.ticket.match;
+            datagram.player = self->start.player;
+            datagram.token = self->udpToken;
             datagram.inputSequence = input.sequence;
+            datagram.acknowledgedSnapshotId =
+                self->lastAppliedSnapshotId.load();
+            datagram.requestKeyframe = self->keyframeRequested.load();
             if (input.moveDestination.has_value())
             {
                 datagram.hasMoveDestination = true;
@@ -385,12 +576,7 @@ struct GameSession::Impl
                 dxa::protocol::ClientDatagram{datagram});
             auto bytes = std::make_shared<std::vector<std::byte>>(
                 encoded.bytes);
-            udpSocket.async_send_to(
-                boost::asio::buffer(*bytes),
-                serverUdpEndpoint,
-                [bytes](
-                    const boost::system::error_code,
-                    const std::size_t) {});
+            self->SendUdp(std::move(bytes));
         });
     }
 
@@ -403,7 +589,7 @@ struct GameSession::Impl
         {
             return;
         }
-        std::vector<ReassembledSnapshot> pending;
+        std::vector<PendingSnapshot> pending;
         {
             std::scoped_lock lock{snapshotMutex};
             pending.assign(snapshotQueue.begin(), snapshotQueue.end());
@@ -412,14 +598,15 @@ struct GameSession::Impl
         std::sort(
             pending.begin(),
             pending.end(),
-            [](const ReassembledSnapshot& left,
-               const ReassembledSnapshot& right) {
-                return left.serverTick < right.serverTick;
+            [](const PendingSnapshot& left,
+               const PendingSnapshot& right) {
+                return left.snapshot.serverTick < right.snapshot.serverTick;
             });
 
         bool becameRunning = false;
-        for (ReassembledSnapshot& snapshot : pending)
+        for (PendingSnapshot& queued : pending)
         {
+            ReassembledSnapshot& snapshot = queued.snapshot;
             const dxa::protocol::EntityId actor{localActor.load()};
             const dxa::protocol::NetworkActorSnapshot* local = FindActor(
                 snapshot.snapshot,
@@ -462,6 +649,7 @@ struct GameSession::Impl
                 FailFromCaller();
                 return;
             }
+            interpolation.ForgetActors(queued.resetInterpolationActors);
             interpolation.Push(snapshot);
             const dxa::protocol::GameSnapshot remote =
                 interpolation.Sample(actor);
@@ -474,6 +662,7 @@ struct GameSession::Impl
             scene.zoneRadius = remote.safeZoneRadius;
             scene.lastAckInputSequence = snapshot.ackInputSequence;
             scene.snapshotCount = snapshotCount.load();
+            ++appliedSnapshotCount;
         }
 
         if (state.load() == GameSessionState::Running && predictor)
@@ -507,7 +696,8 @@ struct GameSession::Impl
     void FailFromCaller()
     {
         state.store(GameSessionState::ProtocolError);
-        boost::asio::post(io, [this] { CloseNetwork(); });
+        const auto self = shared_from_this();
+        boost::asio::post(io, [self] { self->CloseNetwork(); });
     }
 
     void FailProtocol()
@@ -518,6 +708,11 @@ struct GameSession::Impl
 
     void CloseNetwork()
     {
+        traffic.Freeze();
+        if (udpSendQueue)
+        {
+            udpSendQueue->Stop();
+        }
         tcpResolver.cancel();
         udpResolver.cancel();
         bindTimer.cancel();
@@ -530,46 +725,46 @@ struct GameSession::Impl
         udpSocket.close(ignored);
     }
 
-    void Stop()
+    void Stop(
+        const bool runtimeStarted,
+        const bool runningOnNetworkThread)
     {
         const bool alreadyStopped = stopRequested.exchange(true);
-        if (!alreadyStopped)
+        if (alreadyStopped)
         {
-            state.store(GameSessionState::Closed);
-            if (networkThread.joinable())
-            {
-                boost::asio::post(io, [this] {
-                    CloseNetwork();
-                    work.reset();
-                });
-            }
-            else
-            {
-                work.reset();
-            }
+            return;
         }
-        if (networkThread.joinable()
-            && networkThread.get_id() != std::this_thread::get_id())
+        state.store(GameSessionState::Closed);
+        if (!runtimeStarted || runningOnNetworkThread)
         {
-            networkThread.join();
+            CloseNetwork();
+            return;
         }
+
+        auto closed = std::make_shared<std::promise<void>>();
+        std::future<void> completed = closed->get_future();
+        const auto self = shared_from_this();
+        boost::asio::post(io, [self, closed] {
+            self->CloseNetwork();
+            closed->set_value();
+        });
+        completed.wait();
     }
 
     dxa::simulation::NavMesh navMesh;
     std::unique_ptr<ClientPredictor> predictor;
+    ClientSnapshotStream snapshotStream;
     RemoteInterpolator interpolation;
     GameSceneFrame scene;
     mutable std::mutex sceneMutex;
 
-    boost::asio::io_context io;
-    std::optional<boost::asio::executor_work_guard<
-        boost::asio::io_context::executor_type>> work;
+    boost::asio::io_context& io;
     tcp::resolver tcpResolver;
     udp::resolver udpResolver;
     udp::socket udpSocket;
     boost::asio::steady_timer bindTimer;
+    std::unique_ptr<dxa::game_common::UdpDatagramQueue> udpSendQueue;
     std::shared_ptr<dxa::protocol::AsioFramedConnection> tcpTransport;
-    std::thread networkThread;
     GameSessionStart start;
     udp::endpoint serverUdpEndpoint;
     udp::endpoint udpRemoteEndpoint;
@@ -578,23 +773,64 @@ struct GameSession::Impl
     SnapshotReassembler reassembler;
     dxa::protocol::UdpSessionToken udpToken;
     std::atomic<std::uint32_t> localActor{0U};
+    std::atomic<std::uint32_t> lastAppliedSnapshotId{0U};
+    std::atomic<bool> keyframeRequested{false};
     std::atomic<GameSessionState> state{GameSessionState::Idle};
     std::atomic<bool> stopRequested{false};
 
+    dxa::game_common::GameTrafficCounter traffic;
+    std::uint64_t pendingWelcomeTcpReceivedBytes = 0U;
+    bool measurementStarted = false;
+    std::chrono::steady_clock::time_point measurementStartedAt{};
+    std::atomic<std::uint64_t> measurementNanoseconds{0U};
+
     std::mutex snapshotMutex;
-    std::deque<ReassembledSnapshot> snapshotQueue;
-    std::uint64_t droppedSnapshots = 0U;
+    std::deque<PendingSnapshot> snapshotQueue;
+    std::atomic<std::uint64_t> discardedSnapshots{0U};
+    std::atomic<std::uint64_t> droppedSnapshots{0U};
     std::atomic<std::uint64_t> snapshotCount{0U};
+    std::atomic<std::uint64_t> appliedSnapshotCount{0U};
+    std::atomic<std::uint64_t> keyframesApplied{0U};
+    std::atomic<std::uint64_t> keyframeRequests{0U};
     mutable std::mutex resultMutex;
     std::optional<dxa::protocol::GameMatchResult> matchResult;
 };
 
 GameSession::GameSession(dxa::simulation::NavMesh navMesh)
-    : impl_{std::make_unique<Impl>(std::move(navMesh))}
+    : runtime_{std::make_shared<GameNetworkRuntime>()},
+      ownsRuntime_{true}
 {
+    if (!runtime_->Start())
+    {
+        throw std::runtime_error{"owned game network runtime failed to start"};
+    }
+    impl_ = std::make_shared<Impl>(
+        std::move(navMesh),
+        runtime_->Io());
 }
 
-GameSession::~GameSession() = default;
+GameSession::GameSession(
+    dxa::simulation::NavMesh navMesh,
+    std::shared_ptr<GameNetworkRuntime> runtime)
+    : runtime_{std::move(runtime)}
+{
+    if (!runtime_)
+    {
+        throw std::invalid_argument{"shared game network runtime is required"};
+    }
+    if (!runtime_->Started())
+    {
+        throw std::logic_error{"shared game network runtime must be started"};
+    }
+    impl_ = std::make_shared<Impl>(
+        std::move(navMesh),
+        runtime_->Io());
+}
+
+GameSession::~GameSession()
+{
+    Stop();
+}
 
 void GameSession::Start(GameSessionStart start)
 {
@@ -634,8 +870,38 @@ std::uint64_t GameSession::SnapshotCount() const noexcept
     return impl_->snapshotCount.load();
 }
 
+dxa::game_common::GameSessionMetrics GameSession::Metrics() const
+{
+    dxa::game_common::GameSessionMetrics metrics;
+    metrics.traffic = impl_->traffic.Totals();
+    metrics.snapshotsApplied = impl_->appliedSnapshotCount.load();
+    metrics.snapshotsDiscarded = impl_->discardedSnapshots.load();
+    metrics.snapshotQueueDrops = impl_->droppedSnapshots.load();
+    metrics.keyframesApplied = impl_->keyframesApplied.load();
+    metrics.keyframeRequests = impl_->keyframeRequests.load();
+    if (impl_->udpSendQueue)
+    {
+        const auto shaping = impl_->udpSendQueue->Metrics();
+        metrics.udpDatagramsDropped = shaping.dropped;
+        metrics.udpDatagramsDelayed = shaping.delayed;
+        metrics.udpDatagramsDelivered = shaping.delivered;
+        metrics.shapedQueueOverflows = shaping.overflows;
+    }
+    metrics.measurementNanoseconds = impl_->measurementNanoseconds.load();
+    return metrics;
+}
+
 void GameSession::Stop()
 {
-    impl_->Stop();
+    if (impl_)
+    {
+        impl_->Stop(
+            runtime_->Started(),
+            runtime_->RunningOnThisThread());
+    }
+    if (ownsRuntime_)
+    {
+        runtime_->Stop();
+    }
 }
 } // namespace dxa::game_client

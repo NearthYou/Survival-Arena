@@ -41,6 +41,8 @@ struct ClientInput
     PlayerId player;
     UdpSessionToken token;
     std::uint32_t inputSequence = 0U;
+    std::uint32_t acknowledgedSnapshotId = 0U;
+    bool requestKeyframe = false;
     NetworkVec2 moveDestination;
     bool hasMoveDestination = false;
     EntityId attackTarget;

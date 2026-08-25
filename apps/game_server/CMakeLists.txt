@@ -1,13 +1,18 @@
 add_library(
     dxa_game_server_core
     STATIC
+        include/dxa/game_server/InterestGrid.hpp
+        include/dxa/game_server/SnapshotReplicator.hpp
         src/AuthoritativeMatch.cpp
         src/FixedTickScheduler.cpp
         src/GameServer.cpp
         src/GameServerOptions.cpp
         src/GameTicketStore.cpp
+        src/InterestGrid.cpp
         src/ParticipantRoster.cpp
         src/SecureUdpTokenSource.cpp
+        src/ServerMatchMetrics.cpp
+        src/SnapshotReplicator.cpp
 )
 find_package(spdlog CONFIG REQUIRED)
 target_include_directories(

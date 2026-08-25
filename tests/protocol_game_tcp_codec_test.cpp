@@ -85,6 +85,7 @@ TEST(GameTcpCodec, RoundTripsEveryGameTcpMessage)
         SnapshotRate,
         1U,
         0x12345678U,
+        ReplicationMode::FullState,
         Token(0x40U)}});
     ExpectServerRoundTrip(GameServerMessage{GameServerErrorMessage{
         GameServerErrorCode::AuthenticationFailed}});
@@ -114,6 +115,7 @@ TEST(GameTcpCodec, PreservesZeroPublicIdsAsRepresentableValues)
         SnapshotRate,
         1U,
         0U,
+        ReplicationMode::FullState,
         Token(1U)}});
 }
 
@@ -127,6 +129,7 @@ TEST(GameTcpCodec, EnforcesWelcomeRatesAndMapIdentity)
         SnapshotRate,
         1U,
         0x1234U,
+        ReplicationMode::FullState,
         Token(1U)};
 
     welcome.tickRate = 29U;
@@ -140,6 +143,27 @@ TEST(GameTcpCodec, EnforcesWelcomeRatesAndMapIdentity)
         std::invalid_argument);
     welcome.snapshotRate = SnapshotRate;
     welcome.mapId = 0U;
+    EXPECT_THROW(
+        (void)EncodeGameServerMessage(GameServerMessage{welcome}),
+        std::invalid_argument);
+}
+
+TEST(GameTcpCodec, RoundTripsReplicationModeAndRejectsUnknownValue)
+{
+    GameServerWelcome welcome{
+        MatchId{1U},
+        PlayerId{2U},
+        EntityId{},
+        GameTickRate,
+        SnapshotRate,
+        1U,
+        0x1234U,
+        ReplicationMode::FullState,
+        Token(1U)};
+    welcome.replicationMode = ReplicationMode::InterestDelta;
+    ExpectServerRoundTrip(GameServerMessage{welcome});
+
+    welcome.replicationMode = static_cast<ReplicationMode>(99U);
     EXPECT_THROW(
         (void)EncodeGameServerMessage(GameServerMessage{welcome}),
         std::invalid_argument);
@@ -194,7 +218,16 @@ TEST(GameTcpCodec, RejectsWrongDirectionInvalidEnumAndTrailingBytes)
             SnapshotRate,
             1U,
             0x1234U,
+            ReplicationMode::FullState,
             Token(1U)}});
+    EncodedMessage invalidMode = welcome;
+    invalidMode.payload[28] = std::byte{0x63};
+    EXPECT_EQ(
+        DecodeError::InvalidValue,
+        DecodeGameServerMessage(
+            invalidMode.type,
+            invalidMode.payload).error);
+
     welcome.payload.push_back(std::byte{0x00});
     EXPECT_EQ(
         DecodeError::TrailingBytes,

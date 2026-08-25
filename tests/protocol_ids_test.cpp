@@ -24,7 +24,7 @@ TEST(ProtocolIds, KeepsDomainIdsDistinct)
 
 TEST(LobbyTypes, LocksWireConstants)
 {
-    EXPECT_EQ(1U, dxa::protocol::ProtocolVersion);
+    EXPECT_EQ(2U, dxa::protocol::ProtocolVersion);
     EXPECT_EQ(std::size_t{12}, dxa::protocol::TcpFrameHeaderBytes);
     EXPECT_EQ(std::size_t{65536}, dxa::protocol::MaxTcpFrameBytes);
     EXPECT_EQ(std::size_t{65524}, dxa::protocol::MaxTcpPayloadBytes);

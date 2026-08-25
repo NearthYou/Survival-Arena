@@ -1,6 +1,10 @@
 #pragma once
 
+#include <dxa/game_common/NetworkMetrics.hpp>
+#include <dxa/game_common/UdpDatagramQueue.hpp>
 #include <dxa/game_server/GameServerOptions.hpp>
+#include <dxa/game_server/ServerMatchMetrics.hpp>
+#include <dxa/game_server/SnapshotReplicator.hpp>
 #include <dxa/game_server/UdpTokenSource.hpp>
 
 #include <dxa/simulation/MatchConfig.hpp>
@@ -8,8 +12,10 @@
 #include <boost/asio/io_context.hpp>
 
 #include <chrono>
+#include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <vector>
 
 namespace dxa::game_server
 {
@@ -21,6 +27,7 @@ struct GameServerConfig
     std::chrono::milliseconds authenticationTimeout{5000};
     std::chrono::milliseconds controlReconnectDelay{1000};
     std::shared_ptr<IUdpTokenSource> udpTokenSource;
+    ReplicationConfig replicationConfig;
 };
 
 class GameServer
@@ -36,6 +43,12 @@ public:
     void Stop();
     [[nodiscard]] std::uint16_t GameTcpPort() const;
     [[nodiscard]] std::uint16_t GameUdpPort() const;
+    [[nodiscard]] dxa::game_common::GameTrafficTotals Traffic() const;
+    [[nodiscard]] dxa::game_common::UdpDatagramQueueMetrics
+    UdpShapingMetrics() const noexcept;
+    [[nodiscard]] std::vector<ServerMatchMetricsSnapshot>
+    CompletedMetrics() const;
+    [[nodiscard]] std::size_t CompletedMetricCount() const;
 
 private:
     struct State;

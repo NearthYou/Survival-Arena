@@ -1,0 +1,57 @@
+[22:35:52.218] [info] client start: adapter=warp, size=1920x1080, frames=0, hidden=true, vsync=true, asset_scene=false, benchmark=false, render_path=hybrid-deferred, network=true
+network lobby state=connected
+network room=1 state=waiting players=1/24 ready=0
+network room=1 state=waiting players=1/24 ready=1
+network room=1 state=waiting players=2/24 ready=1
+network room=1 state=waiting players=3/24 ready=1
+network room=1 state=waiting players=4/24 ready=1
+network room=1 state=waiting players=5/24 ready=1
+network room=1 state=waiting players=6/24 ready=1
+network room=1 state=waiting players=7/24 ready=1
+network room=1 state=waiting players=8/24 ready=1
+network room=1 state=waiting players=9/24 ready=1
+network room=1 state=waiting players=10/24 ready=1
+network room=1 state=waiting players=11/24 ready=1
+network room=1 state=waiting players=12/24 ready=1
+network room=1 state=waiting players=13/24 ready=1
+network room=1 state=waiting players=14/24 ready=1
+network room=1 state=waiting players=15/24 ready=1
+network room=1 state=waiting players=16/24 ready=1
+network room=1 state=waiting players=17/24 ready=1
+network room=1 state=waiting players=18/24 ready=1
+network room=1 state=waiting players=19/24 ready=1
+network room=1 state=waiting players=20/24 ready=1
+network room=1 state=waiting players=21/24 ready=1
+network room=1 state=waiting players=22/24 ready=1
+network room=1 state=waiting players=23/24 ready=1
+network room=1 state=waiting players=24/24 ready=1
+network room=1 state=waiting players=24/24 ready=2
+network room=1 state=waiting players=24/24 ready=3
+network room=1 state=waiting players=24/24 ready=4
+network room=1 state=waiting players=24/24 ready=5
+network room=1 state=waiting players=24/24 ready=6
+network room=1 state=waiting players=24/24 ready=7
+network room=1 state=waiting players=24/24 ready=8
+network room=1 state=waiting players=24/24 ready=9
+network room=1 state=waiting players=24/24 ready=10
+network room=1 state=waiting players=24/24 ready=11
+network room=1 state=waiting players=24/24 ready=12
+network room=1 state=waiting players=24/24 ready=13
+network room=1 state=waiting players=24/24 ready=14
+network room=1 state=waiting players=24/24 ready=15
+network room=1 state=waiting players=24/24 ready=16
+network room=1 state=waiting players=24/24 ready=17
+network room=1 state=waiting players=24/24 ready=18
+network room=1 state=waiting players=24/24 ready=19
+network room=1 state=waiting players=24/24 ready=20
+network room=1 state=waiting players=24/24 ready=21
+network room=1 state=waiting players=24/24 ready=22
+network room=1 state=waiting players=24/24 ready=23
+network room=1 state=waiting players=24/24 ready=24
+network room=1 state=starting players=24/24 ready=24
+network room=1 state=in_match players=24/24 ready=24
+network match=1 state=assigned
+network match=1 state=synchronized snapshots=5
+network room=1 state=closed
+network match=1 player=1 state=finished winner=4 tick=17430 reason=1 snapshots_applied=8714 tcp_received_bytes=87 udp_received_bytes=39308880
+[22:45:36.041] [info] client stop: exit=0

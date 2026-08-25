@@ -1,7 +1,10 @@
 add_library(
     dxa_game_client
     STATIC
+        include/dxa/game_client/ClientSnapshotStream.hpp
+        src/ClientSnapshotStream.cpp
         src/ClientPredictor.cpp
+        src/GameNetworkRuntime.cpp
         src/GameSession.cpp
         src/RemoteInterpolator.cpp
         src/SnapshotReassembler.cpp
@@ -14,6 +17,7 @@ target_include_directories(
 target_link_libraries(
     dxa_game_client
     PUBLIC
+        dxa_game_common
         dxa_protocol
         dxa_simulation
 )

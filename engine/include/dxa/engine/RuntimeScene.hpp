@@ -46,5 +46,9 @@ public:
     virtual ~IRuntimeSceneController() = default;
     virtual void FixedUpdate(const RuntimeInputFrame& input) = 0;
     [[nodiscard]] virtual RuntimeSceneFrame SampleScene() = 0;
+    [[nodiscard]] virtual bool ShouldClose() const noexcept
+    {
+        return false;
+    }
 };
 } // namespace dxa::engine

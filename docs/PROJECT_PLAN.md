@@ -38,7 +38,14 @@ C++20과 DirectX 11로 쿼터뷰 생존 아레나를 만든다. 한 명은 DX11 
 - 완료: 7주차 오프라인 경기 루프
 - 완료: 8주차 로비와 방 흐름
 - 완료: 9주차 권위형 게임 서버와 클라이언트 보정
-- 다음: 10주차 24인 부하와 관심 영역 최적화
+- 완료: 10주차 24인 부하와 관심 영역 최적화
+- 다음: 11주차 Linux 서버 패키징과 외부 접속
+
+10주차는 DX11 WARP client 1개와 bot session 23개의 production 경기, 네 replication mode 비교, 100ms RTT와 2% loss 및 10ms jitter 경기, Windows 2324.07초 soak를 완료했다. Ubuntu 24.04에서는 GCC `-Werror` build 뒤 ASan과 UBSan 24인 headless 경기를 1800초 동안 1817회 실행했다.
+
+full-state 평균 수신량은 66.216564KiB/s로 64KiB/s 목표를 넘었다. 최종 interest-delta는 4.123043KiB/s였고 server tick P95는 1.8002ms였다. 기준선 목표 미달과 delta encode P95 증가를 포함한 원본 비교는 [24인 replication 비교](benchmarks/network-load/20260826-01ae1278-COMPARISON.md)에 있다.
+
+이 branch의 GitHub hosted CI는 PR 생성 뒤 확인한다. hosted runner가 billing 문제로 할당되지 않으면 local Windows와 Docker Linux 통과를 hosted CI 통과로 바꾸어 표현하지 않는다.
 
 ## 완료 판정
 

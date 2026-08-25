@@ -409,6 +409,11 @@ TEST(GameServerAdapter, RejectsSecondHelloAfterWelcomeAndFlushesError)
     EXPECT_EQ(
         GameServerErrorCode::ProtocolViolation,
         client.Latest<GameServerErrorMessage>()->error);
+    const auto traffic = fixture.server.Traffic();
+    EXPECT_GT(traffic.tcpSentBytes, 0U);
+    EXPECT_GT(traffic.tcpReceivedBytes, 0U);
+    EXPECT_EQ(0U, traffic.udpSentBytes);
+    EXPECT_EQ(0U, traffic.udpReceivedBytes);
 }
 
 TEST(GameServerAdapter, RejectsLobbyMessageOnGameChannel)

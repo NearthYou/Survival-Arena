@@ -5,6 +5,7 @@
 
 #include <dxa/protocol/GameSnapshotCodec.hpp>
 #include <dxa/protocol/GameUdpCodec.hpp>
+#include <dxa/protocol/ReplicationSnapshotCodec.hpp>
 #include <dxa/simulation/MatchConfig.hpp>
 
 #include <gtest/gtest.h>
@@ -31,6 +32,7 @@ using dxa::game_server::GameConnectionId;
 using dxa::game_server::GameTcpOutbound;
 using dxa::game_server::GameUdpOutbound;
 using dxa::game_server::IUdpTokenSource;
+using dxa::game_server::ReplicationConfig;
 using dxa::game_server::UdpPeer;
 using dxa::protocol::ClientDatagram;
 using dxa::protocol::ClientInput;
@@ -47,6 +49,7 @@ using dxa::protocol::MatchTicketValue;
 using dxa::protocol::NetworkActorRole;
 using dxa::protocol::NetworkMatchPhase;
 using dxa::protocol::PlayerId;
+using dxa::protocol::ReplicationMode;
 using dxa::protocol::ReserveMatch;
 using dxa::protocol::ReservedParticipant;
 using dxa::protocol::ServerDatagram;
@@ -160,14 +163,18 @@ private:
     DeterministicUdpTokenSource& tokens,
     const std::chrono::steady_clock::time_point now = TimeNs(0U),
     const ReserveMatch& reservation = Reservation(),
-    const ArenaMapDefinition& arena = SurvivalArenaMapDefinition())
+    const ArenaMapDefinition& arena = SurvivalArenaMapDefinition(),
+    const ReplicationMode mode = ReplicationMode::FullState)
 {
+    ReplicationConfig replication;
+    replication.mode = mode;
     return AuthoritativeMatch::Create(
         reservation,
         arena,
         DefaultMatchConfig(),
         tokens,
-        now);
+        now,
+        replication);
 }
 
 template <typename Message>
@@ -348,12 +355,14 @@ void Bind(
             fragment->bytes.begin(),
             fragment->bytes.end());
     }
-    const auto decoded = dxa::protocol::DecodeGameSnapshot(payload);
-    if (!decoded.snapshot.has_value())
+    const auto decoded = dxa::protocol::DecodeSnapshotPayload(payload);
+    if (!decoded.payload.has_value()
+        || decoded.payload->header.valueEncoding
+            != dxa::protocol::SnapshotValueEncoding::FullPrecision)
     {
         throw std::logic_error{"snapshot payload decode failed"};
     }
-    return *decoded.snapshot;
+    return decoded.payload->fullPrecision;
 }
 
 [[nodiscard]] ArenaMapDefinition DisconnectedArena()
@@ -413,6 +422,25 @@ TEST(AuthoritativeMatch, CreatesReservedPopulationWithoutInternalContenderBots)
             tokens,
             TimeNs(0U)),
         std::invalid_argument);
+}
+
+TEST(AuthoritativeMatch, AdvertisesSelectedReplicationMode)
+{
+    DeterministicUdpTokenSource tokens;
+    AuthoritativeMatch match = CreateMatch(
+        tokens,
+        TimeNs(0U),
+        Reservation(),
+        SurvivalArenaMapDefinition(),
+        ReplicationMode::InterestDelta);
+
+    const GameServerWelcome welcome = Authenticate(
+        match,
+        GameConnectionId{10U},
+        PlayerA,
+        Ticket(2U));
+
+    EXPECT_EQ(ReplicationMode::InterestDelta, welcome.replicationMode);
 }
 
 TEST(AuthoritativeMatch, WaitsForEverySlotAndMapsSortedPlayersToActors)
@@ -628,6 +656,36 @@ TEST(AuthoritativeMatch, IgnoresOldDuplicateAndPostMaximumInputSequences)
         FirstFragmentFor(output, peerA)->ackInputSequence);
 }
 
+TEST(AuthoritativeMatch, FutureSnapshotAckIsProtocolViolation)
+{
+    DeterministicUdpTokenSource tokens;
+    AuthoritativeMatch match = CreateMatch(
+        tokens,
+        TimeNs(0U),
+        Reservation(),
+        SurvivalArenaMapDefinition(),
+        ReplicationMode::InterestDelta);
+    const StartedPlayers players = StartPlayers(match);
+    const UdpPeer peerA = Peer(1U, 9001U);
+    Bind(match, peerA, PlayerA, players.tokenA);
+    const AuthoritativeMatchResult snapshot = match.Advance(
+        TimeNs(66666666ULL));
+    ASSERT_NE(nullptr, FirstFragmentFor(snapshot, peerA));
+
+    ClientInput future = MoveInput(
+        PlayerA,
+        players.tokenA,
+        1U,
+        0.0F,
+        0.0F);
+    future.acknowledgedSnapshotId = 999U;
+    const AuthoritativeMatchResult rejected = match.ReceiveClientDatagram(
+        peerA,
+        ClientDatagram{future});
+
+    EXPECT_EQ(GameServerErrorCode::ProtocolViolation, OnlyError(rejected));
+}
+
 TEST(AuthoritativeMatch, EmitsBoundedRecipientSnapshotsEverySecondTick)
 {
     DeterministicUdpTokenSource tokens;
@@ -670,6 +728,11 @@ TEST(AuthoritativeMatch, EmitsBoundedRecipientSnapshotsEverySecondTick)
     EXPECT_EQ(
         FirstFragmentFor(fourth, peerA)->fullPayloadCrc32,
         FirstFragmentFor(fourth, peerB)->fullPayloadCrc32);
+
+    const auto metrics = match.Metrics();
+    EXPECT_EQ(4U, metrics.tickSamples.size());
+    EXPECT_EQ(3U, metrics.replicationSamples.size());
+    EXPECT_GT(metrics.payloadBytes, 0U);
 }
 
 TEST(AuthoritativeMatch, PropagatesBoundedCatchUpAndCumulativeOverruns)
@@ -685,12 +748,14 @@ TEST(AuthoritativeMatch, PropagatesBoundedCatchUpAndCumulativeOverruns)
     EXPECT_TRUE(overrun.overrun);
     EXPECT_EQ(std::chrono::milliseconds{800}, overrun.overrunLateness);
     EXPECT_EQ(1U, overrun.totalOverruns);
+    EXPECT_EQ(1U, match.Metrics().schedulerOverruns);
 
     const AuthoritativeMatchResult idle = match.Advance(
         TimeNs(1000000000ULL));
     EXPECT_EQ(0U, idle.ticksExecuted);
     EXPECT_FALSE(idle.overrun);
     EXPECT_EQ(1U, idle.totalOverruns);
+    EXPECT_EQ(1U, match.Metrics().schedulerOverruns);
 }
 
 TEST(AuthoritativeMatch, TicketExpiryResolvesRemainingSlotAndStartsMatch)

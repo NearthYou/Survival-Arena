@@ -4,10 +4,12 @@
 #include <dxa/game_common/SnapshotAdapter.hpp>
 #include <dxa/game_server/FixedTickScheduler.hpp>
 #include <dxa/game_server/GameTicketStore.hpp>
+#include <dxa/game_server/ServerMatchMetrics.hpp>
+#include <dxa/game_server/SnapshotReplicator.hpp>
 
-#include <dxa/protocol/GameSnapshotCodec.hpp>
 #include <dxa/protocol/GameUdpCodec.hpp>
 #include <dxa/protocol/LobbyTypes.hpp>
+#include <dxa/protocol/ReplicationSnapshotCodec.hpp>
 #include <dxa/simulation/OfflineMatch.hpp>
 
 #include <algorithm>
@@ -96,6 +98,30 @@ namespace
 {
     return std::isfinite(value.x) && std::isfinite(value.z);
 }
+
+[[nodiscard]] std::size_t ReplicationSampleCapacity(
+    const dxa::simulation::MatchConfig& config)
+{
+    const std::size_t snapshots =
+        static_cast<std::size_t>(config.hardTimeoutTick / 2U + 1U);
+    if (snapshots
+        > std::numeric_limits<std::size_t>::max()
+            / dxa::protocol::RoomCapacity)
+    {
+        throw std::overflow_error{
+            "replication metric sample capacity overflow"};
+    }
+    return snapshots * dxa::protocol::RoomCapacity;
+}
+
+[[nodiscard]] std::uint16_t MetricCount(const std::size_t count)
+{
+    if (count > std::numeric_limits<std::uint16_t>::max())
+    {
+        throw std::overflow_error{"replication metric visible count overflow"};
+    }
+    return static_cast<std::uint16_t>(count);
+}
 } // namespace
 
 struct AuthoritativeMatch::Impl
@@ -115,11 +141,18 @@ struct AuthoritativeMatch::Impl
         const dxa::simulation::ArenaMapDefinition& arena,
         dxa::simulation::MatchConfig config,
         IUdpTokenSource& source,
-        const std::chrono::steady_clock::time_point now)
+        const std::chrono::steady_clock::time_point now,
+        ReplicationConfig replicationConfig)
         : matchId{reservation.match},
           mapId{arena.mapId},
           navMeshCrc32{dxa::game_common::SurvivalArenaFingerprint(arena)},
           navMesh{BuildArenaNavMesh(arena)},
+          replicationMode{replicationConfig.mode},
+          replicator{arena, std::move(replicationConfig)},
+          metrics{
+              reservation.match,
+              config.hardTimeoutTick,
+              ReplicationSampleCapacity(config)},
           simulation{dxa::simulation::OfflineMatch::Create(
               navMesh,
               ServerMatchConfig(reservation, std::move(config)))},
@@ -349,18 +382,25 @@ struct AuthoritativeMatch::Impl
         }
         const dxa::simulation::MatchSnapshot simulationSnapshot =
             simulation.Snapshot();
-        const std::vector<std::byte> payload =
-            dxa::protocol::EncodeGameSnapshot(
-                dxa::game_common::ToGameSnapshot(simulationSnapshot));
+        const dxa::protocol::GameSnapshot networkSnapshot =
+            dxa::game_common::ToGameSnapshot(simulationSnapshot);
         const std::uint32_t snapshotId = nextSnapshotId++;
 
         for (const auto& [player, session] : sessions)
         {
-            static_cast<void>(player);
             if (!session.connected || !session.peer.has_value())
             {
                 continue;
             }
+            const auto encodeStartedAt = std::chrono::steady_clock::now();
+            const ReplicationBuild build = replicator.Build(
+                player,
+                snapshotId,
+                networkSnapshot);
+            const std::vector<std::byte>& payload = build.encodedPayload;
+            const auto encodeDuration =
+                std::chrono::duration_cast<std::chrono::nanoseconds>(
+                    std::chrono::steady_clock::now() - encodeStartedAt);
             const auto fragments = dxa::protocol::FragmentSnapshot(
                 matchId,
                 snapshotId,
@@ -371,8 +411,18 @@ struct AuthoritativeMatch::Impl
             {
                 result.udp.push_back(GameUdpOutbound{
                     *session.peer,
-                    dxa::protocol::ServerDatagram{fragment}});
+                    dxa::protocol::ServerDatagram{fragment},
+                    player.value});
             }
+            metrics.RecordReplication(
+                encodeDuration,
+                static_cast<std::uint32_t>(payload.size()),
+                MetricCount(fragments.size()),
+                build.payload.header.kind
+                    != dxa::protocol::SnapshotPayloadKind::Delta,
+                MetricCount(build.visibleActorCount),
+                MetricCount(build.visibleLootCount),
+                build.fallbackKeyframe);
         }
     }
 
@@ -380,6 +430,10 @@ struct AuthoritativeMatch::Impl
     std::uint32_t mapId = 1U;
     std::uint32_t navMeshCrc32 = 0U;
     dxa::simulation::NavMesh navMesh;
+    dxa::protocol::ReplicationMode replicationMode =
+        dxa::protocol::ReplicationMode::FullState;
+    SnapshotReplicator replicator;
+    ServerMatchMetrics metrics;
     dxa::simulation::OfflineMatch simulation;
     ParticipantRoster roster;
     GameTicketStore tickets;
@@ -401,7 +455,8 @@ AuthoritativeMatch AuthoritativeMatch::Create(
     const dxa::simulation::ArenaMapDefinition& arena,
     dxa::simulation::MatchConfig config,
     IUdpTokenSource& tokenSource,
-    const std::chrono::steady_clock::time_point now)
+    const std::chrono::steady_clock::time_point now,
+    ReplicationConfig replication)
 {
     if (reservation.reservation.value == 0U
         || reservation.ticketLifetimeMilliseconds == 0U
@@ -415,7 +470,8 @@ AuthoritativeMatch AuthoritativeMatch::Create(
         arena,
         std::move(config),
         tokenSource,
-        now)};
+        now,
+        std::move(replication))};
 }
 
 AuthoritativeMatch::AuthoritativeMatch(std::unique_ptr<Impl> impl) noexcept
@@ -512,6 +568,7 @@ AuthoritativeMatchResult AuthoritativeMatch::Authenticate(
         hello.player,
         Impl::PlayerSession{connection, token});
     state.connections.emplace(connection, hello.player);
+    state.replicator.RegisterRecipient(hello.player, actor);
     result.tcp.push_back(GameTcpOutbound{
         connection,
         dxa::protocol::GameServerMessage{
@@ -523,6 +580,7 @@ AuthoritativeMatchResult AuthoritativeMatch::Authenticate(
                 dxa::protocol::SnapshotRate,
                 state.mapId,
                 state.navMeshCrc32,
+                state.replicationMode,
                 token}},
         false});
     state.ResolveStart(now, result);
@@ -569,7 +627,8 @@ AuthoritativeMatchResult AuthoritativeMatch::ReceiveClientDatagram(
                 dxa::protocol::UdpBindAccepted{
                     state.matchId,
                     bind->player,
-                    state.simulation.Snapshot().tick}}});
+                    state.simulation.Snapshot().tick}},
+            bind->player.value});
         state.Stamp(result);
         return result;
     }
@@ -588,6 +647,23 @@ AuthoritativeMatchResult AuthoritativeMatch::ReceiveClientDatagram(
     {
         state.Stamp(result);
         return result;
+    }
+
+    if (input.acknowledgedSnapshotId != 0U
+        && !state.replicator.AcceptAcknowledgement(
+            input.player,
+            input.acknowledgedSnapshotId))
+    {
+        state.AddError(
+            result,
+            session->connection,
+            dxa::protocol::GameServerErrorCode::ProtocolViolation);
+        state.Stamp(result);
+        return result;
+    }
+    if (input.requestKeyframe)
+    {
+        state.replicator.RequestKeyframe(input.player);
     }
 
     session->acknowledgedInput = input.inputSequence;
@@ -626,6 +702,7 @@ AuthoritativeMatchResult AuthoritativeMatch::Disconnect(
     session->second.connected = false;
     session->second.peer.reset();
     session->second.persistentCommand.reset();
+    state.replicator.RemoveRecipient(player);
     static_cast<void>(state.roster.MarkUnavailable(player));
 
     if (!state.started)
@@ -681,6 +758,7 @@ AuthoritativeMatchResult AuthoritativeMatch::Advance(
 
     for (std::uint32_t due = 0U; due < advance.ticksDue; ++due)
     {
+        const auto tickStartedAt = std::chrono::steady_clock::now();
         for (const auto& [player, session] : state.sessions)
         {
             static_cast<void>(player);
@@ -710,6 +788,9 @@ AuthoritativeMatchResult AuthoritativeMatch::Advance(
         {
             state.EmitSnapshot(result);
         }
+        state.metrics.RecordTick(
+            std::chrono::duration_cast<std::chrono::nanoseconds>(
+                std::chrono::steady_clock::now() - tickStartedAt));
         if (state.terminal)
         {
             break;
@@ -749,5 +830,15 @@ dxa::protocol::GameSnapshot AuthoritativeMatch::Snapshot() const
         throw std::logic_error{"authoritative match has been moved from"};
     }
     return dxa::game_common::ToGameSnapshot(impl_->simulation.Snapshot());
+}
+
+ServerMatchMetricsSnapshot AuthoritativeMatch::Metrics(
+    const dxa::game_common::GameTrafficTotals traffic) const
+{
+    if (impl_ == nullptr)
+    {
+        throw std::logic_error{"authoritative match has been moved from"};
+    }
+    return impl_->metrics.Snapshot(traffic, impl_->totalOverruns);
 }
 } // namespace dxa::game_server

@@ -1,0 +1,48 @@
+{
+  "schema_version": 2,
+  "run_id": "20260826-045322-01ae1278-interest-delta-impairment",
+  "started_at": "2026-08-25T19:53:23.5334756+00:00",
+  "finished_at": "2026-08-25T20:03:15.9817672+00:00",
+  "elapsed_seconds": 592.448,
+  "git": {
+    "commit_sha": "01ae1278a5f304dfd83e289f671a01f1095489f3",
+    "short_sha": "01ae1278",
+    "branch": "feat/24-player-load-optimization",
+    "clean_before_run": false,
+    "evidence_only_changes_before_run": true
+  },
+  "build": {
+    "preset": "windows-msvc-vs-release",
+    "configuration": "Release"
+  },
+  "operating_system": {
+    "Caption": "Microsoft Windows 11 Home",
+    "Version": "10.0.26200",
+    "BuildNumber": "26200",
+    "TotalVisibleMemorySize": 15930312
+  },
+  "processor": {
+    "Name": "AMD Ryzen 7 6800HS Creator Edition             ",
+    "NumberOfCores": 8,
+    "NumberOfLogicalProcessors": 16
+  },
+  "process_topology": {
+    "lobby_servers": 1,
+    "game_servers": 1,
+    "dx11_clients_per_match": 1,
+    "bot_processes_per_match": 1,
+    "bot_sessions_per_match": 23
+  },
+  "selected_adapter": "Microsoft Basic Render Driver",
+  "replication_mode": "interest-delta",
+  "match_count": 1,
+  "soak_minutes": 0,
+  "measured_match_seconds": 581.018,
+  "network": {
+    "impairment_enabled": true,
+    "one_way_latency_ms": 50,
+    "jitter_ms": 10,
+    "loss_basis_points": 200,
+    "seed": 20260825
+  }
+}

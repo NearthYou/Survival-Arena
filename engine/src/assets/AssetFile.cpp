@@ -77,9 +77,10 @@ public:
     [[nodiscard]] std::uint16_t ReadU16()
     {
         Require(2);
-        const std::uint16_t value =
+        const std::uint16_t value = static_cast<std::uint16_t>(
             static_cast<std::uint16_t>(bytes_[offset_])
-            | static_cast<std::uint16_t>(bytes_[offset_ + 1]) << 8U;
+            | static_cast<std::uint16_t>(
+                static_cast<std::uint16_t>(bytes_[offset_ + 1]) << 8U));
         offset_ += 2;
         return value;
     }

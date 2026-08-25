@@ -59,11 +59,26 @@ Overloaded(Functions...) -> Overloaded<Functions...>;
         && value.hasWinner == CompletionNeedsWinner(value.reason);
 }
 
+[[nodiscard]] bool IsValidReplicationMode(
+    const ReplicationMode mode) noexcept
+{
+    switch (mode)
+    {
+    case ReplicationMode::FullState:
+    case ReplicationMode::InterestFullPrecision:
+    case ReplicationMode::InterestQuantized:
+    case ReplicationMode::InterestDelta:
+        return true;
+    }
+    return false;
+}
+
 [[nodiscard]] bool IsValidWelcome(const GameServerWelcome& value) noexcept
 {
     return value.tickRate == GameTickRate
         && value.snapshotRate == SnapshotRate
-        && value.mapId != 0U;
+        && value.mapId != 0U
+        && IsValidReplicationMode(value.replicationMode);
 }
 
 template <typename Writer>
@@ -142,6 +157,7 @@ template <typename MessageVariant, typename Message>
     const auto snapshotRate = reader.ReadU16();
     const auto mapId = reader.ReadU32();
     const auto navMeshCrc32 = reader.ReadU32();
+    const auto replicationMode = reader.ReadU8();
     const auto tokenBytes = reader.ReadBytes(MatchTicketBytes);
     if (!match.has_value()
         || !player.has_value()
@@ -150,6 +166,7 @@ template <typename MessageVariant, typename Message>
         || !snapshotRate.has_value()
         || !mapId.has_value()
         || !navMeshCrc32.has_value()
+        || !replicationMode.has_value()
         || !tokenBytes.has_value())
     {
         return ReaderFailure<GameServerMessage>(reader);
@@ -165,6 +182,7 @@ template <typename MessageVariant, typename Message>
         *snapshotRate,
         *mapId,
         *navMeshCrc32,
+        static_cast<ReplicationMode>(*replicationMode),
         token};
     if (!IsValidWelcome(message))
     {
@@ -268,6 +286,8 @@ EncodedMessage EncodeGameServerMessage(const GameServerMessage& message)
                     writer.WriteU16(value.snapshotRate);
                     writer.WriteU32(value.mapId);
                     writer.WriteU32(value.navMeshCrc32);
+                    writer.WriteU8(static_cast<std::uint8_t>(
+                        value.replicationMode));
                     writer.WriteBytes(value.udpToken);
                 });
             },

@@ -44,6 +44,14 @@ using boost::asio::ip::udp;
     return config;
 }
 
+[[nodiscard]] dxa::simulation::MatchConfig TwentyFourPlayerBotConfig()
+{
+    dxa::simulation::MatchConfig config = BotPlayMatchConfig();
+    config.suddenDeathTick = 6U;
+    config.hardTimeoutTick = 12U;
+    return config;
+}
+
 [[nodiscard]] dxa::bot_client::BotClientOptions PlayOptions(
     const std::uint16_t port,
     const dxa::protocol::RoomId room)
@@ -314,6 +322,7 @@ private:
                                     arena.mapId,
                                     dxa::game_common::
                                         SurvivalArenaFingerprint(arena),
+                                    dxa::protocol::ReplicationMode::FullState,
                                     token}})));
                 },
                 [](const boost::system::error_code) {});
@@ -369,6 +378,24 @@ void WaitForThirdBotReady(
                 *room.host);
         return snapshot != nullptr
             && snapshot->members.size() == 3U
+            && std::all_of(
+                snapshot->members.begin(),
+                snapshot->members.end(),
+                [](const auto& member) { return member.ready; });
+    });
+}
+
+void WaitForReadyMemberCount(
+    dxa::test::GameNetworkFixture& fixture,
+    const dxa::test::ReadyNetworkRoom& room,
+    const std::size_t expected)
+{
+    fixture.RunUntil([&room, expected] {
+        const auto* snapshot =
+            dxa::test::LatestLobbyMessage<dxa::protocol::RoomSnapshot>(
+                *room.host);
+        return snapshot != nullptr
+            && snapshot->members.size() == expected
             && std::all_of(
                 snapshot->members.begin(),
                 snapshot->members.end(),
@@ -552,6 +579,12 @@ TEST(GameServerIntegration, CompletesThreeSequentialReservationsOnOneWorker)
         static_cast<void>(fixture.WaitForResult(host));
         fixture.WaitForRoomCleanup(room);
     }
+
+    const auto metrics = fixture.CompletedMetrics();
+    ASSERT_EQ(3U, metrics.size());
+    EXPECT_EQ(dxa::protocol::MatchId{1U}, metrics[0].match);
+    EXPECT_EQ(dxa::protocol::MatchId{2U}, metrics[1].match);
+    EXPECT_EQ(dxa::protocol::MatchId{3U}, metrics[2].match);
 }
 
 TEST(GameServerIntegration, PlayBotUsesSharedGameSessionUntilResult)
@@ -579,7 +612,86 @@ TEST(GameServerIntegration, PlayBotUsesSharedGameSessionUntilResult)
     fixture.RunUntil([&bot] { return bot.Result().has_value(); });
 
     EXPECT_EQ(0, bot.ExitCode());
+    const auto report = bot.Report();
+    ASSERT_EQ(1U, report.sessions.size());
+    EXPECT_EQ(0, report.sessions.front().exitCode);
+    EXPECT_EQ(bot.Result(), report.result);
     bot.Stop();
+}
+
+TEST(GameServerIntegration, PlayCoordinatorReportsEverySession)
+{
+    dxa::test::GameNetworkFixture fixture{TwentyFourPlayerBotConfig()};
+    fixture.StartLobbyAndWorker();
+    const dxa::test::ReadyNetworkRoom room =
+        fixture.CreateReadyTwoPlayerRoom();
+    room.guest->client->Close();
+    WaitForReadyMemberCount(fixture, room, 1U);
+
+    dxa::bot_client::BotClientOptions options =
+        PlayOptions(fixture.LobbyPort(), room.room);
+    options.count = 23U;
+    dxa::bot_client::BotCoordinator bots{fixture.BotIo(), options};
+    bots.Start();
+
+    WaitForReadyMemberCount(fixture, room, 24U);
+    fixture.StartMatch(room.host);
+    fixture.RunUntil([&room] {
+        return dxa::test::LatestLobbyMessage<dxa::protocol::MatchTicket>(
+            *room.host) != nullptr;
+    });
+    const auto host = fixture.Authenticate(dxa::test::GameTicketCredential{
+        *dxa::test::LatestLobbyMessage<dxa::protocol::MatchTicket>(*room.host),
+        dxa::test::LatestLobbyMessage<dxa::protocol::ServerWelcome>(
+            *room.host)->player});
+
+    fixture.RunUntil([&bots] { return bots.Done(); });
+
+    const dxa::bot_client::BotCoordinatorReport report = bots.Report();
+    ASSERT_EQ(23U, report.sessions.size());
+    EXPECT_TRUE(std::all_of(
+        report.sessions.begin(),
+        report.sessions.end(),
+        [](const dxa::bot_client::BotSessionReport& session) {
+            return session.exitCode == 0
+                && session.snapshotsApplied >= 2U
+                && session.keyframesApplied >= 1U
+                && session.receivedTcpBytes > 0U
+                && session.receivedUdpBytes > 0U;
+        }));
+    ASSERT_TRUE(report.result.has_value());
+    EXPECT_TRUE(std::all_of(
+        report.sessions.begin(),
+        report.sessions.end(),
+        [&report](const dxa::bot_client::BotSessionReport& session) {
+            return session.match == report.result->match;
+        }));
+    EXPECT_EQ(0, report.exitCode);
+    fixture.RunUntil([&host] { return host->Result() != nullptr; });
+    EXPECT_EQ(*host->Result(), *report.result);
+
+    const auto serverMetrics = fixture.CompletedMetrics();
+    ASSERT_EQ(1U, serverMetrics.size());
+    EXPECT_EQ(report.result->match, serverMetrics.front().match);
+    EXPECT_EQ(12U, serverMetrics.front().tickSamples.size());
+    EXPECT_EQ(
+        6U * report.sessions.size(),
+        serverMetrics.front().replicationSamples.size());
+    EXPECT_GT(serverMetrics.front().tcpBytes, 0U);
+    EXPECT_GT(serverMetrics.front().udpBytes, 0U);
+    EXPECT_GT(serverMetrics.front().payloadBytes, 0U);
+    EXPECT_GT(
+        serverMetrics.front().udpBytes,
+        serverMetrics.front().payloadBytes);
+    ASSERT_FALSE(serverMetrics.front().replicationSamples.empty());
+    EXPECT_EQ(
+        24U,
+        serverMetrics.front().replicationSamples.front().visibleActors);
+    EXPECT_EQ(
+        0U,
+        serverMetrics.front().replicationSamples.front().visibleLoot);
+    EXPECT_TRUE(
+        serverMetrics.front().replicationSamples.front().keyframe);
 }
 
 TEST(GameServerIntegration, PlayBotPreservesLobbyOnlyTicketMode)
@@ -602,6 +714,9 @@ TEST(GameServerIntegration, PlayBotPreservesLobbyOnlyTicketMode)
     EXPECT_FALSE(bot.GameAuthenticated());
     EXPECT_EQ(0U, bot.SnapshotCount());
     EXPECT_FALSE(bot.Result().has_value());
+    const auto report = bot.Report();
+    ASSERT_EQ(1U, report.sessions.size());
+    EXPECT_EQ(0, report.sessions.front().exitCode);
 }
 
 TEST(GameServerIntegration, PlayBotReportsLobbyError)
@@ -618,6 +733,9 @@ TEST(GameServerIntegration, PlayBotReportsLobbyError)
     EXPECT_EQ(3, bot.ExitCode());
     EXPECT_FALSE(bot.GameAuthenticated());
     EXPECT_FALSE(bot.Result().has_value());
+    const auto report = bot.Report();
+    ASSERT_EQ(1U, report.sessions.size());
+    EXPECT_EQ(3, report.sessions.front().exitCode);
 }
 
 TEST(GameServerIntegration, PlayBotReportsGameAuthenticationFailure)
@@ -637,6 +755,10 @@ TEST(GameServerIntegration, PlayBotReportsGameAuthenticationFailure)
     EXPECT_EQ(3, bot.ExitCode());
     EXPECT_FALSE(bot.GameAuthenticated());
     EXPECT_FALSE(bot.Result().has_value());
+    const auto report = bot.Report();
+    ASSERT_EQ(1U, report.sessions.size());
+    EXPECT_EQ(3, report.sessions.front().exitCode);
+    EXPECT_EQ(dxa::protocol::MatchId{8U}, report.sessions.front().match);
 }
 
 TEST(GameServerIntegration, PlayBotTimesOutAfterGameAuthentication)
@@ -659,6 +781,9 @@ TEST(GameServerIntegration, PlayBotTimesOutAfterGameAuthentication)
     EXPECT_EQ(4, bot.ExitCode());
     EXPECT_EQ(0U, bot.SnapshotCount());
     EXPECT_FALSE(bot.Result().has_value());
+    const auto report = bot.Report();
+    ASSERT_EQ(1U, report.sessions.size());
+    EXPECT_EQ(4, report.sessions.front().exitCode);
 }
 
 TEST(GameServerIntegration, PlayBotUsesTimeoutExitCode)
@@ -691,6 +816,9 @@ TEST(GameServerIntegration, PlayBotStopIsIdempotentBeforeWelcome)
 
     EXPECT_TRUE(bot.Done());
     EXPECT_EQ(3, bot.ExitCode());
+    const auto report = bot.Report();
+    ASSERT_EQ(1U, report.sessions.size());
+    EXPECT_EQ(3, report.sessions.front().exitCode);
 }
 
 TEST(GameServerIntegration, NetworkHostControllerRunsUntilGameResult)
@@ -701,7 +829,10 @@ TEST(GameServerIntegration, NetworkHostControllerRunsUntilGameResult)
         dxa::client::NetworkClientOptions{
             "127.0.0.1",
             fixture.LobbyPort(),
-            2U}};
+            2U,
+            true,
+            dxa::protocol::ReplicationMode::FullState,
+            {}}};
     controller.Start();
     PumpNetworkControllerUntil(
         fixture,
@@ -738,5 +869,6 @@ TEST(GameServerIntegration, NetworkHostControllerRunsUntilGameResult)
 
     EXPECT_TRUE(controller.Result()->hasWinner);
     EXPECT_NO_THROW(controller.FixedUpdate({}));
+    EXPECT_TRUE(controller.ShouldClose());
     controller.Stop();
 }

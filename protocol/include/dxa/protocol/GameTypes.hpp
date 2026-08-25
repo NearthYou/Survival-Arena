@@ -104,6 +104,14 @@ inline constexpr std::size_t MaxSnapshotPayloadBytes = 37056U;
 inline constexpr std::size_t MaxClientInputHistory = 256U;
 inline constexpr std::size_t MaxClientSnapshotBuffer = 32U;
 
+enum class ReplicationMode : std::uint8_t
+{
+    FullState = 1,
+    InterestFullPrecision = 2,
+    InterestQuantized = 3,
+    InterestDelta = 4
+};
+
 struct GameEndpoint
 {
     std::string host;

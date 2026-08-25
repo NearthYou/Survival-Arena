@@ -211,6 +211,7 @@ int EngineApp::Run(
 
     while (true)
     {
+        bool runtimeCloseRequested = false;
         input.BeginFrame();
         if (!window.PumpMessages())
         {
@@ -267,6 +268,7 @@ int EngineApp::Run(
             hybridRenderer.SetZoneRadius(scene.zoneRadius);
             hybridRenderer.SetControlledPlayerPosition(
                 scene.controlledPlayer);
+            runtimeCloseRequested = runtimeScene->ShouldClose();
         }
         const bool measuredFrame = options.benchmark.has_value()
             && timing.frameIndex >= firstMeasuredFrame
@@ -343,7 +345,10 @@ int EngineApp::Run(
             gpuTimer.EndFrame(graphics.Context());
         }
 
-        if (options.verifyRender && timing.frameIndex == options.frameLimit)
+        if (options.verifyRender
+            && ((options.frameLimit != 0
+                 && timing.frameIndex == options.frameLimit)
+                || runtimeCloseRequested))
         {
             if (!graphics.BackBufferContainsNonClearPixel(ClearColor))
             {
@@ -393,6 +398,10 @@ int EngineApp::Run(
         }
 
         if (options.frameLimit != 0 && timing.frameIndex >= options.frameLimit)
+        {
+            break;
+        }
+        if (runtimeCloseRequested)
         {
             break;
         }

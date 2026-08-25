@@ -3,6 +3,8 @@
 #include <dxa/game_server/AuthoritativeMatch.hpp>
 #include <dxa/game_server/UdpTokenSource.hpp>
 
+#include <dxa/game_common/NetworkMetrics.hpp>
+#include <dxa/game_common/UdpDatagramQueue.hpp>
 #include <dxa/protocol/AsioFramedConnection.hpp>
 #include <dxa/protocol/GameTcpMessageCodec.hpp>
 #include <dxa/protocol/GameUdpCodec.hpp>
@@ -26,6 +28,7 @@
 #include <limits>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -130,6 +133,14 @@ struct GameServer::State final
                     {
                         locked->OnClosed(error);
                     }
+                },
+                [weak](
+                    const dxa::protocol::TrafficDirection direction,
+                    const std::size_t bytes) {
+                    if (const auto locked = weak.lock())
+                    {
+                        locked->OnBytes(direction, bytes);
+                    }
                 });
             return session;
         }
@@ -199,6 +210,16 @@ struct GameServer::State final
             }
         }
 
+        void OnBytes(
+            const dxa::protocol::TrafficDirection direction,
+            const std::size_t bytes)
+        {
+            if (const auto owner = owner_.lock())
+            {
+                owner->gameTraffic_.RecordTcp(direction, bytes);
+            }
+        }
+
         std::weak_ptr<State> owner_;
         GameConnectionId connection_;
         std::shared_ptr<dxa::protocol::AsioFramedConnection> transport_;
@@ -213,11 +234,16 @@ struct GameServer::State final
           matchTimer_{io},
           gameAcceptor_{io},
           udpSocket_{io},
+          udpSendQueue_{
+              io,
+              config_.options.udpImpairment,
+              dxa::protocol::DatagramDirection::ServerToClient},
           tokenSource_{
               config_.udpTokenSource
                   ? config_.udpTokenSource
                   : std::make_shared<SecureUdpTokenSource>()}
     {
+        config_.replicationConfig.mode = config_.options.replicationMode;
         if (config_.authenticationTimeout <= std::chrono::milliseconds::zero()
             || config_.controlReconnectDelay
                 <= std::chrono::milliseconds::zero()
@@ -267,6 +293,7 @@ struct GameServer::State final
         controlResolver_.cancel();
         reconnectTimer_.cancel();
         matchTimer_.cancel();
+        udpSendQueue_.Stop();
         gameAcceptor_.cancel(ignored);
         gameAcceptor_.close(ignored);
         udpSocket_.cancel(ignored);
@@ -287,6 +314,41 @@ struct GameServer::State final
     [[nodiscard]] std::uint16_t GameUdpPort() const
     {
         return udpSocket_.local_endpoint().port();
+    }
+
+    [[nodiscard]] dxa::game_common::GameTrafficTotals Traffic() const
+    {
+        return gameTraffic_.Totals();
+    }
+
+    [[nodiscard]] dxa::game_common::UdpDatagramQueueMetrics
+    UdpShapingMetrics() const noexcept
+    {
+        return udpSendQueue_.Metrics();
+    }
+
+    [[nodiscard]] std::vector<ServerMatchMetricsSnapshot>
+    CompletedMetrics() const
+    {
+        std::vector<ServerMatchMetricsSnapshot> metrics;
+        {
+            std::scoped_lock lock{completedMetricsMutex_};
+            metrics = completedMetrics_;
+        }
+        std::sort(
+            metrics.begin(),
+            metrics.end(),
+            [](const ServerMatchMetricsSnapshot& left,
+               const ServerMatchMetricsSnapshot& right) {
+                return left.match < right.match;
+            });
+        return metrics;
+    }
+
+    [[nodiscard]] std::size_t CompletedMetricCount() const
+    {
+        std::scoped_lock lock{completedMetricsMutex_};
+        return completedMetrics_.size();
     }
 
     void ConnectControl()
@@ -458,12 +520,15 @@ struct GameServer::State final
         }
         try
         {
+            gameTraffic_.Reset();
+            matchShapingStart_ = udpSendQueue_.Metrics();
             match_.emplace(AuthoritativeMatch::Create(
                 reservation,
                 dxa::simulation::SurvivalArenaMapDefinition(),
                 config_.matchConfig,
                 *tokenSource_,
-                std::chrono::steady_clock::now()));
+                std::chrono::steady_clock::now(),
+                config_.replicationConfig));
             activeReservation_ = reservation.reservation;
             activeMatch_ = reservation.match;
             activeServerTick_ = 0U;
@@ -638,6 +703,10 @@ struct GameServer::State final
         {
             session->second->MarkAuthenticated();
             CancelAuthenticationTimer(connection);
+            if (!gameTraffic_.Active())
+            {
+                gameTraffic_.Start();
+            }
         }
         RouteMatchResult(result);
     }
@@ -697,6 +766,12 @@ struct GameServer::State final
                 const std::size_t received) {
                 if (!self->stopping_)
                 {
+                    if (!error)
+                    {
+                        self->gameTraffic_.RecordUdp(
+                            dxa::protocol::TrafficDirection::Received,
+                            received);
+                    }
                     if (!error
                         && received <= dxa::protocol::MaxUdpDatagramBytes
                         && self->match_.has_value())
@@ -726,12 +801,27 @@ struct GameServer::State final
             auto bytes = std::make_shared<std::vector<std::byte>>(
                 dxa::protocol::EncodeServerDatagram(outbound.datagram).bytes);
             const udp::endpoint endpoint = ToEndpoint(outbound.recipient);
-            udpSocket_.async_send_to(
-                boost::asio::buffer(*bytes),
-                endpoint,
-                [bytes](
-                    const boost::system::error_code,
-                    const std::size_t) {});
+            const std::weak_ptr<State> weak = shared_from_this();
+            static_cast<void>(udpSendQueue_.Enqueue(
+                outbound.shapingPeerKey,
+                std::move(bytes),
+                [weak, endpoint](
+                    const dxa::game_common::UdpDatagramQueue::Bytes& ready) {
+                    const auto self = weak.lock();
+                    if (!self || self->stopping_ || !self->udpSocket_.is_open())
+                    {
+                        return;
+                    }
+                    self->gameTraffic_.RecordUdp(
+                        dxa::protocol::TrafficDirection::Sent,
+                        ready->size());
+                    self->udpSocket_.async_send_to(
+                        boost::asio::buffer(*ready),
+                        endpoint,
+                        [ready](
+                            const boost::system::error_code,
+                            const std::size_t) {});
+                }));
         }
         catch (const std::exception&)
         {
@@ -796,11 +886,6 @@ struct GameServer::State final
                 return std::holds_alternative<
                     dxa::protocol::MatchFinished>(message);
             });
-        if (completed)
-        {
-            DiscardMatch();
-        }
-
         for (const dxa::protocol::WorkerToLobbyMessage& control
              : result.control)
         {
@@ -838,6 +923,25 @@ struct GameServer::State final
                 session->second->Close();
             }
         }
+        if (completed)
+        {
+            ServerMatchMetricsSnapshot metrics = match_->Metrics(
+                gameTraffic_.Totals());
+            const auto shaping = udpSendQueue_.Metrics();
+            metrics.udpDatagramsDropped =
+                shaping.dropped - matchShapingStart_.dropped;
+            metrics.udpDatagramsDelayed =
+                shaping.delayed - matchShapingStart_.delayed;
+            metrics.udpDatagramsDelivered =
+                shaping.delivered - matchShapingStart_.delivered;
+            metrics.shapedQueueOverflows =
+                shaping.overflows - matchShapingStart_.overflows;
+            {
+                std::scoped_lock lock{completedMetricsMutex_};
+                completedMetrics_.push_back(std::move(metrics));
+            }
+            DiscardMatch();
+        }
         if (match_.has_value())
         {
             ScheduleMatchTimer();
@@ -846,6 +950,7 @@ struct GameServer::State final
 
     void DiscardMatch()
     {
+        gameTraffic_.Freeze();
         matchTimer_.cancel();
         match_.reset();
         activeReservation_.reset();
@@ -861,6 +966,7 @@ struct GameServer::State final
     boost::asio::steady_timer matchTimer_;
     tcp::acceptor gameAcceptor_;
     udp::socket udpSocket_;
+    dxa::game_common::UdpDatagramQueue udpSendQueue_;
     std::shared_ptr<dxa::protocol::AsioFramedConnection> controlTransport_;
     std::map<GameConnectionId, std::shared_ptr<GameSession>> gameSessions_;
     std::map<GameConnectionId, std::shared_ptr<boost::asio::steady_timer>>
@@ -868,6 +974,10 @@ struct GameServer::State final
     std::optional<AuthoritativeMatch> match_;
     std::optional<dxa::protocol::ReservationId> activeReservation_;
     std::optional<dxa::protocol::MatchId> activeMatch_;
+    dxa::game_common::GameTrafficCounter gameTraffic_;
+    dxa::game_common::UdpDatagramQueueMetrics matchShapingStart_;
+    mutable std::mutex completedMetricsMutex_;
+    std::vector<ServerMatchMetricsSnapshot> completedMetrics_;
     std::shared_ptr<IUdpTokenSource> tokenSource_;
     std::optional<std::uint64_t> nextGameConnection_{1U};
     std::array<std::byte, dxa::protocol::MaxUdpDatagramBytes + 1U>
@@ -911,5 +1021,26 @@ std::uint16_t GameServer::GameTcpPort() const
 std::uint16_t GameServer::GameUdpPort() const
 {
     return state_->GameUdpPort();
+}
+
+dxa::game_common::GameTrafficTotals GameServer::Traffic() const
+{
+    return state_->Traffic();
+}
+
+dxa::game_common::UdpDatagramQueueMetrics
+GameServer::UdpShapingMetrics() const noexcept
+{
+    return state_->UdpShapingMetrics();
+}
+
+std::vector<ServerMatchMetricsSnapshot> GameServer::CompletedMetrics() const
+{
+    return state_->CompletedMetrics();
+}
+
+std::size_t GameServer::CompletedMetricCount() const
+{
+    return state_->CompletedMetricCount();
 }
 } // namespace dxa::game_server

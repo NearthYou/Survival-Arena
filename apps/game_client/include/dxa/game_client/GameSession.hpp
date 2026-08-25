@@ -1,11 +1,14 @@
 #pragma once
 
+#include <dxa/game_common/NetworkMetrics.hpp>
+#include <dxa/protocol/DatagramShaper.hpp>
 #include <dxa/protocol/GameSnapshot.hpp>
 #include <dxa/protocol/GameTcpMessages.hpp>
 #include <dxa/protocol/LobbyMessages.hpp>
 #include <dxa/simulation/Math2.hpp>
 #include <dxa/simulation/NavMesh.hpp>
 
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -13,12 +16,17 @@
 
 namespace dxa::game_client
 {
+class GameNetworkRuntime;
+
 struct GameSessionStart
 {
     dxa::protocol::PlayerId player;
     dxa::protocol::MatchTicket ticket;
     std::uint32_t expectedMapId = 1U;
     std::uint32_t expectedNavMeshCrc32 = 0U;
+    std::optional<dxa::protocol::ReplicationMode> expectedReplicationMode;
+    dxa::protocol::DatagramShaperConfig udpImpairment;
+    std::size_t maximumQueuedUdpDatagramsPerPeer = 256U;
 };
 
 enum class GameSessionState
@@ -50,6 +58,9 @@ class GameSession
 {
 public:
     explicit GameSession(dxa::simulation::NavMesh navMesh);
+    GameSession(
+        dxa::simulation::NavMesh navMesh,
+        std::shared_ptr<GameNetworkRuntime> runtime);
     ~GameSession();
     GameSession(const GameSession&) = delete;
     GameSession& operator=(const GameSession&) = delete;
@@ -63,10 +74,13 @@ public:
     [[nodiscard]] std::optional<dxa::protocol::GameMatchResult>
     Result() const;
     [[nodiscard]] std::uint64_t SnapshotCount() const noexcept;
+    [[nodiscard]] dxa::game_common::GameSessionMetrics Metrics() const;
     void Stop();
 
 private:
     struct Impl;
-    std::unique_ptr<Impl> impl_;
+    std::shared_ptr<GameNetworkRuntime> runtime_;
+    bool ownsRuntime_ = false;
+    std::shared_ptr<Impl> impl_;
 };
 } // namespace dxa::game_client

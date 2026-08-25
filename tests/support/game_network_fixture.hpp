@@ -10,6 +10,17 @@
 
 #include <boost/asio.hpp>
 
+#if defined(_WIN32)
+#include <dxa/bot_client/BotCoordinator.hpp>
+#include <dxa/client/NetworkClientController.hpp>
+#include <dxa/engine/EngineApp.hpp>
+#include <dxa/game_server/UdpTokenSource.hpp>
+
+#include <gtest/gtest.h>
+
+#include <Windows.h>
+#endif
+
 #include <algorithm>
 #include <array>
 #include <chrono>
@@ -21,6 +32,18 @@
 #include <utility>
 #include <variant>
 #include <vector>
+
+#if defined(_WIN32)
+#include <atomic>
+#include <cctype>
+#include <condition_variable>
+#include <filesystem>
+#include <iomanip>
+#include <mutex>
+#include <sstream>
+#include <string>
+#include <thread>
+#endif
 
 namespace dxa::test
 {
@@ -355,14 +378,31 @@ public:
     explicit GameNetworkFixture(
         dxa::simulation::MatchConfig config =
             dxa::simulation::DefaultMatchConfig(),
-        std::shared_ptr<dxa::game_server::IUdpTokenSource> tokenSource = {})
+        std::shared_ptr<dxa::game_server::IUdpTokenSource> tokenSource = {},
+        const dxa::protocol::ReplicationMode replicationMode =
+            dxa::protocol::ReplicationMode::FullState,
+        dxa::protocol::DatagramShaperConfig udpImpairment = {})
         : lobby_{},
           worker_{
               lobby_.Io(),
               MakeGameConfig(
                   lobby_.WorkerPort(),
                   std::move(config),
-                  std::move(tokenSource))}
+                  std::move(tokenSource),
+                  replicationMode,
+                  std::move(udpImpairment))}
+    {
+    }
+
+    GameNetworkFixture(
+        dxa::simulation::MatchConfig config,
+        const dxa::protocol::ReplicationMode replicationMode,
+        dxa::protocol::DatagramShaperConfig udpImpairment = {})
+        : GameNetworkFixture(
+              std::move(config),
+              {},
+              replicationMode,
+              std::move(udpImpairment))
     {
     }
 
@@ -517,6 +557,18 @@ public:
         worker_.Stop();
     }
 
+    [[nodiscard]] std::vector<dxa::game_server::ServerMatchMetricsSnapshot>
+    CompletedMetrics() const
+    {
+        return worker_.CompletedMetrics();
+    }
+
+    [[nodiscard]] dxa::game_common::UdpDatagramQueueMetrics
+    UdpShapingMetrics() const noexcept
+    {
+        return worker_.UdpShapingMetrics();
+    }
+
     template <typename Condition>
     void RunUntil(Condition condition)
     {
@@ -527,12 +579,16 @@ private:
     [[nodiscard]] static dxa::game_server::GameServerConfig MakeGameConfig(
         const std::uint16_t controlPort,
         dxa::simulation::MatchConfig matchConfig,
-        std::shared_ptr<dxa::game_server::IUdpTokenSource> tokenSource)
+        std::shared_ptr<dxa::game_server::IUdpTokenSource> tokenSource,
+        const dxa::protocol::ReplicationMode replicationMode,
+        dxa::protocol::DatagramShaperConfig udpImpairment)
     {
         dxa::game_server::GameServerConfig config;
         config.options.lobbyControlPort = controlPort;
         config.options.gameTcpPort = 0U;
         config.options.gameUdpPort = 0U;
+        config.options.replicationMode = replicationMode;
+        config.options.udpImpairment = std::move(udpImpairment);
         config.matchConfig = std::move(matchConfig);
         config.udpTokenSource = std::move(tokenSource);
         return config;
@@ -543,6 +599,356 @@ private:
     std::vector<std::shared_ptr<GameClientProbe>> gameClients_;
     bool started_ = false;
 };
+
+#if defined(_WIN32)
+class DeterministicVerticalTokenSource final
+    : public dxa::game_server::IUdpTokenSource
+{
+public:
+    [[nodiscard]] bool Fill(
+        const std::span<std::byte, 16U> output) noexcept override
+    {
+        const std::uint8_t seed = next_.fetch_add(1U);
+        for (std::size_t index = 0U; index < output.size(); ++index)
+        {
+            output[index] = static_cast<std::byte>(
+                static_cast<std::uint8_t>(seed + index));
+        }
+        return true;
+    }
+
+    [[nodiscard]] std::uint32_t FillCount() const noexcept
+    {
+        return static_cast<std::uint32_t>(next_.load() - 0x41U);
+    }
+
+private:
+    std::atomic<std::uint8_t> next_{0x41U};
+};
+
+class ScopedOutputCapture
+{
+public:
+    ScopedOutputCapture()
+    {
+        testing::internal::CaptureStdout();
+        testing::internal::CaptureStderr();
+    }
+
+    ~ScopedOutputCapture()
+    {
+        if (active_)
+        {
+            Finish();
+        }
+    }
+
+    void Finish()
+    {
+        if (!active_)
+        {
+            return;
+        }
+        captured_ = testing::internal::GetCapturedStderr()
+            + testing::internal::GetCapturedStdout();
+        active_ = false;
+    }
+
+    [[nodiscard]] const std::string& Text() const noexcept
+    {
+        return captured_;
+    }
+
+private:
+    std::string captured_;
+    bool active_ = true;
+};
+
+class VerticalWatchdog
+{
+public:
+    explicit VerticalWatchdog(const std::chrono::seconds timeout)
+        : ownerThread_{GetCurrentThreadId()},
+          thread_{[this, timeout] {
+              std::unique_lock lock{mutex_};
+              if (!condition_.wait_for(lock, timeout, [this] { return done_; }))
+              {
+                  timedOut_.store(true);
+                  static_cast<void>(PostThreadMessageW(
+                      ownerThread_,
+                      WM_QUIT,
+                      0,
+                      0));
+              }
+          }}
+    {
+    }
+
+    ~VerticalWatchdog()
+    {
+        Finish();
+    }
+
+    void Finish()
+    {
+        {
+            std::scoped_lock lock{mutex_};
+            done_ = true;
+        }
+        condition_.notify_all();
+        if (thread_.joinable())
+        {
+            thread_.join();
+        }
+    }
+
+    [[nodiscard]] bool TimedOut() const noexcept
+    {
+        return timedOut_.load();
+    }
+
+private:
+    DWORD ownerThread_ = 0U;
+    std::mutex mutex_;
+    std::condition_variable condition_;
+    std::atomic<bool> timedOut_{false};
+    bool done_ = false;
+    std::thread thread_;
+};
+
+[[nodiscard]] inline dxa::simulation::MatchConfig
+ShortNetworkVerticalMatchConfig()
+{
+    dxa::simulation::MatchConfig config =
+        dxa::simulation::DefaultMatchConfig();
+    config.meleeNeutralCount = 0U;
+    config.rangedNeutralCount = 0U;
+    config.rifleLootCount = 0U;
+    config.arcPulseLootCount = 0U;
+    config.medKitLootCount = 0U;
+    config.suddenDeathTick = 30U;
+    config.hardTimeoutTick = 60U;
+    return config;
+}
+
+[[nodiscard]] inline std::string VerticalSecretHex(const std::uint8_t seed)
+{
+    std::ostringstream encoded;
+    encoded << std::hex << std::setfill('0');
+    for (std::uint8_t index = 0U; index < 16U; ++index)
+    {
+        encoded << std::setw(2)
+                << static_cast<std::uint32_t>(
+                    static_cast<std::uint8_t>(seed + index));
+    }
+    return encoded.str();
+}
+
+[[nodiscard]] inline std::size_t NetworkSecretLeakCount(
+    std::string output,
+    const std::uint32_t participantCount)
+{
+    std::transform(
+        output.begin(),
+        output.end(),
+        output.begin(),
+        [](const unsigned char character) {
+            return static_cast<char>(std::tolower(character));
+        });
+
+    std::size_t leaks = 0U;
+    for (std::uint32_t index = 0U; index < participantCount; ++index)
+    {
+        const std::array secrets{
+            VerticalSecretHex(static_cast<std::uint8_t>(1U + index)),
+            VerticalSecretHex(static_cast<std::uint8_t>(0x41U + index))};
+        leaks += static_cast<std::size_t>(std::count_if(
+            secrets.begin(),
+            secrets.end(),
+            [&output](const std::string& secret) {
+                return output.find(secret) != std::string::npos;
+            }));
+    }
+    return leaks;
+}
+
+class NetworkVerticalFixture
+{
+public:
+    explicit NetworkVerticalFixture(
+        dxa::simulation::MatchConfig matchConfig,
+        const dxa::protocol::ReplicationMode replicationMode =
+            dxa::protocol::ReplicationMode::FullState,
+        dxa::protocol::DatagramShaperConfig udpImpairment = {})
+        : tokens_{std::make_shared<DeterministicVerticalTokenSource>()},
+          network_{
+              std::move(matchConfig),
+              tokens_,
+              replicationMode,
+              udpImpairment},
+          replicationMode_{replicationMode},
+          udpImpairment_{std::move(udpImpairment)}
+    {
+    }
+
+    ~NetworkVerticalFixture()
+    {
+        StopServers();
+    }
+
+    void StartServers()
+    {
+        network_.StartLobbyAndWorker();
+        botWork_.emplace(boost::asio::make_work_guard(network_.BotIo()));
+        botThread_ = std::thread{[this] { network_.BotIo().run(); }};
+    }
+
+    void StopServers()
+    {
+        if (stopped_.exchange(true))
+        {
+            return;
+        }
+        network_.StopWorker();
+        botWork_.reset();
+        network_.BotIo().stop();
+        if (botThread_.joinable())
+        {
+            botThread_.join();
+        }
+    }
+
+    [[nodiscard]] dxa::client::NetworkClientOptions HostOptions(
+        const std::uint8_t expectedPlayers,
+        const bool exitOnMatchResult = false) const
+    {
+        return {
+            "127.0.0.1",
+            network_.LobbyPort(),
+            expectedPlayers,
+            exitOnMatchResult,
+            replicationMode_,
+            udpImpairment_};
+    }
+
+    void WaitForRoom(dxa::client::NetworkClientController& host)
+    {
+        WaitUntil([&host] { return host.Room().has_value(); });
+    }
+
+    [[nodiscard]] boost::asio::io_context& BotIo() noexcept
+    {
+        return network_.BotIo();
+    }
+
+    [[nodiscard]] dxa::bot_client::BotClientOptions PlayBotOptions(
+        const dxa::protocol::RoomId room,
+        const std::uint32_t count = 1U) const
+    {
+        dxa::bot_client::BotClientOptions options;
+        options.port = network_.LobbyPort();
+        options.room = room;
+        options.count = count;
+        options.play = true;
+        options.udpImpairment = udpImpairment_;
+        return options;
+    }
+
+    [[nodiscard]] dxa::engine::EngineRunOptions HiddenWarpHybridOptions(
+        const std::uint32_t maximumFrames) const
+    {
+        return {
+            320U,
+            180U,
+            maximumFrames,
+            true,
+            true,
+            true,
+            dxa::engine::GraphicsDriver::Warp,
+            true,
+            std::nullopt,
+            dxa::engine::RenderPath::HybridDeferred};
+    }
+
+    void WaitForResults(
+        dxa::client::NetworkClientController& host,
+        const dxa::bot_client::BotCoordinator& bots,
+        const std::size_t expectedBotSessions = 1U)
+    {
+        WaitUntil([&] {
+            host.FixedUpdate({});
+            const dxa::bot_client::BotCoordinatorReport report =
+                bots.Report();
+            return host.Result().has_value()
+                && bots.Done()
+                && report.result.has_value()
+                && report.sessions.size() == expectedBotSessions
+                && host.SnapshotCount() >= 2U
+                && std::all_of(
+                    report.sessions.begin(),
+                    report.sessions.end(),
+                    [](const dxa::bot_client::BotSessionReport& session) {
+                        return session.exitCode == 0
+                            && session.snapshotsApplied >= 2U;
+                    });
+        });
+    }
+
+    [[nodiscard]] std::uint32_t TokenFillCount() const noexcept
+    {
+        return tokens_->FillCount();
+    }
+
+    [[nodiscard]] dxa::game_common::UdpDatagramQueueMetrics
+    UdpShapingMetrics() const noexcept
+    {
+        return network_.UdpShapingMetrics();
+    }
+
+    [[nodiscard]] std::vector<dxa::game_server::ServerMatchMetricsSnapshot>
+    CompletedMetrics() const
+    {
+        return network_.CompletedMetrics();
+    }
+
+    [[nodiscard]] std::filesystem::path ShaderPath() const
+    {
+        return std::filesystem::path{DXA_TEST_SHADER_PATH};
+    }
+
+    [[nodiscard]] std::filesystem::path AssetRoot() const
+    {
+        return std::filesystem::path{DXA_TEST_ASSET_ROOT};
+    }
+
+private:
+    template <typename Condition>
+    void WaitUntil(Condition condition)
+    {
+        const auto deadline = std::chrono::steady_clock::now()
+            + std::chrono::seconds{20};
+        while (!condition())
+        {
+            if (std::chrono::steady_clock::now() >= deadline)
+            {
+                throw std::runtime_error{
+                    "network vertical slice watchdog expired"};
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds{10});
+        }
+    }
+
+    std::shared_ptr<DeterministicVerticalTokenSource> tokens_;
+    GameNetworkFixture network_;
+    dxa::protocol::ReplicationMode replicationMode_ =
+        dxa::protocol::ReplicationMode::FullState;
+    dxa::protocol::DatagramShaperConfig udpImpairment_;
+    std::optional<boost::asio::executor_work_guard<
+        boost::asio::io_context::executor_type>> botWork_;
+    std::thread botThread_;
+    std::atomic<bool> stopped_{false};
+};
+#endif
 
 class ExpiringGameWorkerFixture
 {
