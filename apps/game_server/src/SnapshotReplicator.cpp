@@ -8,6 +8,7 @@
 #include <cmath>
 #include <cstdint>
 #include <deque>
+#include <iterator>
 #include <limits>
 #include <map>
 #include <optional>
@@ -241,12 +242,41 @@ void CopyGlobalState(const GameSnapshot& source, GameSnapshot& destination)
         world.eventChecksum};
 }
 
-[[nodiscard]] SnapshotPayload BuildQuantizedKeyframe(
-    const std::uint32_t snapshotId,
+struct QuantizedView
+{
+    QuantizedGlobalValue global;
+    std::vector<QuantizedActorValue> actors;
+    std::vector<QuantizedLootValue> loot;
+};
+
+[[nodiscard]] QuantizedView QuantizeView(
     const GameSnapshot& filtered,
     const Vec2 minimum,
     const Vec2 maximum,
     const float radiusMaximum)
+{
+    QuantizedView view;
+    view.global = QuantizeGlobal(
+        filtered,
+        minimum,
+        maximum,
+        radiusMaximum);
+    view.actors.reserve(filtered.actors.size());
+    for (const NetworkActorSnapshot& actor : filtered.actors)
+    {
+        view.actors.push_back(QuantizeActor(actor, minimum, maximum));
+    }
+    view.loot.reserve(filtered.loot.size());
+    for (const NetworkLootSnapshot& loot : filtered.loot)
+    {
+        view.loot.push_back(QuantizeLoot(loot, minimum, maximum));
+    }
+    return view;
+}
+
+[[nodiscard]] SnapshotPayload BuildQuantizedKeyframe(
+    const std::uint32_t snapshotId,
+    const QuantizedView& view)
 {
     SnapshotPayload payload;
     payload.header = {
@@ -254,20 +284,189 @@ void CopyGlobalState(const GameSnapshot& source, GameSnapshot& destination)
         SnapshotValueEncoding::Quantized,
         0U,
         snapshotId};
-    payload.global = QuantizeGlobal(
-        filtered,
-        minimum,
-        maximum,
-        radiusMaximum);
-    payload.actorValues.reserve(filtered.actors.size());
-    for (const NetworkActorSnapshot& actor : filtered.actors)
+    payload.global = view.global;
+    payload.actorValues = view.actors;
+    payload.lootValues = view.loot;
+    return payload;
+}
+
+[[nodiscard]] QuantizedGlobalDelta BuildGlobalDelta(
+    const QuantizedGlobalValue& base,
+    const QuantizedGlobalValue& current)
+{
+    QuantizedGlobalDelta delta;
+    if (base.phase != current.phase)
     {
-        payload.actorValues.push_back(QuantizeActor(actor, minimum, maximum));
+        delta.fields = delta.fields | GlobalField::Phase;
+        delta.phase = current.phase;
     }
-    payload.lootValues.reserve(filtered.loot.size());
-    for (const NetworkLootSnapshot& loot : filtered.loot)
+    if (base.safeZoneStage != current.safeZoneStage
+        || base.safeZoneCenter != current.safeZoneCenter
+        || base.safeZoneRadius != current.safeZoneRadius)
     {
-        payload.lootValues.push_back(QuantizeLoot(loot, minimum, maximum));
+        delta.fields = delta.fields | GlobalField::SafeZone;
+        delta.safeZoneStage = current.safeZoneStage;
+        delta.safeZoneCenter = current.safeZoneCenter;
+        delta.safeZoneRadius = current.safeZoneRadius;
+    }
+    if (base.aliveContenders != current.aliveContenders)
+    {
+        delta.fields = delta.fields | GlobalField::AliveContenders;
+        delta.aliveContenders = current.aliveContenders;
+    }
+    if (base.hasResult != current.hasResult
+        || (current.hasResult && base.result != current.result))
+    {
+        delta.fields = delta.fields | GlobalField::Result;
+        delta.hasResult = current.hasResult;
+        if (current.hasResult)
+        {
+            delta.result = current.result;
+        }
+    }
+    if (base.eventChecksum != current.eventChecksum)
+    {
+        delta.fields = delta.fields | GlobalField::EventChecksum;
+        delta.eventChecksum = current.eventChecksum;
+    }
+    return delta;
+}
+
+[[nodiscard]] std::optional<QuantizedActorDelta> BuildActorDelta(
+    const QuantizedActorValue& base,
+    const QuantizedActorValue& current)
+{
+    if (base.role != current.role
+        || base.neutralArchetype != current.neutralArchetype)
+    {
+        throw std::logic_error{"actor immutable replication field changed"};
+    }
+
+    QuantizedActorDelta delta;
+    delta.id = current.id;
+    if (base.position != current.position)
+    {
+        delta.fields = delta.fields | ActorField::Position;
+        delta.position = current.position;
+    }
+    if (base.health != current.health || base.alive != current.alive)
+    {
+        delta.fields = delta.fields | ActorField::HealthAlive;
+        delta.health = current.health;
+        delta.alive = current.alive;
+    }
+    if (base.weapon != current.weapon
+        || base.cooldownTicksRemaining != current.cooldownTicksRemaining)
+    {
+        delta.fields = delta.fields | ActorField::WeaponCooldown;
+        delta.weapon = current.weapon;
+        delta.cooldownTicksRemaining = current.cooldownTicksRemaining;
+    }
+    if (base.eliminations != current.eliminations)
+    {
+        delta.fields = delta.fields | ActorField::Eliminations;
+        delta.eliminations = current.eliminations;
+    }
+    if (delta.fields == ActorField::None)
+    {
+        return std::nullopt;
+    }
+    return delta;
+}
+
+[[nodiscard]] std::optional<QuantizedLootDelta> BuildLootDelta(
+    const QuantizedLootValue& base,
+    const QuantizedLootValue& current)
+{
+    if (base.type != current.type || base.position != current.position)
+    {
+        throw std::logic_error{"loot immutable replication field changed"};
+    }
+    if (base.active == current.active)
+    {
+        return std::nullopt;
+    }
+    return QuantizedLootDelta{current.id, LootField::Active, current.active};
+}
+
+[[nodiscard]] SnapshotPayload BuildDeltaPayload(
+    const std::uint32_t baseSnapshotId,
+    const std::uint32_t snapshotId,
+    const QuantizedView& base,
+    const QuantizedView& current)
+{
+    SnapshotPayload payload;
+    payload.header = {
+        SnapshotPayloadKind::Delta,
+        SnapshotValueEncoding::Quantized,
+        baseSnapshotId,
+        snapshotId};
+    payload.globalDelta = BuildGlobalDelta(base.global, current.global);
+
+    std::size_t baseIndex = 0U;
+    std::size_t currentIndex = 0U;
+    while (baseIndex < base.actors.size()
+           || currentIndex < current.actors.size())
+    {
+        if (currentIndex == current.actors.size()
+            || (baseIndex < base.actors.size()
+                && base.actors[baseIndex].id
+                    < current.actors[currentIndex].id))
+        {
+            payload.removedActors.push_back(base.actors[baseIndex].id);
+            ++baseIndex;
+            continue;
+        }
+        if (baseIndex == base.actors.size()
+            || current.actors[currentIndex].id
+                < base.actors[baseIndex].id)
+        {
+            payload.actorValues.push_back(current.actors[currentIndex]);
+            ++currentIndex;
+            continue;
+        }
+
+        const auto delta = BuildActorDelta(
+            base.actors[baseIndex],
+            current.actors[currentIndex]);
+        if (delta.has_value())
+        {
+            payload.actorDeltas.push_back(*delta);
+        }
+        ++baseIndex;
+        ++currentIndex;
+    }
+
+    baseIndex = 0U;
+    currentIndex = 0U;
+    while (baseIndex < base.loot.size()
+           || currentIndex < current.loot.size())
+    {
+        if (currentIndex == current.loot.size()
+            || (baseIndex < base.loot.size()
+                && base.loot[baseIndex].id < current.loot[currentIndex].id))
+        {
+            payload.removedLoot.push_back(base.loot[baseIndex].id);
+            ++baseIndex;
+            continue;
+        }
+        if (baseIndex == base.loot.size()
+            || current.loot[currentIndex].id < base.loot[baseIndex].id)
+        {
+            payload.lootValues.push_back(current.loot[currentIndex]);
+            ++currentIndex;
+            continue;
+        }
+
+        const auto delta = BuildLootDelta(
+            base.loot[baseIndex],
+            current.loot[currentIndex]);
+        if (delta.has_value())
+        {
+            payload.lootDeltas.push_back(*delta);
+        }
+        ++baseIndex;
+        ++currentIndex;
     }
     return payload;
 }
@@ -278,7 +477,7 @@ struct SnapshotReplicator::Impl
     struct Baseline
     {
         std::uint32_t snapshotId = 0U;
-        SnapshotPayload payload;
+        QuantizedView view;
     };
 
     struct Recipient
@@ -287,7 +486,8 @@ struct SnapshotReplicator::Impl
         VisibleSet visible;
         std::uint32_t issuedHighWatermark = 0U;
         std::uint32_t acknowledgedSnapshotId = 0U;
-        std::uint32_t keyframeOrdinal = 0U;
+        std::uint32_t buildOrdinal = 0U;
+        std::uint32_t lastKeyframeOrdinal = 0U;
         bool keyframeRequested = false;
         std::deque<Baseline> baselines;
     };
@@ -356,14 +556,40 @@ struct SnapshotReplicator::Impl
     void StoreBaseline(
         Recipient& recipient,
         const std::uint32_t snapshotId,
-        const SnapshotPayload& payload)
+        const QuantizedView& view)
     {
-        recipient.baselines.push_back(Baseline{snapshotId, payload});
+        recipient.baselines.push_back(Baseline{snapshotId, view});
         while (recipient.baselines.size()
                > config.maximumBaselinesPerRecipient)
         {
-            recipient.baselines.pop_front();
+            const bool frontIsAcknowledged =
+                recipient.acknowledgedSnapshotId != 0U
+                && recipient.baselines.front().snapshotId
+                    == recipient.acknowledgedSnapshotId;
+            if (frontIsAcknowledged
+                && config.maximumBaselinesPerRecipient > 1U)
+            {
+                recipient.baselines.erase(
+                    std::next(recipient.baselines.begin()));
+            }
+            else
+            {
+                recipient.baselines.pop_front();
+            }
         }
+    }
+
+    [[nodiscard]] const Baseline* FindBaseline(
+        const Recipient& recipient,
+        const std::uint32_t snapshotId) const
+    {
+        const auto found = std::find_if(
+            recipient.baselines.begin(),
+            recipient.baselines.end(),
+            [snapshotId](const Baseline& baseline) {
+                return baseline.snapshotId == snapshotId;
+            });
+        return found == recipient.baselines.end() ? nullptr : &*found;
     }
 
     ReplicationConfig config;
@@ -421,6 +647,11 @@ bool SnapshotReplicator::AcceptAcknowledgement(
     if (snapshotId > recipient.acknowledgedSnapshotId)
     {
         recipient.acknowledgedSnapshotId = snapshotId;
+        while (!recipient.baselines.empty()
+               && recipient.baselines.front().snapshotId < snapshotId)
+        {
+            recipient.baselines.pop_front();
+        }
     }
     return true;
 }
@@ -457,7 +688,7 @@ ReplicationBuild SnapshotReplicator::Build(
             world.loot.size());
         (void)EncodeSnapshotPayload(build.payload);
         recipient.issuedHighWatermark = snapshotId;
-        ++recipient.keyframeOrdinal;
+        ++recipient.buildOrdinal;
         recipient.keyframeRequested = false;
         return build;
     }
@@ -491,6 +722,7 @@ ReplicationBuild SnapshotReplicator::Build(
     }
 
     const GameSnapshot filtered = FilterWorld(world, visible);
+    std::optional<QuantizedView> currentView;
     if (impl_->config.mode == ReplicationMode::InterestFullPrecision)
     {
         build.payload.header = {
@@ -502,26 +734,78 @@ ReplicationBuild SnapshotReplicator::Build(
     }
     else
     {
-        build.payload = BuildQuantizedKeyframe(
-            snapshotId,
+        currentView = QuantizeView(
             filtered,
             impl_->minimum,
             impl_->maximum,
             impl_->radiusMaximum);
+        if (impl_->config.mode == ReplicationMode::InterestDelta)
+        {
+            const Impl::Baseline* acknowledgedBaseline =
+                impl_->FindBaseline(
+                    recipient,
+                    recipient.acknowledgedSnapshotId);
+            const std::uint32_t nextOrdinal = recipient.buildOrdinal + 1U;
+            const bool periodicKeyframe =
+                recipient.lastKeyframeOrdinal == 0U
+                || nextOrdinal - recipient.lastKeyframeOrdinal
+                    >= impl_->config.keyframeIntervalSnapshots;
+            const bool missingAcknowledgedBaseline =
+                recipient.acknowledgedSnapshotId == 0U
+                || acknowledgedBaseline == nullptr;
+            const bool makeKeyframe = recipient.keyframeRequested
+                || periodicKeyframe
+                || missingAcknowledgedBaseline;
+            build.fallbackKeyframe =
+                recipient.acknowledgedSnapshotId != 0U
+                && acknowledgedBaseline == nullptr;
+            if (makeKeyframe)
+            {
+                build.payload = BuildQuantizedKeyframe(
+                    snapshotId,
+                    *currentView);
+                build.keyframe = true;
+            }
+            else
+            {
+                build.payload = BuildDeltaPayload(
+                    recipient.acknowledgedSnapshotId,
+                    snapshotId,
+                    acknowledgedBaseline->view,
+                    *currentView);
+            }
+        }
+        else
+        {
+            build.payload = BuildQuantizedKeyframe(
+                snapshotId,
+                *currentView);
+            build.keyframe = true;
+        }
     }
     build.visibleActorCount = static_cast<std::uint32_t>(
         visible.actors.size());
     build.visibleLootCount = static_cast<std::uint32_t>(
         visible.loot.size());
-    build.keyframe = true;
+    if (impl_->config.mode == ReplicationMode::InterestFullPrecision)
+    {
+        build.keyframe = true;
+    }
 
     (void)EncodeSnapshotPayload(build.payload);
     impl_->CommitGrid(snapshotId, world, candidateGrid);
+    if (currentView.has_value())
+    {
+        impl_->StoreBaseline(recipient, snapshotId, *currentView);
+    }
     recipient.visible = visible;
     recipient.issuedHighWatermark = snapshotId;
-    ++recipient.keyframeOrdinal;
+    ++recipient.buildOrdinal;
+    if (build.keyframe)
+    {
+        recipient.lastKeyframeOrdinal = recipient.buildOrdinal;
+    }
     recipient.keyframeRequested = false;
-    impl_->StoreBaseline(recipient, snapshotId, build.payload);
     return build;
 }
 

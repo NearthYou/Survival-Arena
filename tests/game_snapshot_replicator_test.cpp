@@ -156,6 +156,184 @@ using dxa::simulation::SurvivalArenaMapDefinition;
         : payload.global.result;
 }
 
+[[nodiscard]] NetworkActorSnapshot& ActorById(
+    GameSnapshot& world,
+    const EntityId id)
+{
+    const auto found = std::lower_bound(
+        world.actors.begin(),
+        world.actors.end(),
+        id,
+        [](const NetworkActorSnapshot& actor, const EntityId value) {
+            return actor.id < value;
+        });
+    if (found == world.actors.end() || found->id != id)
+    {
+        throw std::out_of_range{"actor is missing from test world"};
+    }
+    return *found;
+}
+
+[[nodiscard]] GameSnapshot EntryWorld(const float otherDistance)
+{
+    GameSnapshot world;
+    world.phase = NetworkMatchPhase::Running;
+    world.safeZoneStage = NetworkSafeZoneStage::Stage1;
+    world.safeZoneRadius = 128.0F;
+    world.aliveContenders = 2U;
+    world.actors = {
+        Actor(0U, {}),
+        Actor(9U, {otherDistance, 0.0F})};
+    return world;
+}
+
+[[nodiscard]] bool ContainsActorValue(
+    const SnapshotPayload& payload,
+    const EntityId id)
+{
+    return std::any_of(
+        payload.actorValues.begin(),
+        payload.actorValues.end(),
+        [id](const QuantizedActorValue& actor) { return actor.id == id; });
+}
+
+[[nodiscard]] const QuantizedActorDelta& OnlyActorDelta(
+    const SnapshotPayload& payload)
+{
+    if (payload.actorDeltas.size() != 1U)
+    {
+        throw std::runtime_error{"test payload does not have one actor delta"};
+    }
+    return payload.actorDeltas.front();
+}
+
+template <typename Field>
+[[nodiscard]] bool HasField(const Field fields, const Field field)
+{
+    return (static_cast<std::uint8_t>(fields)
+            & static_cast<std::uint8_t>(field))
+        != 0U;
+}
+
+[[nodiscard]] SnapshotPayload ApplyDeltaForTest(
+    const SnapshotPayload& base,
+    const SnapshotPayload& delta)
+{
+    SnapshotPayload applied = base;
+    const QuantizedGlobalDelta& global = delta.globalDelta;
+    if (HasField(global.fields, GlobalField::Phase))
+    {
+        applied.global.phase = global.phase;
+    }
+    if (HasField(global.fields, GlobalField::SafeZone))
+    {
+        applied.global.safeZoneStage = global.safeZoneStage;
+        applied.global.safeZoneCenter = global.safeZoneCenter;
+        applied.global.safeZoneRadius = global.safeZoneRadius;
+    }
+    if (HasField(global.fields, GlobalField::AliveContenders))
+    {
+        applied.global.aliveContenders = global.aliveContenders;
+    }
+    if (HasField(global.fields, GlobalField::Result))
+    {
+        applied.global.result = global.result;
+        applied.global.hasResult = global.hasResult;
+    }
+    if (HasField(global.fields, GlobalField::EventChecksum))
+    {
+        applied.global.eventChecksum = global.eventChecksum;
+    }
+
+    std::erase_if(
+        applied.actorValues,
+        [&delta](const QuantizedActorValue& actor) {
+            return std::binary_search(
+                delta.removedActors.begin(),
+                delta.removedActors.end(),
+                actor.id);
+        });
+    applied.actorValues.insert(
+        applied.actorValues.end(),
+        delta.actorValues.begin(),
+        delta.actorValues.end());
+    std::sort(
+        applied.actorValues.begin(),
+        applied.actorValues.end(),
+        [](const QuantizedActorValue& left,
+           const QuantizedActorValue& right) {
+            return left.id < right.id;
+        });
+    for (const QuantizedActorDelta& change : delta.actorDeltas)
+    {
+        const auto found = std::lower_bound(
+            applied.actorValues.begin(),
+            applied.actorValues.end(),
+            change.id,
+            [](const QuantizedActorValue& actor, const EntityId id) {
+                return actor.id < id;
+            });
+        if (found == applied.actorValues.end() || found->id != change.id)
+        {
+            throw std::runtime_error{"actor delta target is missing"};
+        }
+        if (HasField(change.fields, ActorField::Position))
+        {
+            found->position = change.position;
+        }
+        if (HasField(change.fields, ActorField::HealthAlive))
+        {
+            found->health = change.health;
+            found->alive = change.alive;
+        }
+        if (HasField(change.fields, ActorField::WeaponCooldown))
+        {
+            found->weapon = change.weapon;
+            found->cooldownTicksRemaining = change.cooldownTicksRemaining;
+        }
+        if (HasField(change.fields, ActorField::Eliminations))
+        {
+            found->eliminations = change.eliminations;
+        }
+    }
+
+    std::erase_if(
+        applied.lootValues,
+        [&delta](const QuantizedLootValue& loot) {
+            return std::binary_search(
+                delta.removedLoot.begin(),
+                delta.removedLoot.end(),
+                loot.id);
+        });
+    applied.lootValues.insert(
+        applied.lootValues.end(),
+        delta.lootValues.begin(),
+        delta.lootValues.end());
+    std::sort(
+        applied.lootValues.begin(),
+        applied.lootValues.end(),
+        [](const QuantizedLootValue& left,
+           const QuantizedLootValue& right) {
+            return left.id < right.id;
+        });
+    for (const QuantizedLootDelta& change : delta.lootDeltas)
+    {
+        const auto found = std::lower_bound(
+            applied.lootValues.begin(),
+            applied.lootValues.end(),
+            change.id,
+            [](const QuantizedLootValue& loot, const std::uint32_t id) {
+                return loot.id < id;
+            });
+        if (found == applied.lootValues.end() || found->id != change.id)
+        {
+            throw std::runtime_error{"loot delta target is missing"};
+        }
+        found->active = change.active;
+    }
+    return applied;
+}
+
 TEST(SnapshotReplicator, FullStatePreservesTheExistingWorld)
 {
     SnapshotReplicator replicator{Arena(), Config(ReplicationMode::FullState)};
@@ -261,6 +439,227 @@ TEST(SnapshotReplicator, DeltaModeBeginsWithQuantizedKeyframe)
     EXPECT_EQ(SnapshotValueEncoding::Quantized,
               build.payload.header.valueEncoding);
     EXPECT_TRUE(build.keyframe);
+}
+
+TEST(SnapshotReplicator, BuildsDeltaAgainstAcknowledgedRecipientView)
+{
+    SnapshotReplicator replicator{
+        Arena(),
+        Config(ReplicationMode::InterestDelta)};
+    replicator.RegisterRecipient(PlayerId{1U}, EntityId{0U});
+    const GameSnapshot base = World();
+    const ReplicationBuild keyframe = replicator.Build(
+        PlayerId{1U},
+        1U,
+        base);
+    ASSERT_EQ(SnapshotPayloadKind::Keyframe, keyframe.payload.header.kind);
+    ASSERT_TRUE(replicator.AcceptAcknowledgement(PlayerId{1U}, 1U));
+
+    GameSnapshot changed = base;
+    ActorById(changed, EntityId{7U}).position = {10.0F, 11.0F};
+    const ReplicationBuild delta = replicator.Build(
+        PlayerId{1U},
+        2U,
+        changed);
+
+    EXPECT_EQ(SnapshotPayloadKind::Delta, delta.payload.header.kind);
+    EXPECT_EQ(1U, delta.payload.header.baseSnapshotId);
+    EXPECT_FALSE(delta.keyframe);
+    EXPECT_EQ(EntityId{7U}, OnlyActorDelta(delta.payload).id);
+    EXPECT_EQ(ActorField::Position, OnlyActorDelta(delta.payload).fields);
+}
+
+TEST(SnapshotReplicator, EnterAndLeaveUseFullRecordAndRemoveId)
+{
+    SnapshotReplicator replicator{
+        Arena(),
+        Config(ReplicationMode::InterestDelta)};
+    replicator.RegisterRecipient(PlayerId{1U}, EntityId{0U});
+    (void)replicator.Build(PlayerId{1U}, 1U, EntryWorld(90.0F));
+    ASSERT_TRUE(replicator.AcceptAcknowledgement(PlayerId{1U}, 1U));
+
+    const ReplicationBuild entered = replicator.Build(
+        PlayerId{1U},
+        2U,
+        EntryWorld(79.0F));
+    EXPECT_TRUE(ContainsActorValue(entered.payload, EntityId{9U}));
+    ASSERT_TRUE(replicator.AcceptAcknowledgement(PlayerId{1U}, 2U));
+
+    const ReplicationBuild left = replicator.Build(
+        PlayerId{1U},
+        3U,
+        EntryWorld(89.0F));
+    EXPECT_EQ((std::vector<EntityId>{EntityId{9U}}),
+              left.payload.removedActors);
+}
+
+TEST(SnapshotReplicator, QuantizedEquivalentMovementCreatesNoActorDelta)
+{
+    SnapshotReplicator replicator{
+        Arena(),
+        Config(ReplicationMode::InterestDelta)};
+    replicator.RegisterRecipient(PlayerId{1U}, EntityId{0U});
+    const GameSnapshot base = World();
+    (void)replicator.Build(PlayerId{1U}, 1U, base);
+    ASSERT_TRUE(replicator.AcceptAcknowledgement(PlayerId{1U}, 1U));
+
+    GameSnapshot changed = base;
+    ActorById(changed, EntityId{7U}).position.x += 0.0001F;
+    const ReplicationBuild delta = replicator.Build(
+        PlayerId{1U},
+        2U,
+        changed);
+
+    EXPECT_EQ(SnapshotPayloadKind::Delta, delta.payload.header.kind);
+    EXPECT_TRUE(delta.payload.actorDeltas.empty());
+}
+
+TEST(SnapshotReplicator, ImmutableActorIdentityChangeIsAnInvariantFailure)
+{
+    SnapshotReplicator replicator{
+        Arena(),
+        Config(ReplicationMode::InterestDelta)};
+    replicator.RegisterRecipient(PlayerId{1U}, EntityId{0U});
+    GameSnapshot changed = World();
+    (void)replicator.Build(PlayerId{1U}, 1U, changed);
+    ASSERT_TRUE(replicator.AcceptAcknowledgement(PlayerId{1U}, 1U));
+
+    NetworkActorSnapshot& actor = ActorById(changed, EntityId{7U});
+    actor.role = NetworkActorRole::Neutral;
+    actor.neutralArchetype = NetworkNeutralArchetype::Melee;
+    EXPECT_THROW(
+        (void)replicator.Build(PlayerId{1U}, 2U, changed),
+        std::logic_error);
+}
+
+TEST(SnapshotReplicator, PeriodicAndRequestedKeyframesResetDeltaBase)
+{
+    ReplicationConfig config = Config(ReplicationMode::InterestDelta);
+    config.keyframeIntervalSnapshots = 30U;
+    SnapshotReplicator replicator{Arena(), config};
+    replicator.RegisterRecipient(PlayerId{1U}, EntityId{0U});
+    const GameSnapshot world = World();
+    (void)replicator.Build(PlayerId{1U}, 1U, world);
+    ASSERT_TRUE(replicator.AcceptAcknowledgement(PlayerId{1U}, 1U));
+
+    for (std::uint32_t snapshotId = 2U; snapshotId <= 30U; ++snapshotId)
+    {
+        EXPECT_EQ(
+            SnapshotPayloadKind::Delta,
+            replicator.Build(PlayerId{1U}, snapshotId, world)
+                .payload.header.kind);
+    }
+    EXPECT_EQ(
+        SnapshotPayloadKind::Keyframe,
+        replicator.Build(PlayerId{1U}, 31U, world).payload.header.kind);
+
+    ASSERT_TRUE(replicator.AcceptAcknowledgement(PlayerId{1U}, 31U));
+    replicator.RequestKeyframe(PlayerId{1U});
+    const ReplicationBuild requested = replicator.Build(
+        PlayerId{1U},
+        32U,
+        world);
+    EXPECT_EQ(SnapshotPayloadKind::Keyframe, requested.payload.header.kind);
+    EXPECT_EQ(0U, requested.payload.header.baseSnapshotId);
+}
+
+TEST(SnapshotReplicator, OlderAckDoesNotMoveAcknowledgedBaselineBackward)
+{
+    SnapshotReplicator replicator{
+        Arena(),
+        Config(ReplicationMode::InterestDelta)};
+    replicator.RegisterRecipient(PlayerId{1U}, EntityId{0U});
+    const GameSnapshot world = World();
+    (void)replicator.Build(PlayerId{1U}, 1U, world);
+    ASSERT_TRUE(replicator.AcceptAcknowledgement(PlayerId{1U}, 1U));
+    (void)replicator.Build(PlayerId{1U}, 2U, world);
+    ASSERT_TRUE(replicator.AcceptAcknowledgement(PlayerId{1U}, 2U));
+    ASSERT_TRUE(replicator.AcceptAcknowledgement(PlayerId{1U}, 1U));
+
+    const ReplicationBuild delta = replicator.Build(
+        PlayerId{1U},
+        3U,
+        world);
+    EXPECT_EQ(SnapshotPayloadKind::Delta, delta.payload.header.kind);
+    EXPECT_EQ(2U, delta.payload.header.baseSnapshotId);
+}
+
+TEST(SnapshotReplicator, EvictedAcknowledgementForcesFallbackKeyframe)
+{
+    ReplicationConfig config = Config(ReplicationMode::InterestDelta);
+    config.maximumBaselinesPerRecipient = 2U;
+    config.keyframeIntervalSnapshots = 1000U;
+    SnapshotReplicator replicator{Arena(), config};
+    replicator.RegisterRecipient(PlayerId{1U}, EntityId{0U});
+    const GameSnapshot world = World();
+    (void)replicator.Build(PlayerId{1U}, 1U, world);
+    (void)replicator.Build(PlayerId{1U}, 2U, world);
+    (void)replicator.Build(PlayerId{1U}, 3U, world);
+
+    ASSERT_TRUE(replicator.AcceptAcknowledgement(PlayerId{1U}, 1U));
+    const ReplicationBuild fallback = replicator.Build(
+        PlayerId{1U},
+        4U,
+        world);
+    EXPECT_EQ(SnapshotPayloadKind::Keyframe, fallback.payload.header.kind);
+    EXPECT_TRUE(fallback.keyframe);
+    EXPECT_TRUE(fallback.fallbackKeyframe);
+}
+
+TEST(SnapshotReplicator, DeltaReconstructsTheCurrentQuantizedKeyframe)
+{
+    GameSnapshot base = EntryWorld(90.0F);
+    base.actors.push_back(Actor(10U, {70.0F, 0.0F}));
+    base.aliveContenders = 3U;
+    base.loot = {
+        NetworkLootSnapshot{1U, NetworkLootType::Rifle, {5.0F, 0.0F}, true},
+        NetworkLootSnapshot{2U, NetworkLootType::MedKit, {90.0F, 0.0F}, true}};
+
+    GameSnapshot current = base;
+    NetworkActorSnapshot& local = ActorById(current, EntityId{0U});
+    local.position = {1.0F, 1.0F};
+    local.health = 75;
+    local.weapon = NetworkWeaponType::ArcPulse;
+    local.cooldownTicksRemaining = 13U;
+    local.eliminations = 4U;
+    ActorById(current, EntityId{9U}).position = {79.0F, 0.0F};
+    ActorById(current, EntityId{10U}).position = {90.0F, 0.0F};
+    current.loot[0].active = false;
+    current.loot[1].position = {10.0F, 0.0F};
+    current.safeZoneStage = NetworkSafeZoneStage::Stage2;
+    current.safeZoneCenter = {2.0F, 3.0F};
+    current.safeZoneRadius = 96.0F;
+    current.eventChecksum = 1234U;
+
+    SnapshotReplicator deltaReplicator{
+        Arena(),
+        Config(ReplicationMode::InterestDelta)};
+    deltaReplicator.RegisterRecipient(PlayerId{1U}, EntityId{0U});
+    const SnapshotPayload basePayload = deltaReplicator.Build(
+        PlayerId{1U},
+        1U,
+        base).payload;
+    ASSERT_TRUE(deltaReplicator.AcceptAcknowledgement(PlayerId{1U}, 1U));
+    const SnapshotPayload deltaPayload = deltaReplicator.Build(
+        PlayerId{1U},
+        2U,
+        current).payload;
+
+    SnapshotReplicator keyframeReplicator{
+        Arena(),
+        Config(ReplicationMode::InterestQuantized)};
+    keyframeReplicator.RegisterRecipient(PlayerId{1U}, EntityId{0U});
+    const SnapshotPayload expected = keyframeReplicator.Build(
+        PlayerId{1U},
+        2U,
+        current).payload;
+    const SnapshotPayload reconstructed = ApplyDeltaForTest(
+        basePayload,
+        deltaPayload);
+
+    EXPECT_EQ(expected.global, reconstructed.global);
+    EXPECT_EQ(expected.actorValues, reconstructed.actorValues);
+    EXPECT_EQ(expected.lootValues, reconstructed.lootValues);
 }
 
 TEST(SnapshotReplicator, EveryKeyframeModePreservesTheSameMatchResult)
