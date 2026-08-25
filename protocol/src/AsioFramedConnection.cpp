@@ -26,22 +26,26 @@ namespace
 std::shared_ptr<AsioFramedConnection> AsioFramedConnection::Create(
     boost::asio::ip::tcp::socket socket,
     FrameHandler onFrame,
-    CloseHandler onClose)
+    CloseHandler onClose,
+    ByteObserver onBytes)
 {
     return std::shared_ptr<AsioFramedConnection>{
         new AsioFramedConnection{
             std::move(socket),
             std::move(onFrame),
-            std::move(onClose)}};
+            std::move(onClose),
+            std::move(onBytes)}};
 }
 
 AsioFramedConnection::AsioFramedConnection(
     boost::asio::ip::tcp::socket socket,
     FrameHandler onFrame,
-    CloseHandler onClose)
+    CloseHandler onClose,
+    ByteObserver onBytes)
     : socket_{std::move(socket)},
       onFrame_{std::move(onFrame)},
-      onClose_{std::move(onClose)}
+      onClose_{std::move(onClose)},
+      onBytes_{std::move(onBytes)}
 {
 }
 
@@ -83,6 +87,7 @@ bool AsioFramedConnection::Send(const EncodedMessage& message)
 
     pendingWriteBytes_ += frame.size();
     writeQueue_.push_back(std::move(frame));
+    Observe(TrafficDirection::Sent, writeQueue_.back().size());
     if (!writeInProgress_)
     {
         WriteNext();
@@ -180,6 +185,9 @@ void AsioFramedConnection::DeliverFrame(const MessageType type)
         return;
     }
 
+    Observe(
+        TrafficDirection::Received,
+        TcpFrameHeaderBytes + payload_.size());
     RawFrame frame{type, std::move(payload_)};
     try
     {
@@ -229,6 +237,23 @@ void AsioFramedConnection::WriteNext()
             self->writeQueue_.pop_front();
             self->WriteNext();
         });
+}
+
+void AsioFramedConnection::Observe(
+    const TrafficDirection direction,
+    const std::size_t bytes) noexcept
+{
+    if (!onBytes_)
+    {
+        return;
+    }
+    try
+    {
+        onBytes_(direction, bytes);
+    }
+    catch (...)
+    {
+    }
 }
 
 void AsioFramedConnection::FinishClose(

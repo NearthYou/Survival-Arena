@@ -1,5 +1,6 @@
 #pragma once
 
+#include <dxa/game_common/NetworkMetrics.hpp>
 #include <dxa/game_server/GameServerOptions.hpp>
 #include <dxa/game_server/UdpTokenSource.hpp>
 
@@ -36,6 +37,7 @@ public:
     void Stop();
     [[nodiscard]] std::uint16_t GameTcpPort() const;
     [[nodiscard]] std::uint16_t GameUdpPort() const;
+    [[nodiscard]] dxa::game_common::GameTrafficTotals Traffic() const;
 
 private:
     struct State;

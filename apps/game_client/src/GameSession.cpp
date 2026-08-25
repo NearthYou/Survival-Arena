@@ -5,6 +5,7 @@
 #include <dxa/game_client/RemoteInterpolator.hpp>
 #include <dxa/game_client/SnapshotReassembler.hpp>
 
+#include <dxa/game_common/NetworkMetrics.hpp>
 #include <dxa/protocol/AsioFramedConnection.hpp>
 #include <dxa/protocol/GameTcpMessageCodec.hpp>
 #include <dxa/protocol/GameUdpCodec.hpp>
@@ -20,6 +21,7 @@
 #include <cstdint>
 #include <deque>
 #include <future>
+#include <limits>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -153,6 +155,14 @@ struct GameSession::Impl
                 {
                     self->state.store(GameSessionState::Closed);
                 }
+            },
+            [weak](
+                const dxa::protocol::TrafficDirection direction,
+                const std::size_t bytes) {
+                if (const auto self = weak.lock())
+                {
+                    self->ObserveTcp(direction, bytes);
+                }
             });
         tcpTransport->Start();
         state.store(GameSessionState::Authenticating);
@@ -193,6 +203,10 @@ struct GameSession::Impl
                 FailProtocol();
                 return;
             }
+            dxa::game_common::GameTrafficTotals initialTraffic;
+            initialTraffic.tcpReceivedBytes = pendingWelcomeTcpReceivedBytes;
+            traffic.Start(initialTraffic);
+            measurementStarted = true;
             localActor.store(welcome->actor.value);
             udpToken = welcome->udpToken;
             state.store(GameSessionState::BindingUdp);
@@ -226,6 +240,28 @@ struct GameSession::Impl
         udpSocket.cancel(ignored);
         udpSocket.close(ignored);
         state.store(GameSessionState::Finished);
+        traffic.Freeze();
+    }
+
+    void ObserveTcp(
+        const dxa::protocol::TrafficDirection direction,
+        const std::size_t bytes)
+    {
+        if (measurementStarted)
+        {
+            traffic.RecordTcp(direction, bytes);
+            return;
+        }
+        if (direction == dxa::protocol::TrafficDirection::Received)
+        {
+            const std::uint64_t value = static_cast<std::uint64_t>(bytes);
+            const std::uint64_t maximum =
+                std::numeric_limits<std::uint64_t>::max();
+            pendingWelcomeTcpReceivedBytes =
+                value > maximum - pendingWelcomeTcpReceivedBytes
+                ? maximum
+                : pendingWelcomeTcpReceivedBytes + value;
+        }
     }
 
     void ResolveUdp()
@@ -273,6 +309,9 @@ struct GameSession::Impl
                     udpToken}});
         auto bytes = std::make_shared<std::vector<std::byte>>(
             encoded.bytes);
+        traffic.RecordUdp(
+            dxa::protocol::TrafficDirection::Sent,
+            bytes->size());
         udpSocket.async_send_to(
             boost::asio::buffer(*bytes),
             serverUdpEndpoint,
@@ -302,6 +341,12 @@ struct GameSession::Impl
             [self](
                 const boost::system::error_code error,
                 const std::size_t received) {
+                if (!error)
+                {
+                    self->traffic.RecordUdp(
+                        dxa::protocol::TrafficDirection::Received,
+                        received);
+                }
                 if (!error
                     && received <= dxa::protocol::MaxUdpDatagramBytes
                     && self->udpRemoteEndpoint == self->serverUdpEndpoint)
@@ -340,12 +385,18 @@ struct GameSession::Impl
         if (current != GameSessionState::Synchronizing
             && current != GameSessionState::Running)
         {
+            if (std::holds_alternative<dxa::protocol::SnapshotFragment>(
+                    datagram))
+            {
+                ++discardedSnapshots;
+            }
             return;
         }
         const auto& fragment =
             std::get<dxa::protocol::SnapshotFragment>(datagram);
         if (fragment.match != start.ticket.match)
         {
+            ++discardedSnapshots;
             return;
         }
         const auto completed = reassembler.Push(fragment);
@@ -397,6 +448,9 @@ struct GameSession::Impl
                 dxa::protocol::ClientDatagram{datagram});
             auto bytes = std::make_shared<std::vector<std::byte>>(
                 encoded.bytes);
+            self->traffic.RecordUdp(
+                dxa::protocol::TrafficDirection::Sent,
+                bytes->size());
             self->udpSocket.async_send_to(
                 boost::asio::buffer(*bytes),
                 self->serverUdpEndpoint,
@@ -486,6 +540,7 @@ struct GameSession::Impl
             scene.zoneRadius = remote.safeZoneRadius;
             scene.lastAckInputSequence = snapshot.ackInputSequence;
             scene.snapshotCount = snapshotCount.load();
+            ++appliedSnapshotCount;
         }
 
         if (state.load() == GameSessionState::Running && predictor)
@@ -531,6 +586,7 @@ struct GameSession::Impl
 
     void CloseNetwork()
     {
+        traffic.Freeze();
         tcpResolver.cancel();
         udpResolver.cancel();
         bindTimer.cancel();
@@ -592,10 +648,16 @@ struct GameSession::Impl
     std::atomic<GameSessionState> state{GameSessionState::Idle};
     std::atomic<bool> stopRequested{false};
 
+    dxa::game_common::GameTrafficCounter traffic;
+    std::uint64_t pendingWelcomeTcpReceivedBytes = 0U;
+    bool measurementStarted = false;
+
     std::mutex snapshotMutex;
     std::deque<ReassembledSnapshot> snapshotQueue;
-    std::uint64_t droppedSnapshots = 0U;
+    std::atomic<std::uint64_t> discardedSnapshots{0U};
+    std::atomic<std::uint64_t> droppedSnapshots{0U};
     std::atomic<std::uint64_t> snapshotCount{0U};
+    std::atomic<std::uint64_t> appliedSnapshotCount{0U};
     mutable std::mutex resultMutex;
     std::optional<dxa::protocol::GameMatchResult> matchResult;
 };
@@ -672,6 +734,16 @@ std::optional<dxa::protocol::GameMatchResult> GameSession::Result() const
 std::uint64_t GameSession::SnapshotCount() const noexcept
 {
     return impl_->snapshotCount.load();
+}
+
+dxa::game_common::GameSessionMetrics GameSession::Metrics() const
+{
+    dxa::game_common::GameSessionMetrics metrics;
+    metrics.traffic = impl_->traffic.Totals();
+    metrics.snapshotsApplied = impl_->appliedSnapshotCount.load();
+    metrics.snapshotsDiscarded = impl_->discardedSnapshots.load();
+    metrics.snapshotQueueDrops = impl_->droppedSnapshots.load();
+    return metrics;
 }
 
 void GameSession::Stop()

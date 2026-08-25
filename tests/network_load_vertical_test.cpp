@@ -60,7 +60,9 @@ TEST(NetworkLoadVertical, WarpHostAndTwentyThreeBotSessionsFinishOneMatch)
             report.sessions.end(),
             [](const dxa::bot_client::BotSessionReport& session) {
                 return session.exitCode == 0
-                    && session.snapshotsApplied >= 2U;
+                    && session.snapshotsApplied >= 2U
+                    && session.receivedTcpBytes > 0U
+                    && session.receivedUdpBytes > 0U;
             }));
         EXPECT_EQ(60U, host.Result()->finishedTick);
         EXPECT_GE(host.SnapshotCount(), 2U);

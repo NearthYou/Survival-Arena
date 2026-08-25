@@ -29,6 +29,7 @@ using dxa::protocol::AsioFramedConnection;
 using dxa::protocol::EncodedMessage;
 using dxa::protocol::MessageType;
 using dxa::protocol::RawFrame;
+using dxa::protocol::TrafficDirection;
 
 struct AsioSocketPair
 {
@@ -174,6 +175,58 @@ TEST(AsioFramedConnection, ReadsFragmentedFrameAndPreservesWriteOrder)
     connection->Close();
     PumpReady(pair.io);
     EXPECT_EQ(1U, closeCount);
+}
+
+TEST(AsioFramedConnection, ReportsHeaderAndPayloadBytesByDirection)
+{
+    AsioSocketPair pair;
+    std::size_t sentBytes = 0U;
+    std::size_t receivedBytes = 0U;
+    std::vector<RawFrame> frames;
+    auto connection = AsioFramedConnection::Create(
+        std::move(pair.server),
+        [&frames](RawFrame frame) { frames.push_back(std::move(frame)); },
+        [](const boost::system::error_code) {},
+        [&sentBytes, &receivedBytes](
+            const TrafficDirection direction,
+            const std::size_t bytes) {
+            if (direction == TrafficDirection::Sent)
+            {
+                sentBytes += bytes;
+            }
+            else
+            {
+                receivedBytes += bytes;
+            }
+            throw std::runtime_error{"observer failure"};
+        });
+    connection->Start();
+
+    const EncodedMessage incoming = Message(
+        MessageType::GameClientHello,
+        {1U, 2U, 3U, 4U, 5U, 6U, 7U});
+    const auto incomingFrame = dxa::protocol::EncodeTcpFrame(incoming);
+    WriteFragment(pair.client, incomingFrame);
+    RunUntil(pair.io, [&frames] { return frames.size() == 1U; });
+
+    EncodedMessage outgoing;
+    outgoing.type = MessageType::GameServerWelcome;
+    outgoing.payload.resize(13U, std::byte{0x2A});
+    const auto outgoingFrame = dxa::protocol::EncodeTcpFrame(outgoing);
+    std::vector<std::byte> clientBytes(outgoingFrame.size());
+    bool clientRead = false;
+    boost::asio::async_read(
+        pair.client,
+        boost::asio::buffer(clientBytes),
+        [&clientRead](
+            const boost::system::error_code error,
+            const std::size_t) { clientRead = !error; });
+    ASSERT_TRUE(connection->Send(outgoing));
+    RunUntil(pair.io, [&clientRead] { return clientRead; });
+
+    EXPECT_EQ(outgoingFrame.size(), sentBytes);
+    EXPECT_EQ(incomingFrame.size(), receivedBytes);
+    EXPECT_EQ(outgoingFrame, clientBytes);
 }
 
 TEST(AsioFramedConnection, RejectsOversizedHeaderBeforeReadingPayload)

@@ -2,6 +2,7 @@ add_library(
     dxa_game_common
     STATIC
         src/ArenaFingerprint.cpp
+        src/NetworkMetrics.cpp
         src/SnapshotAdapter.cpp
 )
 target_include_directories(

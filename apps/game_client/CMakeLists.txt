@@ -15,6 +15,7 @@ target_include_directories(
 target_link_libraries(
     dxa_game_client
     PUBLIC
+        dxa_game_common
         dxa_protocol
         dxa_simulation
 )

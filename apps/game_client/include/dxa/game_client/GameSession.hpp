@@ -1,5 +1,6 @@
 #pragma once
 
+#include <dxa/game_common/NetworkMetrics.hpp>
 #include <dxa/protocol/GameSnapshot.hpp>
 #include <dxa/protocol/GameTcpMessages.hpp>
 #include <dxa/protocol/LobbyMessages.hpp>
@@ -68,6 +69,7 @@ public:
     [[nodiscard]] std::optional<dxa::protocol::GameMatchResult>
     Result() const;
     [[nodiscard]] std::uint64_t SnapshotCount() const noexcept;
+    [[nodiscard]] dxa::game_common::GameSessionMetrics Metrics() const;
     void Stop();
 
 private:

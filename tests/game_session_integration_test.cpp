@@ -499,6 +499,57 @@ TEST(GameSession, AuthenticatesBindsPredictsAndPublishesScene)
     EXPECT_EQ(2U, scene.snapshotCount);
 }
 
+TEST(GameSession, MetricsCountGameTrafficAndFreezeAfterResult)
+{
+    FakeGameServer server;
+    GameSession session{dxa::simulation::BuildSurvivalArenaNavMesh()};
+    session.Start(server.StartFor());
+    server.AcceptHelloAndWelcome();
+    server.AcceptUdpBind();
+    server.SendSnapshot(1U, 2U, 0U);
+    WaitUntil([&] { return session.SnapshotCount() == 1U; });
+    session.FixedUpdate();
+
+    const auto active = session.Metrics();
+    const auto arena = dxa::simulation::SurvivalArenaMapDefinition();
+    const auto expectedWelcomeBytes = dxa::protocol::EncodeTcpFrame(
+        dxa::protocol::EncodeGameServerMessage(GameServerMessage{
+            GameServerWelcome{
+                MatchId{7U},
+                PlayerId{3U},
+                EntityId{0U},
+                dxa::protocol::GameTickRate,
+                dxa::protocol::SnapshotRate,
+                1U,
+                dxa::game_common::SurvivalArenaFingerprint(arena),
+                dxa::protocol::ReplicationMode::FullState,
+                Token(9U)}})).size();
+    EXPECT_EQ(expectedWelcomeBytes, active.traffic.tcpReceivedBytes);
+    EXPECT_EQ(0U, active.traffic.tcpSentBytes);
+    EXPECT_GT(active.traffic.udpSentBytes, 0U);
+    EXPECT_GT(active.traffic.udpReceivedBytes, 0U);
+    EXPECT_EQ(1U, active.snapshotsApplied);
+    EXPECT_EQ(0U, active.snapshotQueueDrops);
+
+    server.SendResult();
+    WaitUntil([&] { return session.State() == GameSessionState::Finished; });
+    const auto frozen = session.Metrics();
+    const auto expectedResultBytes = dxa::protocol::EncodeTcpFrame(
+        dxa::protocol::EncodeGameServerMessage(GameServerMessage{
+            GameMatchResult{
+                MatchId{7U},
+                EntityId{0U},
+                true,
+                MatchCompletionReason::LastSurvivor,
+                12U}})).size();
+    std::this_thread::sleep_for(20ms);
+
+    EXPECT_EQ(frozen, session.Metrics());
+    EXPECT_EQ(
+        frozen.traffic.tcpReceivedBytes,
+        active.traffic.tcpReceivedBytes + expectedResultBytes);
+}
+
 TEST(GameSession, TwoSessionsShareOneRuntimeAndBothSynchronize)
 {
     FakeGameServer firstServer;
@@ -614,6 +665,9 @@ TEST(GameSession, RejectsWrongSourceDuplicateAndKeepsNewestSixtyFourSnapshots)
         [](const auto& actor) { return actor.id == EntityId{1U}; });
     ASSERT_NE(scene.actors.end(), remote);
     EXPECT_GE(remote->position.x, 68.0F);
+    const auto metrics = session.Metrics();
+    EXPECT_EQ(64U, metrics.snapshotsApplied);
+    EXPECT_EQ(6U, metrics.snapshotQueueDrops);
 }
 
 TEST(GameSession, DeliversResultAndRejectsImpossibleAck)

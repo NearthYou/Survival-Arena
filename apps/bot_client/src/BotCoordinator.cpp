@@ -433,14 +433,23 @@ struct BotCoordinator::Impl final
                 {
                     bot.gameSession->FixedUpdate();
                 }
+                const dxa::game_common::GameSessionMetrics metrics =
+                    bot.gameSession->Metrics();
                 const std::uint64_t receivedSnapshots =
-                    bot.gameSession->SnapshotCount();
+                    metrics.snapshotsApplied;
                 minimumSnapshots = std::min(
                     minimumSnapshots,
                     receivedSnapshots);
                 {
                     std::scoped_lock lock{reportMutex};
                     bot.report.snapshotsApplied = receivedSnapshots;
+                    bot.report.receivedTcpBytes =
+                        metrics.traffic.tcpReceivedBytes;
+                    bot.report.receivedUdpBytes =
+                        metrics.traffic.udpReceivedBytes;
+                    bot.report.discardedSnapshots =
+                        metrics.snapshotsDiscarded;
+                    bot.report.keyframeRequests = metrics.keyframeRequests;
                 }
                 if (receivedSnapshots >= 2U
                     && !bot.synchronizationReported)

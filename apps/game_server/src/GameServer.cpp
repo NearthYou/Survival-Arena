@@ -3,6 +3,7 @@
 #include <dxa/game_server/AuthoritativeMatch.hpp>
 #include <dxa/game_server/UdpTokenSource.hpp>
 
+#include <dxa/game_common/NetworkMetrics.hpp>
 #include <dxa/protocol/AsioFramedConnection.hpp>
 #include <dxa/protocol/GameTcpMessageCodec.hpp>
 #include <dxa/protocol/GameUdpCodec.hpp>
@@ -130,6 +131,14 @@ struct GameServer::State final
                     {
                         locked->OnClosed(error);
                     }
+                },
+                [weak](
+                    const dxa::protocol::TrafficDirection direction,
+                    const std::size_t bytes) {
+                    if (const auto locked = weak.lock())
+                    {
+                        locked->OnBytes(direction, bytes);
+                    }
                 });
             return session;
         }
@@ -196,6 +205,16 @@ struct GameServer::State final
             if (const auto owner = owner_.lock())
             {
                 owner->GameSessionClosed(connection_, error);
+            }
+        }
+
+        void OnBytes(
+            const dxa::protocol::TrafficDirection direction,
+            const std::size_t bytes)
+        {
+            if (const auto owner = owner_.lock())
+            {
+                owner->gameTraffic_.RecordTcp(direction, bytes);
             }
         }
 
@@ -287,6 +306,11 @@ struct GameServer::State final
     [[nodiscard]] std::uint16_t GameUdpPort() const
     {
         return udpSocket_.local_endpoint().port();
+    }
+
+    [[nodiscard]] dxa::game_common::GameTrafficTotals Traffic() const
+    {
+        return gameTraffic_.Totals();
     }
 
     void ConnectControl()
@@ -458,6 +482,7 @@ struct GameServer::State final
         }
         try
         {
+            gameTraffic_.Reset();
             match_.emplace(AuthoritativeMatch::Create(
                 reservation,
                 dxa::simulation::SurvivalArenaMapDefinition(),
@@ -638,6 +663,10 @@ struct GameServer::State final
         {
             session->second->MarkAuthenticated();
             CancelAuthenticationTimer(connection);
+            if (!gameTraffic_.Active())
+            {
+                gameTraffic_.Start();
+            }
         }
         RouteMatchResult(result);
     }
@@ -697,6 +726,12 @@ struct GameServer::State final
                 const std::size_t received) {
                 if (!self->stopping_)
                 {
+                    if (!error)
+                    {
+                        self->gameTraffic_.RecordUdp(
+                            dxa::protocol::TrafficDirection::Received,
+                            received);
+                    }
                     if (!error
                         && received <= dxa::protocol::MaxUdpDatagramBytes
                         && self->match_.has_value())
@@ -725,6 +760,9 @@ struct GameServer::State final
         {
             auto bytes = std::make_shared<std::vector<std::byte>>(
                 dxa::protocol::EncodeServerDatagram(outbound.datagram).bytes);
+            gameTraffic_.RecordUdp(
+                dxa::protocol::TrafficDirection::Sent,
+                bytes->size());
             const udp::endpoint endpoint = ToEndpoint(outbound.recipient);
             udpSocket_.async_send_to(
                 boost::asio::buffer(*bytes),
@@ -796,11 +834,6 @@ struct GameServer::State final
                 return std::holds_alternative<
                     dxa::protocol::MatchFinished>(message);
             });
-        if (completed)
-        {
-            DiscardMatch();
-        }
-
         for (const dxa::protocol::WorkerToLobbyMessage& control
              : result.control)
         {
@@ -838,6 +871,10 @@ struct GameServer::State final
                 session->second->Close();
             }
         }
+        if (completed)
+        {
+            DiscardMatch();
+        }
         if (match_.has_value())
         {
             ScheduleMatchTimer();
@@ -846,6 +883,7 @@ struct GameServer::State final
 
     void DiscardMatch()
     {
+        gameTraffic_.Freeze();
         matchTimer_.cancel();
         match_.reset();
         activeReservation_.reset();
@@ -868,6 +906,7 @@ struct GameServer::State final
     std::optional<AuthoritativeMatch> match_;
     std::optional<dxa::protocol::ReservationId> activeReservation_;
     std::optional<dxa::protocol::MatchId> activeMatch_;
+    dxa::game_common::GameTrafficCounter gameTraffic_;
     std::shared_ptr<IUdpTokenSource> tokenSource_;
     std::optional<std::uint64_t> nextGameConnection_{1U};
     std::array<std::byte, dxa::protocol::MaxUdpDatagramBytes + 1U>
@@ -911,5 +950,10 @@ std::uint16_t GameServer::GameTcpPort() const
 std::uint16_t GameServer::GameUdpPort() const
 {
     return state_->GameUdpPort();
+}
+
+dxa::game_common::GameTrafficTotals GameServer::Traffic() const
+{
+    return state_->Traffic();
 }
 } // namespace dxa::game_server
