@@ -34,6 +34,7 @@ struct BotSessionReport
     std::uint64_t udpDatagramsDelayed = 0U;
     std::uint64_t udpDatagramsDelivered = 0U;
     std::uint64_t shapedQueueOverflows = 0U;
+    std::uint64_t measurementNanoseconds = 0U;
     int exitCode = 0;
 };
 

@@ -48,6 +48,14 @@ int main(const int argc, const char* const* const argv)
                       << " discarded_snapshots="
                       << session.discardedSnapshots
                       << " keyframe_requests=" << session.keyframeRequests
+                      << " measurement_ns=" << session.measurementNanoseconds
+                      << " udp_dropped=" << session.udpDatagramsDropped
+                      << " udp_delayed=" << session.udpDatagramsDelayed
+                      << " udp_delivered=" << session.udpDatagramsDelivered
+                      << " shaped_queue_overflows="
+                      << session.shapedQueueOverflows
+                      << " protocol_errors="
+                      << (session.exitCode == 0 ? 0 : 1)
                       << " exit=" << session.exitCode << '\n';
         }
         if (report.result.has_value())

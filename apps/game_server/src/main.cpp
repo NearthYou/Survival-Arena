@@ -61,7 +61,8 @@ public:
         WriteNewFile(
             tickPath_,
             "match_id,sample_index,duration_ns,tick_p95_ns,tcp_bytes,"
-            "udp_bytes,payload_bytes,scheduler_overruns\n");
+            "udp_bytes,payload_bytes,scheduler_overruns,udp_dropped,"
+            "udp_delayed,udp_delivered,shaped_queue_overflows\n");
         WriteNewFile(
             replicationPath_,
             "match_id,sample_index,encode_duration_ns,replication_p95_ns,"
@@ -112,7 +113,11 @@ public:
                       << match.tcpBytes << ','
                       << match.udpBytes << ','
                       << match.payloadBytes << ','
-                      << match.schedulerOverruns << '\n';
+                      << match.schedulerOverruns << ','
+                      << match.udpDatagramsDropped << ','
+                      << match.udpDatagramsDelayed << ','
+                      << match.udpDatagramsDelivered << ','
+                      << match.shapedQueueOverflows << '\n';
             }
             for (std::size_t index = 0U;
                  index < match.replicationSamples.size();

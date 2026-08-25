@@ -461,6 +461,8 @@ struct BotCoordinator::Impl final
                         metrics.udpDatagramsDelivered;
                     bot.report.shapedQueueOverflows =
                         metrics.shapedQueueOverflows;
+                    bot.report.measurementNanoseconds =
+                        metrics.measurementNanoseconds;
                 }
                 if (receivedSnapshots >= 2U
                     && !bot.synchronizationReported)

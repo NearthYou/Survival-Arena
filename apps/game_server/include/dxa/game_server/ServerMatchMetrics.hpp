@@ -34,6 +34,10 @@ struct ServerMatchMetricsSnapshot
     std::uint64_t udpBytes = 0U;
     std::uint64_t payloadBytes = 0U;
     std::uint64_t schedulerOverruns = 0U;
+    std::uint64_t udpDatagramsDropped = 0U;
+    std::uint64_t udpDatagramsDelayed = 0U;
+    std::uint64_t udpDatagramsDelivered = 0U;
+    std::uint64_t shapedQueueOverflows = 0U;
 
     [[nodiscard]] bool operator==(
         const ServerMatchMetricsSnapshot&) const = default;

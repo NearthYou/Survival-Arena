@@ -905,6 +905,12 @@ public:
         return network_.UdpShapingMetrics();
     }
 
+    [[nodiscard]] std::vector<dxa::game_server::ServerMatchMetricsSnapshot>
+    CompletedMetrics() const
+    {
+        return network_.CompletedMetrics();
+    }
+
     [[nodiscard]] std::filesystem::path ShaderPath() const
     {
         return std::filesystem::path{DXA_TEST_SHADER_PATH};

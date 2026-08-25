@@ -521,6 +521,7 @@ struct GameServer::State final
         try
         {
             gameTraffic_.Reset();
+            matchShapingStart_ = udpSendQueue_.Metrics();
             match_.emplace(AuthoritativeMatch::Create(
                 reservation,
                 dxa::simulation::SurvivalArenaMapDefinition(),
@@ -926,6 +927,15 @@ struct GameServer::State final
         {
             ServerMatchMetricsSnapshot metrics = match_->Metrics(
                 gameTraffic_.Totals());
+            const auto shaping = udpSendQueue_.Metrics();
+            metrics.udpDatagramsDropped =
+                shaping.dropped - matchShapingStart_.dropped;
+            metrics.udpDatagramsDelayed =
+                shaping.delayed - matchShapingStart_.delayed;
+            metrics.udpDatagramsDelivered =
+                shaping.delivered - matchShapingStart_.delivered;
+            metrics.shapedQueueOverflows =
+                shaping.overflows - matchShapingStart_.overflows;
             {
                 std::scoped_lock lock{completedMetricsMutex_};
                 completedMetrics_.push_back(std::move(metrics));
@@ -965,6 +975,7 @@ struct GameServer::State final
     std::optional<dxa::protocol::ReservationId> activeReservation_;
     std::optional<dxa::protocol::MatchId> activeMatch_;
     dxa::game_common::GameTrafficCounter gameTraffic_;
+    dxa::game_common::UdpDatagramQueueMetrics matchShapingStart_;
     mutable std::mutex completedMetricsMutex_;
     std::vector<ServerMatchMetricsSnapshot> completedMetrics_;
     std::shared_ptr<IUdpTokenSource> tokenSource_;

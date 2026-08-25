@@ -140,9 +140,34 @@ int main(const int argc, const char* const* argv)
             shaderPath,
             assetRoot,
             network.get());
+        dxa::game_common::GameSessionMetrics networkMetrics;
+        bool networkFinished = false;
         if (network)
         {
+            networkMetrics = network->Metrics();
+            networkFinished = network->Result().has_value();
             network->Stop();
+            std::cout << "client game metrics measurement_ns="
+                      << networkMetrics.measurementNanoseconds
+                      << " tcp_received_bytes="
+                      << networkMetrics.traffic.tcpReceivedBytes
+                      << " udp_received_bytes="
+                      << networkMetrics.traffic.udpReceivedBytes
+                      << " discarded_snapshots="
+                      << networkMetrics.snapshotsDiscarded
+                      << " keyframe_requests="
+                      << networkMetrics.keyframeRequests
+                      << " udp_dropped="
+                      << networkMetrics.udpDatagramsDropped
+                      << " udp_delayed="
+                      << networkMetrics.udpDatagramsDelayed
+                      << " udp_delivered="
+                      << networkMetrics.udpDatagramsDelivered
+                      << " shaped_queue_overflows="
+                      << networkMetrics.shapedQueueOverflows
+                      << " protocol_errors="
+                      << (networkFinished ? 0 : 1)
+                      << '\n' << std::flush;
         }
         spdlog::info("client stop: exit={}", exitCode);
         return exitCode;

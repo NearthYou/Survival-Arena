@@ -710,6 +710,7 @@ TEST(GameSession, MetricsCountGameTrafficAndFreezeAfterResult)
     EXPECT_EQ(
         frozen.traffic.tcpReceivedBytes,
         active.traffic.tcpReceivedBytes + expectedResultBytes);
+    EXPECT_GT(frozen.measurementNanoseconds, 0U);
 }
 
 TEST(GameSession, TwoSessionsShareOneRuntimeAndBothSynchronize)

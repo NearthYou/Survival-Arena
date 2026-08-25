@@ -224,6 +224,7 @@ struct GameSession::Impl
             initialTraffic.tcpReceivedBytes = pendingWelcomeTcpReceivedBytes;
             traffic.Start(initialTraffic);
             measurementStarted = true;
+            measurementStartedAt = std::chrono::steady_clock::now();
             localActor.store(welcome->actor.value);
             udpToken = welcome->udpToken;
             state.store(GameSessionState::BindingUdp);
@@ -256,8 +257,12 @@ struct GameSession::Impl
         boost::system::error_code ignored;
         udpSocket.cancel(ignored);
         udpSocket.close(ignored);
-        state.store(GameSessionState::Finished);
+        measurementNanoseconds.store(static_cast<std::uint64_t>(
+            std::chrono::duration_cast<std::chrono::nanoseconds>(
+                std::chrono::steady_clock::now() - measurementStartedAt)
+                .count()));
         traffic.Freeze();
+        state.store(GameSessionState::Finished);
     }
 
     void ObserveTcp(
@@ -776,6 +781,8 @@ struct GameSession::Impl
     dxa::game_common::GameTrafficCounter traffic;
     std::uint64_t pendingWelcomeTcpReceivedBytes = 0U;
     bool measurementStarted = false;
+    std::chrono::steady_clock::time_point measurementStartedAt{};
+    std::atomic<std::uint64_t> measurementNanoseconds{0U};
 
     std::mutex snapshotMutex;
     std::deque<PendingSnapshot> snapshotQueue;
@@ -880,6 +887,7 @@ dxa::game_common::GameSessionMetrics GameSession::Metrics() const
         metrics.udpDatagramsDelivered = shaping.delivered;
         metrics.shapedQueueOverflows = shaping.overflows;
     }
+    metrics.measurementNanoseconds = impl_->measurementNanoseconds.load();
     return metrics;
 }
 

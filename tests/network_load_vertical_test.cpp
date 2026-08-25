@@ -178,6 +178,8 @@ TEST(GameServerIntegration, ImpairmentProfileFinishesWithKeyframeRecovery)
     std::uint64_t keyframeRequests = 0U;
     std::uint64_t queueOverflows = 0U;
     bool everyBotFinished = false;
+    bool everyMeasurementPositive = false;
+    std::uint64_t completedServerDrops = 0U;
     dxa::test::ScopedOutputCapture capture;
     {
         dxa::test::NetworkVerticalFixture fixture{
@@ -215,15 +217,21 @@ TEST(GameServerIntegration, ImpairmentProfileFinishesWithKeyframeRecovery)
 
         const auto hostMetrics = host.Metrics();
         const auto serverShaping = fixture.UdpShapingMetrics();
+        const auto completedMetrics = fixture.CompletedMetrics();
+        ASSERT_EQ(1U, completedMetrics.size());
+        completedServerDrops = completedMetrics.front().udpDatagramsDropped;
         clientDrops = hostMetrics.udpDatagramsDropped;
         keyframeRequests = hostMetrics.keyframeRequests;
         queueOverflows = hostMetrics.shapedQueueOverflows
             + serverShaping.overflows;
         everyBotFinished = true;
+        everyMeasurementPositive = hostMetrics.measurementNanoseconds > 0U;
         for (const dxa::bot_client::BotSessionReport& session
              : report.sessions)
         {
             everyBotFinished = everyBotFinished && session.exitCode == 0;
+            everyMeasurementPositive = everyMeasurementPositive
+                && session.measurementNanoseconds > 0U;
             clientDrops += session.udpDatagramsDropped;
             keyframeRequests += session.keyframeRequests;
             queueOverflows += session.shapedQueueOverflows;
@@ -237,7 +245,9 @@ TEST(GameServerIntegration, ImpairmentProfileFinishesWithKeyframeRecovery)
     capture.Finish();
     EXPECT_EQ(0U, dxa::test::NetworkSecretLeakCount(capture.Text(), 24U));
     EXPECT_TRUE(everyBotFinished);
+    EXPECT_TRUE(everyMeasurementPositive);
     EXPECT_EQ(16U, serverDrops);
+    EXPECT_EQ(16U, completedServerDrops);
     EXPECT_GT(clientDrops, 0U);
     EXPECT_GT(keyframeRequests, 0U);
     EXPECT_EQ(0U, queueOverflows);
