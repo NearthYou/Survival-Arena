@@ -1,6 +1,7 @@
 #pragma once
 
 #include <dxa/game_server/ParticipantRoster.hpp>
+#include <dxa/game_server/ServerMatchMetrics.hpp>
 #include <dxa/game_server/UdpTokenSource.hpp>
 
 #include <dxa/protocol/GameSnapshot.hpp>
@@ -86,6 +87,8 @@ public:
     NextDeadline() const;
     [[nodiscard]] bool Started() const noexcept;
     [[nodiscard]] dxa::protocol::GameSnapshot Snapshot() const;
+    [[nodiscard]] ServerMatchMetricsSnapshot Metrics(
+        dxa::game_common::GameTrafficTotals traffic = {}) const;
 
 private:
     struct Impl;

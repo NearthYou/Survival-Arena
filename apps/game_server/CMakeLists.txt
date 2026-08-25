@@ -8,6 +8,7 @@ add_library(
         src/GameTicketStore.cpp
         src/ParticipantRoster.cpp
         src/SecureUdpTokenSource.cpp
+        src/ServerMatchMetrics.cpp
 )
 find_package(spdlog CONFIG REQUIRED)
 target_include_directories(

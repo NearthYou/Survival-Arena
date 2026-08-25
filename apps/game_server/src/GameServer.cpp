@@ -27,6 +27,7 @@
 #include <limits>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -311,6 +312,24 @@ struct GameServer::State final
     [[nodiscard]] dxa::game_common::GameTrafficTotals Traffic() const
     {
         return gameTraffic_.Totals();
+    }
+
+    [[nodiscard]] std::vector<ServerMatchMetricsSnapshot>
+    CompletedMetrics() const
+    {
+        std::vector<ServerMatchMetricsSnapshot> metrics;
+        {
+            std::scoped_lock lock{completedMetricsMutex_};
+            metrics = completedMetrics_;
+        }
+        std::sort(
+            metrics.begin(),
+            metrics.end(),
+            [](const ServerMatchMetricsSnapshot& left,
+               const ServerMatchMetricsSnapshot& right) {
+                return left.match < right.match;
+            });
+        return metrics;
     }
 
     void ConnectControl()
@@ -873,6 +892,12 @@ struct GameServer::State final
         }
         if (completed)
         {
+            ServerMatchMetricsSnapshot metrics = match_->Metrics(
+                gameTraffic_.Totals());
+            {
+                std::scoped_lock lock{completedMetricsMutex_};
+                completedMetrics_.push_back(std::move(metrics));
+            }
             DiscardMatch();
         }
         if (match_.has_value())
@@ -907,6 +932,8 @@ struct GameServer::State final
     std::optional<dxa::protocol::ReservationId> activeReservation_;
     std::optional<dxa::protocol::MatchId> activeMatch_;
     dxa::game_common::GameTrafficCounter gameTraffic_;
+    mutable std::mutex completedMetricsMutex_;
+    std::vector<ServerMatchMetricsSnapshot> completedMetrics_;
     std::shared_ptr<IUdpTokenSource> tokenSource_;
     std::optional<std::uint64_t> nextGameConnection_{1U};
     std::array<std::byte, dxa::protocol::MaxUdpDatagramBytes + 1U>
@@ -955,5 +982,10 @@ std::uint16_t GameServer::GameUdpPort() const
 dxa::game_common::GameTrafficTotals GameServer::Traffic() const
 {
     return state_->Traffic();
+}
+
+std::vector<ServerMatchMetricsSnapshot> GameServer::CompletedMetrics() const
+{
+    return state_->CompletedMetrics();
 }
 } // namespace dxa::game_server

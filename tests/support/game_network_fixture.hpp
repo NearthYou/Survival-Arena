@@ -540,6 +540,12 @@ public:
         worker_.Stop();
     }
 
+    [[nodiscard]] std::vector<dxa::game_server::ServerMatchMetricsSnapshot>
+    CompletedMetrics() const
+    {
+        return worker_.CompletedMetrics();
+    }
+
     template <typename Condition>
     void RunUntil(Condition condition)
     {

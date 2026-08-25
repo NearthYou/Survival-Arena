@@ -2,6 +2,7 @@
 
 #include <dxa/game_common/NetworkMetrics.hpp>
 #include <dxa/game_server/GameServerOptions.hpp>
+#include <dxa/game_server/ServerMatchMetrics.hpp>
 #include <dxa/game_server/UdpTokenSource.hpp>
 
 #include <dxa/simulation/MatchConfig.hpp>
@@ -11,6 +12,7 @@
 #include <chrono>
 #include <cstdint>
 #include <memory>
+#include <vector>
 
 namespace dxa::game_server
 {
@@ -38,6 +40,8 @@ public:
     [[nodiscard]] std::uint16_t GameTcpPort() const;
     [[nodiscard]] std::uint16_t GameUdpPort() const;
     [[nodiscard]] dxa::game_common::GameTrafficTotals Traffic() const;
+    [[nodiscard]] std::vector<ServerMatchMetricsSnapshot>
+    CompletedMetrics() const;
 
 private:
     struct State;

@@ -37,6 +37,7 @@ add_executable(
     game_participant_roster_test.cpp
     game_server_adapter_test.cpp
     game_server_integration_test.cpp
+    game_server_metrics_test.cpp
     game_server_options_test.cpp
     game_session_integration_test.cpp
     game_snapshot_reassembler_test.cpp

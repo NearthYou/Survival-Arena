@@ -670,6 +670,11 @@ TEST(AuthoritativeMatch, EmitsBoundedRecipientSnapshotsEverySecondTick)
     EXPECT_EQ(
         FirstFragmentFor(fourth, peerA)->fullPayloadCrc32,
         FirstFragmentFor(fourth, peerB)->fullPayloadCrc32);
+
+    const auto metrics = match.Metrics();
+    EXPECT_EQ(4U, metrics.tickSamples.size());
+    EXPECT_EQ(2U, metrics.replicationSamples.size());
+    EXPECT_GT(metrics.payloadBytes, 0U);
 }
 
 TEST(AuthoritativeMatch, PropagatesBoundedCatchUpAndCumulativeOverruns)
@@ -685,12 +690,14 @@ TEST(AuthoritativeMatch, PropagatesBoundedCatchUpAndCumulativeOverruns)
     EXPECT_TRUE(overrun.overrun);
     EXPECT_EQ(std::chrono::milliseconds{800}, overrun.overrunLateness);
     EXPECT_EQ(1U, overrun.totalOverruns);
+    EXPECT_EQ(1U, match.Metrics().schedulerOverruns);
 
     const AuthoritativeMatchResult idle = match.Advance(
         TimeNs(1000000000ULL));
     EXPECT_EQ(0U, idle.ticksExecuted);
     EXPECT_FALSE(idle.overrun);
     EXPECT_EQ(1U, idle.totalOverruns);
+    EXPECT_EQ(1U, match.Metrics().schedulerOverruns);
 }
 
 TEST(AuthoritativeMatch, TicketExpiryResolvesRemainingSlotAndStartsMatch)

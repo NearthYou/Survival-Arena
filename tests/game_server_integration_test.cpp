@@ -579,6 +579,12 @@ TEST(GameServerIntegration, CompletesThreeSequentialReservationsOnOneWorker)
         static_cast<void>(fixture.WaitForResult(host));
         fixture.WaitForRoomCleanup(room);
     }
+
+    const auto metrics = fixture.CompletedMetrics();
+    ASSERT_EQ(3U, metrics.size());
+    EXPECT_EQ(dxa::protocol::MatchId{1U}, metrics[0].match);
+    EXPECT_EQ(dxa::protocol::MatchId{2U}, metrics[1].match);
+    EXPECT_EQ(dxa::protocol::MatchId{3U}, metrics[2].match);
 }
 
 TEST(GameServerIntegration, PlayBotUsesSharedGameSessionUntilResult)
@@ -662,6 +668,27 @@ TEST(GameServerIntegration, PlayCoordinatorReportsEverySession)
     EXPECT_EQ(0, report.exitCode);
     fixture.RunUntil([&host] { return host->Result() != nullptr; });
     EXPECT_EQ(*host->Result(), *report.result);
+
+    const auto serverMetrics = fixture.CompletedMetrics();
+    ASSERT_EQ(1U, serverMetrics.size());
+    EXPECT_EQ(report.result->match, serverMetrics.front().match);
+    EXPECT_EQ(12U, serverMetrics.front().tickSamples.size());
+    EXPECT_EQ(6U, serverMetrics.front().replicationSamples.size());
+    EXPECT_GT(serverMetrics.front().tcpBytes, 0U);
+    EXPECT_GT(serverMetrics.front().udpBytes, 0U);
+    EXPECT_GT(serverMetrics.front().payloadBytes, 0U);
+    EXPECT_GT(
+        serverMetrics.front().udpBytes,
+        serverMetrics.front().payloadBytes);
+    ASSERT_FALSE(serverMetrics.front().replicationSamples.empty());
+    EXPECT_EQ(
+        24U,
+        serverMetrics.front().replicationSamples.front().visibleActors);
+    EXPECT_EQ(
+        0U,
+        serverMetrics.front().replicationSamples.front().visibleLoot);
+    EXPECT_TRUE(
+        serverMetrics.front().replicationSamples.front().keyframe);
 }
 
 TEST(GameServerIntegration, PlayBotPreservesLobbyOnlyTicketMode)
