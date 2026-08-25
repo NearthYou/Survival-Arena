@@ -1,0 +1,50 @@
+{
+    "schema_version":  1,
+    "run_id":  "20260825-223551-b022f787-full-state",
+    "commit_sha":  "b022f787cf49c2833d6ec87b5a4f7ebb7dd8824b",
+    "replication_mode":  "full-state",
+    "impairment_enabled":  false,
+    "match_count":  1,
+    "seeds":  [
+                  20260825
+              ],
+    "participant_count":  24,
+    "bot_session_count":  23,
+    "neutral_ai_count":  100,
+    "results":  [
+                    {
+                        "match_id":  1,
+                        "room_id":  1,
+                        "seed":  20260825,
+                        "winner":  "4",
+                        "reason":  1,
+                        "finished_tick":  17430
+                    }
+                ],
+    "raw":  {
+                "tick_sample_count":  17430,
+                "replication_sample_count":  8715,
+                "client_row_count":  24,
+                "server_tcp_bytes":  3008,
+                "server_udp_bytes":  966385048,
+                "payload_bytes":  37849254,
+                "client_received_bytes":  943415208,
+                "scheduler_overruns":  0,
+                "keyframe_count":  8715,
+                "fallback_keyframe_count":  0,
+                "discarded_snapshots":  0,
+                "keyframe_requests":  0
+            },
+    "metrics":  {
+                    "server_tick_p95_ms":  1.9544,
+                    "replication_encode_p95_ms":  0.0605,
+                    "average_client_received_bytes_per_second":  67657.43
+                },
+    "targets":  {
+                    "server_tick_p95_limit_ms":  33.3,
+                    "average_client_received_limit_bytes_per_second":  65536,
+                    "server_tick_pass":  true,
+                    "client_receive_pass":  false
+                },
+    "secret_leak_count":  0
+}

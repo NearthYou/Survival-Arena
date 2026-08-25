@@ -1,0 +1,35 @@
+{
+    "schema_version":  1,
+    "run_id":  "20260825-223551-b022f787-full-state",
+    "started_at":  "2026-08-25T13:35:51.7624815+00:00",
+    "finished_at":  "2026-08-25T13:45:40.4762342+00:00",
+    "elapsed_seconds":  588.714,
+    "git":  {
+                "commit_sha":  "b022f787cf49c2833d6ec87b5a4f7ebb7dd8824b",
+                "short_sha":  "b022f787",
+                "branch":  "feat/24-player-load-optimization",
+                "clean_before_run":  true
+            },
+    "build":  {
+                  "preset":  "windows-msvc-vs-release",
+                  "configuration":  "Release"
+              },
+    "operating_system":  {
+                             "Caption":  "Microsoft Windows 11 Home",
+                             "Version":  "10.0.26200",
+                             "BuildNumber":  "26200"
+                         },
+    "processor":  {
+                      "Name":  "AMD Ryzen 7 6800HS Creator Edition             ",
+                      "NumberOfCores":  8,
+                      "NumberOfLogicalProcessors":  16
+                  },
+    "process_topology":  {
+                             "lobby_servers":  1,
+                             "game_servers":  1,
+                             "dx11_clients_per_match":  1,
+                             "bot_processes_per_match":  1,
+                             "bot_sessions_per_match":  23
+                         },
+    "selected_adapter":  "Microsoft Basic Render Driver"
+}

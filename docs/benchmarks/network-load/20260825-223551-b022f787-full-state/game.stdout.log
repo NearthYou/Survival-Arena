@@ -1,0 +1,2 @@
+[2026-08-25 22:35:52.074] [info] game_server_listening worker=1 tcp_port=8786 udp_port=50448 replication_mode=full-state metrics_output=enabled
+[2026-08-25 22:45:33.633] [info] game_metrics_exported match=1 ticks=17430 replication=8715
