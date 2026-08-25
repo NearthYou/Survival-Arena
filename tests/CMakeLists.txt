@@ -182,6 +182,28 @@ if(WIN32)
             -BuildDirectory "${PROJECT_BINARY_DIR}"
             -Configuration "$<CONFIG>"
     )
+
+    find_program(DXA_DOCKER_EXECUTABLE NAMES docker)
+    if(DXA_DOCKER_EXECUTABLE)
+        execute_process(
+            COMMAND ${DXA_DOCKER_EXECUTABLE} compose version
+            RESULT_VARIABLE DXA_DOCKER_COMPOSE_RESULT
+            OUTPUT_QUIET
+            ERROR_QUIET
+        )
+        if(DXA_DOCKER_COMPOSE_RESULT EQUAL 0)
+            add_test(
+                NAME ServerCompose.ValidatesRuntimeContract
+                COMMAND
+                    ${DXA_POWERSHELL_EXECUTABLE}
+                    -NoProfile
+                    -File "${PROJECT_SOURCE_DIR}/tests/server_compose_contract_test.ps1"
+                    -DockerExecutable "${DXA_DOCKER_EXECUTABLE}"
+                    -ComposeFile "${PROJECT_SOURCE_DIR}/deploy/compose.yaml"
+                    -EnvironmentFile "${PROJECT_SOURCE_DIR}/deploy/.env.example"
+            )
+        endif()
+    endif()
 endif()
 
 add_test(

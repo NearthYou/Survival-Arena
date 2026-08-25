@@ -21,3 +21,4 @@ Testing/
 assets/_source/
 .cache/
 .vcpkg/
+deploy/.env

@@ -1,0 +1,131 @@
+name: dxa-survival-arena
+
+x-server-build: &server-build
+  context: ..
+  dockerfile: deploy/docker/server.Dockerfile
+  args:
+    VCS_REF: ${DXA_IMAGE_REVISION:-local}
+
+x-server-common: &server-common
+  image: ${DXA_SERVER_IMAGE:-dxa-server:local}
+  init: true
+  read_only: true
+  restart: unless-stopped
+  stop_grace_period: 15s
+  cap_drop:
+    - ALL
+  security_opt:
+    - "no-new-privileges:true"
+  networks:
+    - control
+    - edge
+
+services:
+  lobby-server:
+    <<: *server-common
+    build: *server-build
+    command:
+      - /usr/local/bin/dxa_lobby_server
+      - --bind
+      - 0.0.0.0
+      - --port
+      - "${DXA_LOBBY_PORT:-7000}"
+      - --worker-bind
+      - 0.0.0.0
+      - --worker-port
+      - "7001"
+    ports:
+      - "${DXA_LOBBY_PORT:-7000}:${DXA_LOBBY_PORT:-7000}/tcp"
+    healthcheck:
+      test:
+        - CMD
+        - /usr/local/bin/dxa-socket-healthcheck
+        - tcp
+        - "${DXA_LOBBY_PORT:-7000}"
+      interval: 5s
+      timeout: 2s
+      retries: 12
+      start_period: 5s
+
+  game-server-1:
+    <<: *server-common
+    build: *server-build
+    command:
+      - /usr/local/bin/dxa_game_server
+      - --lobby-control-host
+      - lobby-server
+      - --lobby-control-port
+      - "7001"
+      - --worker-id
+      - "1"
+      - --advertise-host
+      - "${DXA_PUBLIC_HOST:-127.0.0.1}"
+      - --game-bind
+      - 0.0.0.0
+      - --game-tcp-port
+      - "${DXA_GAME1_TCP_PORT:-7100}"
+      - --game-udp-port
+      - "${DXA_GAME1_UDP_PORT:-7101}"
+      - --replication-mode
+      - interest-delta
+    ports:
+      - "${DXA_GAME1_TCP_PORT:-7100}:${DXA_GAME1_TCP_PORT:-7100}/tcp"
+      - "${DXA_GAME1_UDP_PORT:-7101}:${DXA_GAME1_UDP_PORT:-7101}/udp"
+    depends_on:
+      lobby-server:
+        condition: service_healthy
+        restart: true
+    healthcheck:
+      test:
+        - CMD
+        - /usr/local/bin/dxa-socket-healthcheck
+        - tcp
+        - "${DXA_GAME1_TCP_PORT:-7100}"
+      interval: 5s
+      timeout: 2s
+      retries: 12
+      start_period: 5s
+
+  game-server-2:
+    <<: *server-common
+    build: *server-build
+    command:
+      - /usr/local/bin/dxa_game_server
+      - --lobby-control-host
+      - lobby-server
+      - --lobby-control-port
+      - "7001"
+      - --worker-id
+      - "2"
+      - --advertise-host
+      - "${DXA_PUBLIC_HOST:-127.0.0.1}"
+      - --game-bind
+      - 0.0.0.0
+      - --game-tcp-port
+      - "${DXA_GAME2_TCP_PORT:-7200}"
+      - --game-udp-port
+      - "${DXA_GAME2_UDP_PORT:-7201}"
+      - --replication-mode
+      - interest-delta
+    ports:
+      - "${DXA_GAME2_TCP_PORT:-7200}:${DXA_GAME2_TCP_PORT:-7200}/tcp"
+      - "${DXA_GAME2_UDP_PORT:-7201}:${DXA_GAME2_UDP_PORT:-7201}/udp"
+    depends_on:
+      lobby-server:
+        condition: service_healthy
+        restart: true
+    healthcheck:
+      test:
+        - CMD
+        - /usr/local/bin/dxa-socket-healthcheck
+        - tcp
+        - "${DXA_GAME2_TCP_PORT:-7200}"
+      interval: 5s
+      timeout: 2s
+      retries: 12
+      start_period: 5s
+
+networks:
+  control:
+    internal: true
+  edge:
