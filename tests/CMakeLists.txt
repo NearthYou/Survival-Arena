@@ -170,6 +170,7 @@ if(WIN32)
             -NoProfile
             -File "${PROJECT_SOURCE_DIR}/tests/network_load_runner_test.ps1"
             -RepositoryRoot "${PROJECT_SOURCE_DIR}"
+            -ServerExecutable "$<TARGET_FILE:dxa_game_server>"
     )
 
     add_test(
