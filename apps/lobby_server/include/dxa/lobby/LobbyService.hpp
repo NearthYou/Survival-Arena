@@ -6,16 +6,28 @@
 #include <dxa/lobby/Room.hpp>
 
 #include <chrono>
+#include <concepts>
 #include <cstddef>
 #include <cstdint>
 #include <map>
 #include <optional>
+#include <utility>
 #include <vector>
 
 namespace dxa::lobby
 {
 struct OutboundMessage
 {
+    template <typename Message>
+        requires std::constructible_from<
+            dxa::protocol::ServerMessage,
+            Message&&>
+    OutboundMessage(ConnectionId target, Message&& value)
+        : recipient{target},
+          message{std::forward<Message>(value)}
+    {
+    }
+
     ConnectionId recipient;
     dxa::protocol::ServerMessage message;
 };

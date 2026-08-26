@@ -316,7 +316,7 @@ LobbyServiceResult LobbyService::HandleWorkerEvent(
                     {
                         continue;
                     }
-                    result.outbound.push_back({
+                    result.outbound.emplace_back(
                         connection->second,
                         dxa::protocol::MatchTicket{
                             requesterConnection.has_value()
@@ -328,7 +328,7 @@ LobbyServiceResult LobbyService::HandleWorkerEvent(
                             value.endpoint.host,
                             value.endpoint.tcpPort,
                             value.endpoint.udpPort,
-                            expiresInSeconds}});
+                            expiresInSeconds});
                 }
 
                 LobbyAuditEvent audit = Audit(
@@ -851,11 +851,11 @@ LobbyServiceResult LobbyService::DisconnectStartingPlayer(
         if (requester != playerToConnection_.end())
         {
             requesterConnection = requester->second;
-            result.outbound.push_back({
+            result.outbound.emplace_back(
                 *requesterConnection,
                 ErrorResponse{
                     action.requestId,
-                    LobbyError::WorkerUnavailable}});
+                    LobbyError::WorkerUnavailable});
         }
     }
 

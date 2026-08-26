@@ -1,0 +1,10 @@
+.git
+.github
+.worktrees
+assets
+docs
+out
+scripts
+tests
+deploy/.env
+*.pdf

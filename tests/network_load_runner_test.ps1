@@ -1,7 +1,10 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)]
-    [string]$RepositoryRoot
+    [string]$RepositoryRoot,
+
+    [Parameter(Mandatory)]
+    [string]$ServerExecutable
 )
 
 $ErrorActionPreference = 'Stop'
@@ -504,11 +507,8 @@ try {
         }
     }
 
-    $serverExecutable = Join-Path $RepositoryRoot (
-        'out/build/windows-msvc-vs-debug/apps/game_server/Debug/' +
-        'dxa_game_server.exe')
-    if (-not (Test-Path -LiteralPath $serverExecutable -PathType Leaf)) {
-        throw "Game server metrics smoke binary가 없습니다: $serverExecutable"
+    if (-not (Test-Path -LiteralPath $ServerExecutable -PathType Leaf)) {
+        throw "Game server metrics smoke binary가 없습니다: $ServerExecutable"
     }
     $metricsDirectory = Join-Path $resolvedTemporaryRoot 'metrics-smoke'
     New-Item -ItemType Directory -Path $metricsDirectory | Out-Null
@@ -536,7 +536,7 @@ try {
     $serverStdout = Join-Path $resolvedTemporaryRoot 'server.stdout.log'
     $serverStderr = Join-Path $resolvedTemporaryRoot 'server.stderr.log'
     $server = Start-DxaLoggedProcess `
-        -FilePath $serverExecutable `
+        -FilePath $ServerExecutable `
         -Arguments $serverArguments `
         -StdoutPath $serverStdout `
         -StderrPath $serverStderr
@@ -576,7 +576,7 @@ try {
     }
 
     $duplicate = Start-DxaLoggedProcess `
-        -FilePath $serverExecutable `
+        -FilePath $ServerExecutable `
         -Arguments $serverArguments `
         -StdoutPath (Join-Path $resolvedTemporaryRoot 'duplicate.stdout.log') `
         -StderrPath (Join-Path $resolvedTemporaryRoot 'duplicate.stderr.log')

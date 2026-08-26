@@ -55,6 +55,36 @@ TEST(GameServerOptions, ParsesLoopbackWorkerAndGamePorts)
     EXPECT_EQ(7301U, parsed.options->gameUdpPort);
 }
 
+TEST(GameServerOptions, AcceptsDnsWorkerControlHost)
+{
+    const std::array<std::string_view, 2U> hosts{
+        "lobby-server",
+        "lobby.internal.example"};
+    for (const std::string_view host : hosts)
+    {
+        const auto parsed = Parse({"--lobby-control-host", host});
+
+        ASSERT_TRUE(parsed.options.has_value()) << host << ": " << parsed.error;
+        EXPECT_EQ(host, parsed.options->lobbyControlHost);
+    }
+}
+
+TEST(GameServerOptions, RejectsMalformedDnsWorkerControlHost)
+{
+    const std::string longLabel(64U, 'a');
+    const std::array<std::string_view, 5U> hosts{
+        "bad_host",
+        "-lobby",
+        "lobby-",
+        "lobby..internal",
+        std::string_view{longLabel}};
+    for (const std::string_view host : hosts)
+    {
+        EXPECT_FALSE(Parse({"--lobby-control-host", host}).options.has_value())
+            << host;
+    }
+}
+
 TEST(GameServerOptions, ParsesFullStateMetricsOutput)
 {
     const auto parsed = Parse({
@@ -128,7 +158,7 @@ TEST(GameServerOptions, RejectsInvalidBoundariesDuplicatesAndUnknownOptions)
     EXPECT_FALSE(Parse({"--worker-id", "0"}).options.has_value());
     EXPECT_FALSE(Parse({"--worker-id", "worker"}).options.has_value());
     EXPECT_FALSE(Parse({
-        "--lobby-control-host", "not-an-address"}).options.has_value());
+        "--lobby-control-host", "bad_host"}).options.has_value());
     EXPECT_FALSE(Parse({"--game-bind", "not-an-address"}).options.has_value());
     EXPECT_FALSE(Parse({"--advertise-host", "bad\nhost"}).options.has_value());
     EXPECT_FALSE(Parse({"--advertise-host", ""}).options.has_value());

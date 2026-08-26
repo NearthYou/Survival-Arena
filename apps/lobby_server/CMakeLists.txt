@@ -47,3 +47,8 @@ dxa_enable_project_warnings(dxa_lobby_server_lib)
 add_executable(dxa_lobby_server src/main.cpp)
 target_link_libraries(dxa_lobby_server PRIVATE dxa_lobby_server_lib)
 dxa_enable_project_warnings(dxa_lobby_server)
+install(
+    TARGETS dxa_lobby_server
+    RUNTIME DESTINATION bin
+    COMPONENT Server
+)

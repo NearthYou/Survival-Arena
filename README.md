@@ -2,7 +2,7 @@
 
 C++20과 DirectX 11로 만드는 쿼터뷰 생존 아레나 포트폴리오다. 렌더링 엔진과 게임 클라이언트를 중심에 두고, 24인 방과 권위형 게임 서버를 같은 저장소에서 검증한다.
 
-현재 단계는 10주차 24인 부하와 관심 영역 replication까지 구현된 상태다. lobby가 capacity 1 worker에 경기를 예약하고 ready 응답을 받은 뒤에만 참가자 ticket을 전달한다. 실제 DX11 client 1개와 같은 `GameSession`을 사용하는 play bot 23개가 game TCP 인증, UDP bind, 30Hz input, 15Hz snapshot과 경기 결과까지 loopback에서 진행한다.
+현재 단계는 11주차 Linux server image와 단일 host worker pool까지 구현된 상태다. lobby가 capacity 1 worker에 경기를 예약하고 ready 응답을 받은 뒤에만 참가자 ticket을 전달한다. 실제 DX11 client 1개와 같은 `GameSession`을 사용하는 play bot 23개가 game TCP 인증, UDP bind, 30Hz input, 15Hz snapshot과 경기 결과까지 진행한다.
 
 Windows WARP 수직 테스트에서는 DX11 client와 bot 23개가 60 tick에 같은 결과를 확인한다. 이 fixture는 production 성능 수치로 사용하지 않는다. 공식 Release 한 경기에서 full-state 평균 수신량은 66.216564KiB/s로 64KiB/s 목표를 넘었고, ACK 기반 interest-delta는 4.123043KiB/s였다. 같은 seed의 네 mode는 winner 4, tick 17,430 결과를 유지했다.
 
@@ -25,7 +25,17 @@ Windows WARP 수직 테스트에서는 DX11 client와 bot 23개가 60 tick에 �
 ./scripts/test.ps1
 ```
 
-Linux headless target은 Ubuntu 24.04 GCC `-Werror`, ASan과 UBSan Docker 검증을 통과했다. 11주차에는 이를 배포 image와 Compose 구성으로 옮긴다.
+Linux headless target은 Ubuntu 24.04 GCC `-Werror`, ASan과 UBSan Docker 검증을 통과했다. 배포 image는 같은 고정 vcpkg baseline으로 GCC 13 Release `-Werror` build를 수행한다.
+
+## Linux lobby와 game worker 2개 실행
+
+Docker Desktop이 실행 중이면 다음 smoke runner가 image build, lobby 1개와 game worker 2개의 health 및 registration, cleanup을 한 번에 확인한다.
+
+```powershell
+./scripts/test_server_compose.ps1
+```
+
+고정 port로 직접 실행하거나 외부 접속용 host를 지정하는 방법은 [Linux 서버 컨테이너 실행](deploy/README.md)에 있다. AWS resource를 만들기 전 확인할 계정, 비용과 security group 경계는 [AWS 확인표](deploy/AWS_PRECHECK.md)에 분리했다.
 
 ## 네 process로 2인 network 경기 실행
 
@@ -117,7 +127,7 @@ runner는 match마다 child evidence를 만들고 parent `summary.json`과 `RESU
 
 공식 비교와 target 판정은 [24인 replication 비교](docs/benchmarks/network-load/20260826-01ae1278-COMPARISON.md)에 있다. full-state의 64KiB/s 목표 미달과 delta encode 비용 증가도 같은 문서에 남겼다.
 
-모든 bind 기본값은 `127.0.0.1`이다. game TCP와 UDP는 암호화되지 않았고 worker control에도 외부 network용 상호 인증이 없다. 11주차 배포 보안 경계를 정하기 전에는 public interface에 노출하지 않는다. ticket과 UDP token은 console과 log에 출력하지 않는다.
+모든 binary bind 기본값은 `127.0.0.1`이다. Compose는 명시적으로 `0.0.0.0`에 bind하되 worker control 7001/TCP를 host에 publish하지 않는다. game TCP와 UDP는 암호화되지 않았고 worker control에도 외부 network용 상호 인증이 없다. 짧은 demo 검증 외 장기 public 운영에는 사용하지 않는다. ticket과 UDP token은 console과 log에 출력하지 않는다.
 
 렌더 경로만 짧게 확인하려면 다음 명령을 사용한다.
 
@@ -182,11 +192,11 @@ NavMesh 이동 수직 기능은 별도 데모에서 확인한다. 창을 띄운 
   -HybridRun docs/benchmarks/hybrid-deferred/20260823-145749-54a54e5c-seed20260823
 ```
 
-첫 프레임에서 확인한 실패와 경계는 [첫 DX11 프레임 기록](docs/devlog/2026-08-22-first-dx11-frame.md)에, 에셋 파이프라인에서 확인한 문제는 [에셋 파이프라인 기록](docs/devlog/2026-08-23-asset-pipeline.md)에 적었다. GPU query 302개 누락 과정은 [포워드 기준선 기록](docs/devlog/2026-08-23-forward-baseline.md)에, 2,240 draw를 줄인 과정은 [하이브리드 디퍼드 기록](docs/devlog/2026-08-23-hybrid-deferred.md)에 남겼다. 전수 탐색과 가속 구조를 같은 결과로 맞춘 과정은 [공간 탐색과 AI 기록](docs/devlog/2026-08-23-spatial-navigation-ai.md)에 정리했다. 3초 만에 끝난 첫 경기를 규칙 수치 조작 없이 재설계한 과정과 측정 경계는 [오프라인 경기 기록](docs/devlog/2026-08-24-offline-match-loop.md)과 [공식 Release 원본](docs/benchmarks/offline-match/20260824-023134-1ede6a23-seed20260823/RESULT.md)에서 확인할 수 있다. 로비 domain, TCP session, 24인 실제 socket 검증 과정은 [로비와 방 기록](docs/devlog/2026-08-24-lobby-room-flow.md)과 [ADR 0006](docs/adr/0006-lobby-domain-and-tcp-adapter.md)에 남겼다. 실제 worker 예약부터 DX11 result까지 이어진 과정은 [권위형 게임 서버 기록](docs/devlog/2026-08-24-authoritative-game-server.md)과 [ADR 0007](docs/adr/0007-authoritative-game-session.md)에 정리했다. ACK baseline, 관심 영역과 impairment 선택은 [ADR 0008](docs/adr/0008-acked-interest-replication.md)에, 24인 기준선부터 soak까지의 시행착오는 [10주차 개발 기록](docs/devlog/2026-08-25-24-player-network-load.md)에 남겼다.
+첫 프레임에서 확인한 실패와 경계는 [첫 DX11 프레임 기록](docs/devlog/2026-08-22-first-dx11-frame.md)에, 에셋 파이프라인에서 확인한 문제는 [에셋 파이프라인 기록](docs/devlog/2026-08-23-asset-pipeline.md)에 적었다. GPU query 302개 누락 과정은 [포워드 기준선 기록](docs/devlog/2026-08-23-forward-baseline.md)에, 2,240 draw를 줄인 과정은 [하이브리드 디퍼드 기록](docs/devlog/2026-08-23-hybrid-deferred.md)에 남겼다. 전수 탐색과 가속 구조를 같은 결과로 맞춘 과정은 [공간 탐색과 AI 기록](docs/devlog/2026-08-23-spatial-navigation-ai.md)에 정리했다. 3초 만에 끝난 첫 경기를 규칙 수치 조작 없이 재설계한 과정과 측정 경계는 [오프라인 경기 기록](docs/devlog/2026-08-24-offline-match-loop.md)과 [공식 Release 원본](docs/benchmarks/offline-match/20260824-023134-1ede6a23-seed20260823/RESULT.md)에서 확인할 수 있다. 로비 domain, TCP session, 24인 실제 socket 검증 과정은 [로비와 방 기록](docs/devlog/2026-08-24-lobby-room-flow.md)과 [ADR 0006](docs/adr/0006-lobby-domain-and-tcp-adapter.md)에 남겼다. 실제 worker 예약부터 DX11 result까지 이어진 과정은 [권위형 게임 서버 기록](docs/devlog/2026-08-24-authoritative-game-server.md)과 [ADR 0007](docs/adr/0007-authoritative-game-session.md)에 정리했다. ACK baseline, 관심 영역과 impairment 선택은 [ADR 0008](docs/adr/0008-acked-interest-replication.md)에, 24인 기준선부터 soak까지의 시행착오는 [10주차 개발 기록](docs/devlog/2026-08-25-24-player-network-load.md)에 남겼다. Linux Release 경고와 두 worker container 경계는 [11주차 개발 기록](docs/devlog/2026-08-26-linux-server-packaging.md)과 [ADR 0009](docs/adr/0009-single-host-compose-worker-pool.md)에 정리했다.
 
 ## CI 상태
 
-local Windows 전체 CTest, WARP와 shader 배포 검사, Ubuntu 24.04 Docker GCC build와 sanitizer 검증은 완료했다. 이 branch의 GitHub hosted CI는 PR을 올린 뒤 별도로 확인한다. runner allocation이 billing 문제로 시작되지 않으면 같은 실패를 반복 실행하지 않고 local 및 Docker evidence와 hosted CI 미실행 상태를 분리해 기록한다.
+local Windows 전체 CTest, WARP와 shader 배포 검사, Ubuntu 24.04 Docker GCC build와 sanitizer 검증을 완료했다. 11주차에는 GCC 13 Release server image와 세 container Compose smoke를 추가했다. 이 branch의 GitHub hosted CI는 PR을 올린 뒤 별도로 확인한다. runner allocation이 billing 문제로 시작되지 않으면 같은 실패를 반복 실행하지 않고 local 및 Docker evidence와 hosted CI 미실행 상태를 분리해 기록한다.
 
 ## 라이선스
 

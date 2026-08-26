@@ -170,7 +170,41 @@ if(WIN32)
             -NoProfile
             -File "${PROJECT_SOURCE_DIR}/tests/network_load_runner_test.ps1"
             -RepositoryRoot "${PROJECT_SOURCE_DIR}"
+            -ServerExecutable "$<TARGET_FILE:dxa_game_server>"
     )
+
+    add_test(
+        NAME ServerInstall.InstallsExecutables
+        COMMAND
+            ${DXA_POWERSHELL_EXECUTABLE}
+            -NoProfile
+            -File "${PROJECT_SOURCE_DIR}/tests/server_install_test.ps1"
+            -CMakeExecutable "${CMAKE_COMMAND}"
+            -BuildDirectory "${PROJECT_BINARY_DIR}"
+            -Configuration "$<CONFIG>"
+    )
+
+    find_program(DXA_DOCKER_EXECUTABLE NAMES docker)
+    if(DXA_DOCKER_EXECUTABLE)
+        execute_process(
+            COMMAND ${DXA_DOCKER_EXECUTABLE} compose version
+            RESULT_VARIABLE DXA_DOCKER_COMPOSE_RESULT
+            OUTPUT_QUIET
+            ERROR_QUIET
+        )
+        if(DXA_DOCKER_COMPOSE_RESULT EQUAL 0)
+            add_test(
+                NAME ServerCompose.ValidatesRuntimeContract
+                COMMAND
+                    ${DXA_POWERSHELL_EXECUTABLE}
+                    -NoProfile
+                    -File "${PROJECT_SOURCE_DIR}/tests/server_compose_contract_test.ps1"
+                    -DockerExecutable "${DXA_DOCKER_EXECUTABLE}"
+                    -ComposeFile "${PROJECT_SOURCE_DIR}/deploy/compose.yaml"
+                    -EnvironmentFile "${PROJECT_SOURCE_DIR}/deploy/.env.example"
+            )
+        endif()
+    endif()
 endif()
 
 add_test(
