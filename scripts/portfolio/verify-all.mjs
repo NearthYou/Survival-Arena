@@ -199,9 +199,12 @@ function sha256(content) {
     return createHash('sha256').update(content).digest('hex');
 }
 
-function parseLfsPointer(pointerText) {
-    const normalized = pointerText.replaceAll('\r\n', '\n');
-    const match = /^version https:\/\/git-lfs\.github\.com\/spec\/v1\noid sha256:([0-9a-f]{64})\nsize (0|[1-9][0-9]*)\n?$/u.exec(normalized);
+function parseLfsPointer(pointerBytes) {
+    if (!Buffer.isBuffer(pointerBytes) || pointerBytes.some((byte) => byte > 0x7f)) {
+        return null;
+    }
+    const pointerText = pointerBytes.toString('ascii');
+    const match = /^version https:\/\/git-lfs\.github\.com\/spec\/v1\noid sha256:([0-9a-f]{64})\nsize (0|[1-9][0-9]*)\n$/u.exec(pointerText);
     if (!match) {
         return null;
     }
@@ -209,8 +212,11 @@ function parseLfsPointer(pointerText) {
     return Number.isSafeInteger(size) ? { oid: match[1], size } : null;
 }
 
-function runReadOnlyGit(root, argumentsList) {
-    return spawnSync('git', argumentsList, { cwd: root, encoding: 'utf8' });
+function runReadOnlyGit(root, argumentsList, options = {}) {
+    return spawnSync('git', argumentsList, {
+        cwd: root,
+        ...(options.raw ? {} : { encoding: 'utf8' })
+    });
 }
 
 function hasExactOrderedPaths(actualPaths, expectedPaths) {
@@ -222,19 +228,29 @@ function hasExactOrderedPaths(actualPaths, expectedPaths) {
 async function validateLfsObject(item, lfsPath, index, options) {
     const errors = [];
     const field = `${item.id}.proof.paths[${index}]`;
-    const attribute = runReadOnlyGit(options.root, ['check-attr', 'filter', '--', lfsPath]);
-    if (attribute.status !== 0 || attribute.stdout.trim() !== `${lfsPath}: filter: lfs`) {
-        errors.push(`${field}: ${lfsPath} is not LFS-tracked`);
+    const attribute = runReadOnlyGit(
+        options.root,
+        ['check-attr', '--source=HEAD', 'filter', '--', lfsPath]
+    );
+    if (attribute.status !== 0) {
+        const detail = (attribute.stderr || attribute.stdout || '').trim();
+        errors.push(`${field}.attribute: git check-attr --source=HEAD failed or is unsupported for ${lfsPath}${detail ? ` (${detail})` : ''}`);
+    } else if (attribute.stdout.trim() !== `${lfsPath}: filter: lfs`) {
+        errors.push(`${field}.attribute: ${lfsPath} is not LFS-tracked in committed HEAD attributes`);
     }
 
-    const blob = runReadOnlyGit(options.root, ['cat-file', 'blob', `HEAD:${lfsPath}`]);
+    const blob = runReadOnlyGit(
+        options.root,
+        ['cat-file', 'blob', `HEAD:${lfsPath}`],
+        { raw: true }
+    );
     if (blob.status !== 0) {
         errors.push(`${field}.pointer: committed blob is missing`);
         return errors;
     }
     const pointer = parseLfsPointer(blob.stdout);
     if (!pointer) {
-        errors.push(`${field}.pointer: committed blob is not an exact Git LFS pointer`);
+        errors.push(`${field}.pointer: committed blob for ${lfsPath} is not exact canonical Git LFS pointer bytes`);
         return errors;
     }
 
@@ -278,7 +294,7 @@ async function validateLfsObject(item, lfsPath, index, options) {
             return errors;
         }
         const worktreeContent = await readFile(inspection.realTarget);
-        if (parseLfsPointer(worktreeContent.toString('utf8'))) {
+        if (parseLfsPointer(worktreeContent)) {
             errors.push(`${field}.worktree: path still contains an LFS pointer`);
         } else if (worktreeContent.length !== objectContent.length
             || sha256(worktreeContent) !== sha256(objectContent)) {

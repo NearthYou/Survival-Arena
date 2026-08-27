@@ -132,7 +132,7 @@ async function snapshotFixtureRepository(root, objectRoot) {
     };
 }
 
-async function createLfsRepositoryFixture() {
+async function createLfsRepositoryFixture(options = {}) {
     const root = await mkdtemp(path.join(tmpdir(), 'dxa-portfolio-lfs-repository-'));
     runFixtureGit(root, ['init']);
     runFixtureGit(root, ['config', 'user.email', 'fixture@example.com']);
@@ -152,7 +152,12 @@ async function createLfsRepositoryFixture() {
             size: content.length
         };
     });
-    await writeFile(path.join(root, '.gitattributes'), 'assets/runtime/** filter=lfs diff=lfs merge=lfs -text\n', 'utf8');
+    const lfsAttributes = 'assets/runtime/** filter=lfs diff=lfs merge=lfs -text\n';
+    await writeFile(
+        path.join(root, '.gitattributes'),
+        options.headHasLfsRule === false ? '*.txt text\n' : lfsAttributes,
+        'utf8'
+    );
     await writeFile(path.join(root, 'evidence.md'), '# evidence\n', 'utf8');
     await writeFile(path.join(root, 'LICENSE'), 'fixture license\n', 'utf8');
     for (const asset of assetRecords) {
@@ -170,6 +175,9 @@ async function createLfsRepositoryFixture() {
         runFixtureGit(root, ['update-index', '--add', '--cacheinfo', `100644,${blob},${relativePath}`]);
     }
     runFixtureGit(root, ['commit', '-m', 'fixture']);
+    if (options.headHasLfsRule === false) {
+        await writeFile(path.join(root, '.gitattributes'), lfsAttributes, 'utf8');
+    }
 
     const commonDirectoryOutput = runFixtureGit(root, ['rev-parse', '--git-common-dir']).stdout.trim();
     const commonDirectory = path.resolve(root, commonDirectoryOutput);
@@ -194,6 +202,24 @@ async function createLfsRepositoryFixture() {
     };
 
     return { root, objectRoot, assetRecords, document };
+}
+
+async function commitFixtureBlob(fixture, relativePath, content, message) {
+    const worktreePath = path.join(fixture.root, relativePath);
+    await writeFile(worktreePath, content);
+    const blob = runFixtureGit(
+        fixture.root,
+        ['hash-object', '-w', '--no-filters', relativePath]
+    ).stdout.trim();
+    runFixtureGit(
+        fixture.root,
+        ['update-index', '--add', '--cacheinfo', `100644,${blob},${relativePath}`]
+    );
+    runFixtureGit(fixture.root, ['commit', '-m', message]);
+    const asset = fixture.assetRecords.find((candidate) => candidate.relativePath === relativePath);
+    if (asset) {
+        await writeFile(worktreePath, asset.content);
+    }
 }
 
 async function withFixture(callback) {
@@ -604,6 +630,45 @@ test('LFS verification is read-only for exact tracked pointer, object-store, and
         const after = await snapshotFixtureRepository(fixture.root, fixture.objectRoot);
         assert.deepEqual(errors.filter((error) => error.includes('lfs-object-availability')), []);
         assert.deepEqual(after, before);
+    } finally {
+        await rm(fixture.root, { recursive: true, force: true });
+    }
+});
+
+test('LFS verification rejects an uncommitted worktree attribute rule absent from HEAD', async () => {
+    const fixture = await createLfsRepositoryFixture({ headHasLfsRule: false });
+    try {
+        const errors = await validateReleaseStatus(fixture.document, { root: fixture.root });
+
+        assert.ok(errors.some((error) => error.includes('proof.paths[0].attribute')
+            && error.includes(requiredRuntimeLfsPaths[0])
+            && error.includes('committed HEAD')));
+    } finally {
+        await rm(fixture.root, { recursive: true, force: true });
+    }
+});
+
+test('LFS verification rejects CRLF and missing-terminal-LF committed pointer bytes', async () => {
+    const fixture = await createLfsRepositoryFixture();
+    const [firstAsset] = fixture.assetRecords;
+    try {
+        const crlfPointer = Buffer.from(
+            `version https://git-lfs.github.com/spec/v1\r\noid sha256:${firstAsset.oid}\r\nsize ${firstAsset.size}\r\n`,
+            'ascii'
+        );
+        await commitFixtureBlob(fixture, firstAsset.relativePath, crlfPointer, 'crlf pointer');
+        let errors = await validateReleaseStatus(fixture.document, { root: fixture.root });
+        assert.ok(errors.some((error) => error.includes('proof.paths[0].pointer')
+            && error.includes(firstAsset.relativePath)));
+
+        const missingTerminalLf = Buffer.from(
+            `version https://git-lfs.github.com/spec/v1\noid sha256:${firstAsset.oid}\nsize ${firstAsset.size}`,
+            'ascii'
+        );
+        await commitFixtureBlob(fixture, firstAsset.relativePath, missingTerminalLf, 'missing terminal LF');
+        errors = await validateReleaseStatus(fixture.document, { root: fixture.root });
+        assert.ok(errors.some((error) => error.includes('proof.paths[0].pointer')
+            && error.includes(firstAsset.relativePath)));
     } finally {
         await rm(fixture.root, { recursive: true, force: true });
     }
