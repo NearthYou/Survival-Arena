@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -49,10 +49,12 @@ function createDocument() {
 function createReleaseDocument() {
     return {
         schemaVersion: 1,
+        codeBasisCommitSha: basisCommitSha,
         items: [
             { id: 'historical-24-player-metrics', label: '24-player metrics', status: 'verified', evidence: ['evidence.md'] },
             { id: 'historical-30-minute-soak', label: '30-minute soak', status: 'verified', evidence: ['evidence.md'] },
             { id: 'licenses-assets-manifest', label: 'licenses and assets', status: 'verified', evidence: ['evidence.md'] },
+            { id: 'lfs-object-availability', label: 'LFS object availability', status: 'partial', evidence: ['evidence.md'] },
             { id: 'current-head-builds', label: 'current HEAD builds', status: 'partial', evidence: ['evidence.md'] },
             { id: 'warp-rtx-visual-artifacts', label: 'WARP and RTX visuals', status: 'partial', evidence: ['evidence.md'] },
             { id: 'architecture-diagrams', label: 'architecture diagrams', status: 'verified', evidence: ['evidence.md'] },
@@ -224,6 +226,302 @@ test('verified release items require at least one evidence path', async () => {
     });
 });
 
+test('release status requires the exact canonical code basis SHA', async () => {
+    await withReleaseFixture(async (document, root) => {
+        document.codeBasisCommitSha = '5599de19687c3ed446f7242c72711bc9b34b3364';
+
+        const errors = await validateReleaseStatus(document, { root });
+
+        assert.ok(errors.some((error) => error.includes('release-status.json.codeBasisCommitSha')));
+    });
+});
+
+test('release evidence elements must be repository-relative path strings', async () => {
+    await withReleaseFixture(async (document, root) => {
+        document.items[0].evidence = [42];
+
+        const errors = await validateReleaseStatus(document, { root });
+
+        assert.ok(errors.some((error) => error.includes('historical-24-player-metrics.evidence[0]')));
+    });
+});
+
+test('missing release evidence keeps an actionable field-level error', async () => {
+    await withReleaseFixture(async (document, root) => {
+        document.items[0].evidence = ['docs/missing.md'];
+
+        const errors = await validateReleaseStatus(document, { root });
+
+        assert.ok(errors.includes(
+            'release-status.json.historical-24-player-metrics.evidence[0]: local evidence path is missing: docs/missing.md'
+        ));
+    });
+});
+
+test('release evidence and Markdown links reject a junction that resolves outside the root', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'dxa-portfolio-junction-root-'));
+    const outsideRoot = await mkdtemp(path.join(tmpdir(), 'dxa-portfolio-junction-outside-'));
+    try {
+        await writeFile(path.join(root, 'evidence.md'), '# evidence\n', 'utf8');
+        await writeFile(path.join(outsideRoot, 'proof.md'), '# outside\n', 'utf8');
+        await symlink(outsideRoot, path.join(root, 'escape'), 'junction');
+
+        const document = createReleaseDocument();
+        document.items[0].evidence = ['escape/proof.md'];
+        const releaseErrors = await validateReleaseStatus(document, { root });
+
+        await writeFile(path.join(root, 'README.md'), '[outside](escape/proof.md)\n', 'utf8');
+        const markdownErrors = await validateMarkdownLinks({ root, files: ['README.md'] });
+
+        assert.ok(releaseErrors.some((error) => error.includes(
+            'historical-24-player-metrics.evidence[0]: real target resolves outside repository root'
+        )));
+        assert.deepEqual(markdownErrors, [
+            'README.md: local link target resolves outside repository root: escape/proof.md'
+        ]);
+    } finally {
+        await rm(root, { recursive: true, force: true });
+        await rm(outsideRoot, { recursive: true, force: true });
+    }
+});
+
+test('empty class diagram outputs cannot satisfy a verified state', async () => {
+    await withReleaseFixture(async (document, root) => {
+        const paths = [
+            'docs/diagrams/class/engine.json',
+            'docs/diagrams/class/network.json',
+            'docs/diagrams/class/engine.html',
+            'docs/diagrams/class/network.html'
+        ];
+        for (const relativePath of paths) {
+            const filePath = path.join(root, relativePath);
+            await mkdir(path.dirname(filePath), { recursive: true });
+            await writeFile(filePath, '', 'utf8');
+        }
+        const item = document.items.find((candidate) => candidate.id === 'class-diagrams');
+        item.status = 'verified';
+        item.evidence = paths;
+        item.proof = {
+            tool: 'clang-uml',
+            toolVersion: '0.6.3',
+            basisCommitSha,
+            outputs: {
+                engine: { json: paths[0], html: paths[2] },
+                network: { json: paths[1], html: paths[3] }
+            }
+        };
+
+        const errors = await validateReleaseStatus(document, { root });
+
+        for (const index of paths.keys()) {
+            assert.ok(errors.some((error) => error.includes(`class-diagrams.evidence[${index}]`)), paths[index]);
+        }
+    });
+});
+
+test('verified class diagrams require clang-uml 0.6.3 metadata at the canonical basis', async () => {
+    await withReleaseFixture(async (document, root) => {
+        const paths = [
+            'docs/diagrams/class/engine.json',
+            'docs/diagrams/class/network.json',
+            'docs/diagrams/class/engine.html',
+            'docs/diagrams/class/network.html'
+        ];
+        for (const relativePath of paths) {
+            const filePath = path.join(root, relativePath);
+            await mkdir(path.dirname(filePath), { recursive: true });
+            await writeFile(filePath, 'generated output\n', 'utf8');
+        }
+        const item = document.items.find((candidate) => candidate.id === 'class-diagrams');
+        item.status = 'verified';
+        item.evidence = paths;
+        item.proof = {
+            tool: 'manual',
+            toolVersion: '0.6.2',
+            basisCommitSha: '5599de19687c3ed446f7242c72711bc9b34b3364',
+            outputs: {
+                engine: { json: paths[0], html: paths[2] },
+                network: { json: paths[1], html: paths[3] }
+            }
+        };
+
+        const errors = await validateReleaseStatus(document, { root });
+
+        assert.ok(errors.some((error) => error.includes('class-diagrams.proof.tool')));
+        assert.ok(errors.some((error) => error.includes('class-diagrams.proof.toolVersion')));
+        assert.ok(errors.some((error) => error.includes('class-diagrams.proof.basisCommitSha')));
+    });
+});
+
+test('empty PDF and demo files cannot satisfy verified states', async () => {
+    await withReleaseFixture(async (document, root) => {
+        const pdfPath = 'docs/portfolio/portfolio.pdf';
+        const videoPath = 'docs/portfolio/demo.mp4';
+        await mkdir(path.join(root, 'docs/portfolio'), { recursive: true });
+        await writeFile(path.join(root, pdfPath), '', 'utf8');
+        await writeFile(path.join(root, videoPath), '', 'utf8');
+
+        const pdf = document.items.find((item) => item.id === 'portfolio-pdf');
+        pdf.status = 'verified';
+        pdf.evidence = [pdfPath];
+        pdf.proof = { path: pdfPath, pageCount: 20, rendered: true, linksChecked: true };
+
+        const video = document.items.find((item) => item.id === 'demo-video');
+        video.status = 'verified';
+        video.evidence = [videoPath];
+        video.proof = {
+            path: videoPath,
+            durationSeconds: 180,
+            playbackChecked: true,
+            localDemoChecked: true
+        };
+
+        const errors = await validateReleaseStatus(document, { root });
+
+        assert.ok(errors.some((error) => error.includes('portfolio-pdf.evidence[0]')));
+        assert.ok(errors.some((error) => error.includes('demo-video.evidence[0]')));
+    });
+});
+
+test('verified PDF and demo states require complete render and playback proof', async () => {
+    await withReleaseFixture(async (document, root) => {
+        const pdfPath = 'docs/portfolio/portfolio.pdf';
+        const videoPath = 'docs/portfolio/demo.mp4';
+        await mkdir(path.join(root, 'docs/portfolio'), { recursive: true });
+        await writeFile(path.join(root, pdfPath), 'pdf\n', 'utf8');
+        await writeFile(path.join(root, videoPath), 'video\n', 'utf8');
+
+        const pdf = document.items.find((item) => item.id === 'portfolio-pdf');
+        pdf.status = 'verified';
+        pdf.evidence = [pdfPath];
+        pdf.proof = { path: pdfPath, pageCount: 17, rendered: false, linksChecked: false };
+
+        const video = document.items.find((item) => item.id === 'demo-video');
+        video.status = 'verified';
+        video.evidence = [videoPath];
+        video.proof = {
+            path: videoPath,
+            durationSeconds: 0,
+            playbackChecked: false,
+            localDemoChecked: false
+        };
+
+        const errors = await validateReleaseStatus(document, { root });
+
+        for (const field of ['pageCount', 'rendered', 'linksChecked']) {
+            assert.ok(errors.some((error) => error.includes(`portfolio-pdf.proof.${field}`)), field);
+        }
+        for (const field of ['durationSeconds', 'playbackChecked', 'localDemoChecked']) {
+            assert.ok(errors.some((error) => error.includes(`demo-video.proof.${field}`)), field);
+        }
+    });
+});
+
+test('external verified states require nonempty dated checks', async () => {
+    await withReleaseFixture(async (document, root) => {
+        const aws = document.items.find((item) => item.id === 'aws-external-test');
+        aws.status = 'verified';
+        aws.resourceState = {
+            created: true,
+            externalTestVerified: true,
+            cleanupVerified: true,
+            checkedAt: ''
+        };
+
+        const visibility = document.items.find((item) => item.id === 'repository-visibility');
+        visibility.status = 'verified';
+        visibility.evidence = ['evidence.md'];
+        visibility.externalVerification = {
+            visibility: 'public',
+            checkedAt: '',
+            url: 'https://example.com/repository'
+        };
+
+        const errors = await validateReleaseStatus(document, { root });
+
+        assert.ok(errors.some((error) => error.includes('aws-external-test.resourceState.checkedAt')));
+        assert.ok(errors.some((error) => error.includes('repository-visibility.externalVerification.checkedAt')));
+    });
+});
+
+test('AWS cannot be verified unless resources, external test, and cleanup were all verified', async () => {
+    await withReleaseFixture(async (document, root) => {
+        const aws = document.items.find((item) => item.id === 'aws-external-test');
+        aws.status = 'verified';
+        aws.resourceState = {
+            created: false,
+            externalTestVerified: false,
+            cleanupVerified: false,
+            checkedAt: '2026-08-27T12:00:00+09:00'
+        };
+
+        const errors = await validateReleaseStatus(document, { root });
+
+        for (const field of ['created', 'externalTestVerified', 'cleanupVerified']) {
+            assert.ok(errors.some((error) => error.includes(`aws-external-test.resourceState.${field}`)), field);
+        }
+    });
+});
+
+test('LFS object availability requires dated fsck and hydrated object proof before verified', async () => {
+    await withReleaseFixture(async (document, root) => {
+        const lfs = document.items.find((item) => item.id === 'lfs-object-availability');
+        lfs.status = 'verified';
+        lfs.proof = {
+            checkedAt: '',
+            gitLfsFsckPassed: false,
+            objectsHydrated: false,
+            paths: []
+        };
+
+        const errors = await validateReleaseStatus(document, { root });
+
+        for (const field of ['checkedAt', 'gitLfsFsckPassed', 'objectsHydrated', 'paths']) {
+            assert.ok(errors.some((error) => error.includes(`lfs-object-availability.proof.${field}`)), field);
+        }
+    });
+});
+
+test('LFS verification rejects pointer files and a checkout where git lfs fsck does not pass', async () => {
+    await withReleaseFixture(async (document, root) => {
+        const pointerPath = 'assets/runtime/pointer.dxam';
+        await mkdir(path.join(root, 'assets/runtime'), { recursive: true });
+        await writeFile(
+            path.join(root, pointerPath),
+            'version https://git-lfs.github.com/spec/v1\noid sha256:0123456789abcdef\nsize 16\n',
+            'utf8'
+        );
+        const lfs = document.items.find((item) => item.id === 'lfs-object-availability');
+        lfs.status = 'verified';
+        lfs.evidence = [pointerPath];
+        lfs.proof = {
+            checkedAt: '2026-08-27T12:00:00+09:00',
+            gitLfsFsckPassed: true,
+            objectsHydrated: true,
+            paths: [pointerPath]
+        };
+
+        const errors = await validateReleaseStatus(document, { root });
+
+        assert.ok(errors.some((error) => error.includes('worktree still contains an LFS pointer')));
+        assert.ok(errors.some((error) => error.includes('git lfs fsck does not pass')));
+    });
+});
+
+test('v0.1.0 requires an actual local tag and every publication prerequisite', async () => {
+    await withReleaseFixture(async (document, root) => {
+        const tag = document.items.find((item) => item.id === 'v0.1.0');
+        tag.status = 'verified';
+        tag.evidence = ['evidence.md'];
+        tag.proof = { tag: 'v0.1.0' };
+
+        const errors = await validateReleaseStatus(document, { root });
+
+        assert.ok(errors.some((error) => error.includes('v0.1.0.proof.tag') && error.includes('local tag')));
+        assert.ok(errors.some((error) => error.includes('v0.1.0.status') && error.includes('prerequisites')));
+    });
+});
+
 test('missing release artifacts and external approval cannot be marked verified', async () => {
     await withReleaseFixture(async (document, root) => {
         for (const id of ['class-diagrams', 'portfolio-pdf', 'demo-video', 'repository-visibility']) {
@@ -265,6 +563,71 @@ test('Markdown link validation reports missing local targets with file context',
         const errors = await validateMarkdownLinks({ root, files: ['README.md'] });
 
         assert.deepEqual(errors, ['README.md: local link target is missing: docs/missing.md']);
+    } finally {
+        await rm(root, { recursive: true, force: true });
+    }
+});
+
+test('Markdown link validation accepts balanced and escaped parentheses in local destinations', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'dxa-portfolio-balanced-links-'));
+    try {
+        await mkdir(path.join(root, 'docs'), { recursive: true });
+        await writeFile(path.join(root, 'docs', 'guide(v2).md'), '# guide\n', 'utf8');
+        await writeFile(
+            path.join(root, 'README.md'),
+            '[balanced](docs/guide(v2).md)\n[escaped](docs/guide\\(v2\\).md)\n',
+            'utf8'
+        );
+
+        const errors = await validateMarkdownLinks({ root, files: ['README.md'] });
+
+        assert.deepEqual(errors, []);
+    } finally {
+        await rm(root, { recursive: true, force: true });
+    }
+});
+
+test('Markdown link validation resolves full, collapsed, and shortcut references', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'dxa-portfolio-reference-links-'));
+    try {
+        await writeFile(
+            path.join(root, 'README.md'),
+            [
+                '[full]: docs/missing-full.md',
+                '[collapsed]: docs/missing-collapsed.md',
+                '[shortcut]: docs/missing-shortcut.md',
+                '',
+                '[read][full]',
+                '[collapsed][]',
+                '[shortcut]'
+            ].join('\n'),
+            'utf8'
+        );
+
+        const errors = await validateMarkdownLinks({ root, files: ['README.md'] });
+
+        assert.deepEqual(errors, [
+            'README.md: local link target is missing: docs/missing-full.md',
+            'README.md: local link target is missing: docs/missing-collapsed.md',
+            'README.md: local link target is missing: docs/missing-shortcut.md'
+        ]);
+    } finally {
+        await rm(root, { recursive: true, force: true });
+    }
+});
+
+test('Markdown link validation ignores link-shaped examples in inline and fenced code', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'dxa-portfolio-code-links-'));
+    try {
+        await writeFile(
+            path.join(root, 'README.md'),
+            '`[inline](docs/missing-inline.md)`\n\n```text\n[fenced](docs/missing-fenced.md)\n```\n',
+            'utf8'
+        );
+
+        const errors = await validateMarkdownLinks({ root, files: ['README.md'] });
+
+        assert.deepEqual(errors, []);
     } finally {
         await rm(root, { recursive: true, force: true });
     }

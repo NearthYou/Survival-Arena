@@ -9,6 +9,7 @@
 | 역사적 24인 성능 및 복제 지표 | `verified` | [24인 replication 비교](../benchmarks/network-load/20260826-01ae1278-COMPARISON.md)에 채택 수치와 목표 미달을 함께 남겼다. 현재 문서 HEAD 재측정은 아니다. |
 | 역사적 30분 soak | `verified` | [Windows 및 Linux 요약](../benchmarks/network-load/20260826-050345-01ae1278-interest-delta-impairment-soak30/RESULT.md)과 [Linux sanitizer 기록](../benchmarks/network-load/20260826-050345-01ae1278-interest-delta-impairment-soak30/LINUX_ASAN.md)이 있다. 두 환경의 evidence commit은 같지 않다. |
 | 코드 및 자산 라이선스 목록 | `verified` | [코드 라이선스](../../LICENSE), [외부 자산 목록](../../THIRD_PARTY_ASSETS.md), [LFS 규칙](../../.gitattributes), [dependency manifest](../../vcpkg.json)가 있다. |
+| LFS object 실제 가용성 | `partial` | 현재 checkout의 세 runtime asset은 pointer가 아닌 파일이지만 공개 후보 checkout에서 dated `git lfs fsck`와 hydration proof를 아직 남기지 않았다. 라이선스 및 자산 목록 완료와 object availability를 같은 gate로 취급하지 않는다. |
 | 현재 문서 HEAD의 fresh Windows 및 Linux build | `partial` | PR #11 head `e2aba12c670b288b596169b8115b1fef77d54068`의 hosted run `32935640972`에서 Windows와 Ubuntu가 성공했고 `884e5e70d68d9fcf9dfe5638d97e06623da154c2`로 main에 병합됐다. 이후 문서 커밋을 포함한 현재 HEAD hosted CI는 아직 없다. |
 | WARP 및 RTX 시각 산출물 | `partial` | [RTX 기준 기록](../devlog/2026-08-23-forward-baseline.md)과 WARP 자동 검증은 있지만 공개용 실제 화면 캡처 묶음은 없다. |
 | JSON 및 HTML 구조 다이어그램 네 개 | `verified` | [다이어그램 index](../diagrams/index.html)의 네 JSON 원본과 HTML이 기준 SHA 및 deterministic 생성 검사를 통과한다. |
@@ -27,8 +28,9 @@
 2. 실제 게임 화면과 구조 그림을 사용한 18쪽에서 22쪽 PDF를 렌더하고 모든 링크를 검수한다.
 3. 실제 로컬 플레이를 담은 3분 내외 데모 영상을 만든다.
 4. 공개 후보 HEAD에서 Windows 및 Linux build와 test를 새로 실행한다.
-5. AWS 외부 테스트를 선택하면 생성 전 account, 가격과 보안 그룹을 확인하고 종료 뒤 실제 resource와 잔여 비용을 검증한다.
-6. 저장소 공개 승인과 실제 visibility 확인 뒤에만 `v0.1.0`을 만든다.
+5. 공개 후보 checkout에서 `git lfs fsck`와 runtime asset hydration을 확인하고 dated proof를 남긴다.
+6. AWS 외부 테스트를 선택하면 생성 전 account, 가격과 보안 그룹을 확인하고 종료 뒤 실제 resource와 잔여 비용을 검증한다.
+7. 저장소 공개 승인과 실제 visibility 확인 뒤에만 `v0.1.0`을 만든다.
 
 현재 알려진 기술 경계는 [통합 한계](LIMITATIONS.md)에 따로 유지한다. 전체 문서 계약은 저장소 루트에서 다음 명령으로 확인한다.
 
