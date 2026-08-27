@@ -157,6 +157,7 @@ function runFixtureGit(root, argumentsList) {
 async function createBasisInputFixture() {
     const root = await mkdtemp(path.join(tmpdir(), 'dxa-class-basis-'));
     const files = [
+        '.gitattributes',
         'CMakeLists.txt',
         'CMakePresets.json',
         'vcpkg.json',
@@ -180,7 +181,10 @@ async function createBasisInputFixture() {
     for (const relativePath of files) {
         const filePath = path.join(root, relativePath);
         await mkdir(path.dirname(filePath), { recursive: true });
-        await writeFile(filePath, `fixture input: ${relativePath}\n`, 'utf8');
+        const content = relativePath === '.gitattributes'
+            ? '* -text\n'
+            : `fixture input: ${relativePath}\n`;
+        await writeFile(filePath, content, 'utf8');
     }
     runFixtureGit(root, ['init']);
     runFixtureGit(root, ['config', 'user.email', 'fixture@example.com']);
@@ -290,6 +294,36 @@ test('generation snapshot omits machine host CMake cache entries before hashing'
         /^(?:SITE|COMPUTERNAME|HOSTNAME|HOST)(?:-ADVANCED)?:/imu
     );
     assert.doesNotMatch(normalized, /LEAKED_HOST_VALUE/iu);
+});
+
+test('generation privacy gate rejects arbitrary Windows and Unix home paths only when absolute', () => {
+    const privatePaths = [
+        'C:/Users/alice/AppData/Local/Temp/build',
+        'D:\\Users\\bob\\source\\project',
+        '/home/carol/source/project',
+        '/Users/dana/source/project'
+    ];
+    for (const privatePath of privatePaths) {
+        const encoded = Buffer.from(privatePath, 'utf8').toString('base64');
+        const result = runPowerShell([
+            "$ErrorActionPreference = 'Stop'",
+            `. ${quotePowerShell(generatorScriptPath)}`,
+            `$value = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String(${quotePowerShell(encoded)}))`,
+            "Assert-PrivacySafeSnapshotText -Value $value -Label 'fixture'"
+        ].join('; '));
+
+        assert.notEqual(result.status, 0, `${privatePath} was accepted`);
+        assert.match(result.stderr, /Privacy-sensitive generation data/iu);
+    }
+
+    const relativeResult = runPowerShell([
+        "$ErrorActionPreference = 'Stop'",
+        `. ${quotePowerShell(generatorScriptPath)}`,
+        "Assert-PrivacySafeSnapshotText -Value 'docs/home/carol/README.md' -Label 'fixture'",
+        "Write-Output 'RELATIVE_PATH_ACCEPTED'"
+    ].join('; '));
+    assert.equal(relativeResult.status, 0, relativeResult.stderr || relativeResult.stdout);
+    assert.match(relativeResult.stdout, /RELATIVE_PATH_ACCEPTED/u);
 });
 
 test('basis provenance rejects an untracked source inside a consumed scope', async () => {
@@ -602,8 +636,12 @@ test('committed generation evidence snapshot is complete, enumerated and privacy
         const bytes = await readFile(path.join(repositoryRoot, snapshot.path));
         assert.equal(snapshot.sha256, sha256(bytes), snapshot.path);
         const text = bytes.toString('utf8');
-        assert.doesNotMatch(text, /C:[/\\]Users[/\\]/iu, snapshot.path);
-        assert.doesNotMatch(text, /AppData|[/\\]Temp[/\\]|\.worktrees|siwon/iu, snapshot.path);
+        assert.doesNotMatch(
+            text,
+            /[A-Z]:[\\/]{1,2}(?:Users|Documents and Settings)[\\/]{1,2}[^\\/\s"'<>:]+|(?:^|[\s"'=:(])\/(?:home|Users)\/[^/\s"'<>]+(?:\/|$)/iu,
+            snapshot.path
+        );
+        assert.doesNotMatch(text, /AppData|[/\\]Temp[/\\]|\.worktrees/iu, snapshot.path);
         assert.doesNotMatch(text, /"(?:generatedAt|timestamp|createdAt)"\s*:/iu, snapshot.path);
         assert.doesNotMatch(
             text,
@@ -961,4 +999,52 @@ test('renderer check treats manifest JSON as provenance rather than a diagram so
     assert.match(result.stdout, /validated class\/engine\.json/u);
     assert.match(result.stdout, /validated class\/network\.json/u);
     assert.doesNotMatch(result.stdout, /validated class\/manifest\.json/u);
+});
+
+test('class generator replays from documentation HEAD without changing the worktree or raw AST', async () => {
+    await access('C:\\Program Files\\clang-uml\\bin\\clang-uml.exe');
+    const beforeStatus = spawnSync(
+        'git',
+        ['status', '--short', '--untracked-files=all'],
+        { cwd: repositoryRoot, encoding: 'utf8' }
+    );
+    assert.equal(beforeStatus.status, 0, beforeStatus.stderr || beforeStatus.stdout);
+    const beforeRaw = await Promise.all(diagramNames.map((diagramName) => (
+        readFile(path.join(repositoryRoot, `docs/diagrams/class/${diagramName}.json`))
+    )));
+
+    const result = spawnSync(
+        powershellExecutable,
+        [
+            '-NoProfile',
+            '-NonInteractive',
+            '-ExecutionPolicy',
+            'Bypass',
+            '-File',
+            generatorScriptPath,
+            '-RepositoryRoot',
+            repositoryRoot
+        ],
+        {
+            cwd: path.dirname(repositoryRoot),
+            encoding: 'utf8',
+            timeout: 300_000,
+            maxBuffer: 16 * 1024 * 1024
+        }
+    );
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.match(result.stdout, /generated engine: 9 classes, 5 relationships/u);
+    assert.match(result.stdout, /generated network: 9 classes, 1 relationships/u);
+
+    const afterStatus = spawnSync(
+        'git',
+        ['status', '--short', '--untracked-files=all'],
+        { cwd: repositoryRoot, encoding: 'utf8' }
+    );
+    assert.equal(afterStatus.status, 0, afterStatus.stderr || afterStatus.stdout);
+    assert.equal(afterStatus.stdout, beforeStatus.stdout, 'generator changed the worktree');
+    const afterRaw = await Promise.all(diagramNames.map((diagramName) => (
+        readFile(path.join(repositoryRoot, `docs/diagrams/class/${diagramName}.json`))
+    )));
+    assert.deepEqual(afterRaw, beforeRaw);
 });

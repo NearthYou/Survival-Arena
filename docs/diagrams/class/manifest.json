@@ -16,7 +16,7 @@
                                },
                     "generator":  {
                                       "path":  "scripts/portfolio/generate-class-diagrams.ps1",
-                                      "sha256":  "6622a6b7b7a55aecb90ab0711983f2c249333c133addbd3989e77d0068549ba5"
+                                      "sha256":  "0a83e7efe11339a58aaae71e69223ce18a3c118821276b3cbcfe5bf1ab048895"
                                   },
                     "cmakeVersion":  "cmake version 3.31.6-msvc6",
                     "ninjaVersion":  "1.12.1",
@@ -25,7 +25,7 @@
     "compilation":  {
                         "compileCommands":  {
                                                 "path":  "out/build/portfolio-clang-uml/compile_commands.json",
-                                                "sha256":  "30c8113df2a0e088181d4cdfe0ea335d3e4c49fb958564fe7059457752058e37",
+                                                "sha256":  "d8be6f437ddb8b957e77347c6baea03d420380fed776aa81cbc4152811834ed8",
                                                 "totalTranslationUnits":  172,
                                                 "selectedTranslationUnits":  44,
                                                 "selectedPathsSha256":  "bc151ca0e304365bbce60b85fb4a16a87fb02485868e3844d1c0d519d42b97db",
@@ -78,7 +78,7 @@
                                             },
                         "cmakeCache":  {
                                            "path":  "out/build/portfolio-clang-uml/CMakeCache.txt",
-                                           "sha256":  "dbba9982ca36b6d955cbed25c85a0384504adc7277c113a419e4ec737d2ed6f6",
+                                           "sha256":  "064a0a671318ca71f1e80572457774eed38cc53c73140c74c3d7e308fc932ce0",
                                            "generator":  "Ninja",
                                            "homeDirectory":  ".",
                                            "buildDirectory":  "out/build/portfolio-clang-uml",
@@ -681,15 +681,15 @@
     "snapshots":  [
                       {
                           "path":  "docs/diagrams/class/evidence/cmake-cache.json",
-                          "sha256":  "4bd5b1d4c3daa5feb004c173fa73902c2215f9214ede9d303ec59e1059293d69"
+                          "sha256":  "f5bf1f9e62e80140ab203c4fb16fccf9a8002944cb0f96caec7c81745ba16dc6"
                       },
                       {
                           "path":  "docs/diagrams/class/evidence/compile-commands.json",
-                          "sha256":  "f86d33061e82f3649e12ad84051383f8d49c23c6f5d9296dede32e290f0d5c9b"
+                          "sha256":  "225540308e3267e48e0df6c0ba0cb125e6b802d294b5b60bc69983d356121c9a"
                       },
                       {
                           "path":  "docs/diagrams/class/evidence/tool-identities.json",
-                          "sha256":  "1d8c5bb2b7aca34085b8113301d55003d4219f2f3c3b65f9c3c3b46358c32ca4"
+                          "sha256":  "5b78213507baf758a96131d81f36c317a6aebba689e0e963901759a77b7725d4"
                       },
                       {
                           "path":  "docs/diagrams/class/evidence/vcpkg-metadata.json",

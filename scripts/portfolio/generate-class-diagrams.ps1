@@ -13,6 +13,7 @@ $BasisTreeSha = 'a3d167d7ddb3fadfe5ce9a2dfea6f5a58b170890'
 $RequiredToolVersion = '0.6.3'
 $DiagramNames = @('engine', 'network')
 $BasisInputPaths = @(
+    '.gitattributes',
     'CMakeLists.txt',
     'CMakePresets.json',
     'vcpkg.json',
@@ -297,7 +298,9 @@ function Test-DiagramTranslationUnit([string]$RelativePath)
 function Assert-CompileDatabase(
     [string]$DatabaseDirectory,
     [string]$RootPath,
-    [string]$BasisSha)
+    [string]$BasisSha,
+    [string]$BasisSourceRoot,
+    [switch]$AllowExternalVcpkg)
 {
     $resolvedRoot = (Resolve-Path -LiteralPath $RootPath).Path
     $resolvedDatabaseDirectory = (Resolve-Path -LiteralPath $DatabaseDirectory).Path
@@ -364,35 +367,41 @@ function Assert-CompileDatabase(
         throw "CMAKE_TOOLCHAIN_FILE must be an existing vcpkg.cmake: $toolchain"
     }
     $toolchain = (Resolve-Path -LiteralPath $toolchain).Path
-    $vcpkgInstalled = Get-FullPath (Get-CMakeCacheValue $cacheText 'VCPKG_INSTALLED_DIR') $resolvedDatabaseDirectory
-    if (-not (Test-PathWithin $vcpkgInstalled $resolvedDatabaseDirectory) -or
-        -not (Test-Path -LiteralPath $vcpkgInstalled -PathType Container))
+    $cacheVcpkgInstalled = Get-FullPath (Get-CMakeCacheValue $cacheText 'VCPKG_INSTALLED_DIR') $resolvedDatabaseDirectory
+    if (-not (Test-Path -LiteralPath $cacheVcpkgInstalled -PathType Container))
     {
-        throw "VCPKG_INSTALLED_DIR must be an owned directory inside the build root: $vcpkgInstalled"
+        throw "VCPKG_INSTALLED_DIR is missing: $cacheVcpkgInstalled"
     }
 
-    $inputFiles = [System.Collections.Generic.List[System.IO.FileInfo]]::new()
-    foreach ($relativePath in $BasisInputPaths)
+    if ([string]::IsNullOrWhiteSpace($BasisSourceRoot))
     {
-        $inputPath = Join-Path $resolvedRoot $relativePath
-        if (Test-Path -LiteralPath $inputPath -PathType Leaf)
+        $inputFiles = [System.Collections.Generic.List[System.IO.FileInfo]]::new()
+        foreach ($relativePath in $BasisInputPaths)
         {
-            $inputFiles.Add((Get-Item -LiteralPath $inputPath))
-        }
-        elseif (Test-Path -LiteralPath $inputPath -PathType Container)
-        {
-            foreach ($file in @(Get-ChildItem -LiteralPath $inputPath -File -Recurse))
+            $inputPath = Join-Path $resolvedRoot $relativePath
+            if (Test-Path -LiteralPath $inputPath -PathType Leaf)
             {
-                $inputFiles.Add($file)
+                $inputFiles.Add((Get-Item -LiteralPath $inputPath))
+            }
+            elseif (Test-Path -LiteralPath $inputPath -PathType Container)
+            {
+                foreach ($file in @(Get-ChildItem -LiteralPath $inputPath -File -Recurse))
+                {
+                    $inputFiles.Add($file)
+                }
             }
         }
+        $latestInputWrite = ($inputFiles | Measure-Object -Property LastWriteTimeUtc -Maximum).Maximum
+        if ($null -eq $latestInputWrite -or
+            (Get-Item -LiteralPath $cachePath).LastWriteTimeUtc -lt $latestInputWrite -or
+            (Get-Item -LiteralPath $databasePath).LastWriteTimeUtc -lt $latestInputWrite)
+        {
+            throw 'CMake cache or compile_commands.json is stale relative to consumed build inputs'
+        }
     }
-    $latestInputWrite = ($inputFiles | Measure-Object -Property LastWriteTimeUtc -Maximum).Maximum
-    if ($null -eq $latestInputWrite -or
-        (Get-Item -LiteralPath $cachePath).LastWriteTimeUtc -lt $latestInputWrite -or
-        (Get-Item -LiteralPath $databasePath).LastWriteTimeUtc -lt $latestInputWrite)
+    else
     {
-        throw 'CMake cache or compile_commands.json is stale relative to consumed build inputs'
+        $BasisSourceRoot = (Resolve-Path -LiteralPath $BasisSourceRoot).Path
     }
 
     $parsedDatabase = Get-Content -LiteralPath $databasePath -Raw | ConvertFrom-Json
@@ -412,7 +421,8 @@ function Assert-CompileDatabase(
     $projectEntryCount = 0
     $usedSources = [System.Collections.Generic.HashSet[string]]::new(
         [System.StringComparer]::OrdinalIgnoreCase)
-    $normalizedVcpkgRoot = $vcpkgInstalled.Replace('\', '/').ToLowerInvariant().TrimEnd('/')
+    $dependencyRoots = [System.Collections.Generic.HashSet[string]]::new(
+        [System.StringComparer]::OrdinalIgnoreCase)
     foreach ($entry in $entries)
     {
         if ([string]::IsNullOrWhiteSpace([string]$entry.directory) -or
@@ -444,6 +454,14 @@ function Assert-CompileDatabase(
         if (-not (Test-DiagramTranslationUnit $relativeSource))
         {
             continue
+        }
+        if (-not [string]::IsNullOrWhiteSpace($BasisSourceRoot))
+        {
+            $basisSourcePath = Join-Path $BasisSourceRoot $relativeSource
+            if (-not (Test-Path -LiteralPath $basisSourcePath -PathType Leaf))
+            {
+                throw "Compilation database source is absent from the materialized basis: $relativeSource"
+            }
         }
         if (-not $usedSources.Add($relativeSource))
         {
@@ -484,14 +502,82 @@ function Assert-CompileDatabase(
         }
         foreach ($dependencyMatch in [regex]::Matches(
                 $command.Replace('\', '/'),
-                '(?i)[A-Z]:/[^\s"]*vcpkg_installed[^\s"]*'))
+                '(?i)([A-Z]:/[^\s"]*vcpkg_installed)(?:[^\s"]*)'))
         {
-            $dependencyPath = $dependencyMatch.Value.ToLowerInvariant()
-            if (-not $dependencyPath.StartsWith($normalizedVcpkgRoot))
+            $null = $dependencyRoots.Add($dependencyMatch.Groups[1].Value.Replace('/', '\'))
+        }
+    }
+
+    if ($dependencyRoots.Count -eq 0)
+    {
+        throw 'Compilation commands do not identify a vcpkg dependency root'
+    }
+    [string[]]$vcpkgInstalledRoots = @($dependencyRoots | ForEach-Object {
+            [System.IO.Path]::GetFullPath($_)
+        })
+    [System.Array]::Sort($vcpkgInstalledRoots, [System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($dependencyRoot in $vcpkgInstalledRoots)
+    {
+        if (-not (Test-Path -LiteralPath $dependencyRoot -PathType Container))
+        {
+            throw "Compilation command mixed dependency root is missing: $dependencyRoot"
+        }
+        if (-not $AllowExternalVcpkg -and
+            -not (Test-PathWithin $dependencyRoot $resolvedDatabaseDirectory))
+        {
+            throw "Compilation command mixed dependency root is outside the owned build root: $dependencyRoot"
+        }
+    }
+    if (-not $AllowExternalVcpkg)
+    {
+        if ($vcpkgInstalledRoots.Count -ne 1 -or
+            -not $vcpkgInstalledRoots[0].Equals(
+                $cacheVcpkgInstalled,
+                [System.StringComparison]::OrdinalIgnoreCase))
+        {
+            throw "Compilation command mixed dependency root differs from CMake cache: $($vcpkgInstalledRoots -join ', ')"
+        }
+        $vcpkgInstalled = $vcpkgInstalledRoots[0]
+    }
+    else
+    {
+        $validInstalledRoots = @()
+        foreach ($dependencyRoot in @($vcpkgInstalledRoots + $cacheVcpkgInstalled) | Select-Object -Unique)
+        {
+            try
             {
-                throw "Compilation command uses a mixed dependency root for ${relativeSource}: $($dependencyMatch.Value)"
+                $validInstalledRoots += [pscustomobject]@{
+                    path = $dependencyRoot
+                    provenance = Get-VcpkgInstalledProvenance $dependencyRoot
+                }
+            }
+            catch
+            {
+                continue
             }
         }
+        if ($validInstalledRoots.Count -eq 0)
+        {
+            throw "No compile database dependency root has the complete pinned vcpkg provenance: $($vcpkgInstalledRoots -join ', ')"
+        }
+        $preferredInstalled = @($validInstalledRoots | Where-Object {
+                $_.path.Equals(
+                    $cacheVcpkgInstalled,
+                    [System.StringComparison]::OrdinalIgnoreCase)
+            })[0]
+        if ($null -eq $preferredInstalled)
+        {
+            $preferredInstalled = $validInstalledRoots[0]
+        }
+        foreach ($candidate in $validInstalledRoots)
+        {
+            if ($candidate.provenance.status.sha256 -ne $preferredInstalled.provenance.status.sha256 -or
+                $candidate.provenance.metadataSetSha256 -ne $preferredInstalled.provenance.metadataSetSha256)
+            {
+                throw "Compilation command mixed dependency roots have different complete installed contents: $($candidate.path)"
+            }
+        }
+        $vcpkgInstalled = $preferredInstalled.path
     }
 
     $expectedOutput = Invoke-GitAt $resolvedRoot @(
@@ -545,6 +631,11 @@ function Assert-CompileDatabase(
         throw "MSVC version cannot be identified: $msvcOutput"
     }
 
+    $vcpkgInstalledManifestPath = $null
+    if ($AllowExternalVcpkg)
+    {
+        $vcpkgInstalledManifestPath = 'out/build/portfolio-clang-uml/vcpkg_installed'
+    }
     Write-Host "validated compile database: $projectEntryCount translation units, $($usedSources.Count) selected"
     return [pscustomobject][ordered]@{
         DatabasePath = $databasePath
@@ -560,13 +651,19 @@ function Assert-CompileDatabase(
         CmakeCommand = $cmakeCommand
         Toolchain = $toolchain
         VcpkgInstalled = $vcpkgInstalled
+        VcpkgInstalledRoots = $vcpkgInstalledRoots
+        CacheVcpkgInstalled = $cacheVcpkgInstalled
+        VcpkgInstalledManifestPath = $vcpkgInstalledManifestPath
         CmakeVersion = $cmakeVersion
         NinjaVersion = $ninjaVersion
         MsvcVersion = $msvcMatch.Value
     }
 }
 
-function Assert-RawClassDiagram([string]$DiagramName, [string]$JsonPath)
+function Assert-RawClassDiagram(
+    [string]$DiagramName,
+    [string]$JsonPath,
+    [string]$SourceRoot)
 {
     $document = Get-Content -LiteralPath $JsonPath -Raw | ConvertFrom-Json
     if ($document.name -ne $DiagramName -or $document.diagram_type -ne 'class')
@@ -636,19 +733,19 @@ function Assert-RawClassDiagram([string]$DiagramName, [string]$JsonPath)
         {
             throw "$DiagramName class '$($classElement.name)' requires a repository-relative source path"
         }
-        $sourcePath = Get-FullPath $sourceValue $script:ResolvedRepositoryRoot
-        if (-not (Test-PathWithin $sourcePath $script:ResolvedRepositoryRoot))
+        $sourcePath = Get-FullPath $sourceValue $SourceRoot
+        if (-not (Test-PathWithin $sourcePath $SourceRoot))
         {
             throw "$DiagramName class source escapes repository root: $sourceValue"
         }
-        $relativePath = Get-RepositoryRelativePath $sourcePath $script:ResolvedRepositoryRoot
+        $relativePath = Get-RepositoryRelativePath $sourcePath $SourceRoot
         if ($relativePath -match '^(tests?|third_party)/')
         {
             throw "$DiagramName contains a test or third-party class: $relativePath"
         }
         if (-not (Test-Path -LiteralPath $sourcePath -PathType Leaf))
         {
-            throw "$DiagramName class source is absent from current checkout: $relativePath"
+            throw "$DiagramName class source is absent from the materialized basis: $relativePath"
         }
         Invoke-Git @('cat-file', '-e', "${BasisCommitSha}:$relativePath")
     }
@@ -703,6 +800,185 @@ function Assert-RepositoryBasisInputs(
     {
         throw "Untracked file exists inside a consumed source scope:`n$untracked"
     }
+}
+
+function New-MaterializedBasisSource(
+    [string]$DestinationRoot,
+    [string]$BasisSha)
+{
+    if (Test-Path -LiteralPath $DestinationRoot)
+    {
+        throw "Materialized basis destination already exists: $DestinationRoot"
+    }
+    New-Item -ItemType Directory -Path $DestinationRoot | Out-Null
+    $archivePath = Join-Path ([System.IO.Path]::GetDirectoryName($DestinationRoot)) 'basis-inputs.zip'
+    $archiveArguments = @(
+        'archive',
+        '--format=zip',
+        "--output=$archivePath",
+        $BasisSha,
+        '--'
+    ) + $BasisInputPaths
+    Invoke-Git -Arguments $archiveArguments
+    Expand-Archive -LiteralPath $archivePath -DestinationPath $DestinationRoot
+    Remove-Item -LiteralPath $archivePath -Force
+
+    $expected = @{}
+    $treeArguments = @(
+        'ls-tree',
+        '-r',
+        $BasisSha,
+        '--'
+    ) + $BasisInputPaths
+    $treeOutput = Invoke-Git -Arguments $treeArguments -Capture
+    foreach ($line in @($treeOutput -split "`r?`n"))
+    {
+        if ([string]::IsNullOrWhiteSpace($line))
+        {
+            continue
+        }
+        $match = [regex]::Match($line, '^[0-9]{6}\s+blob\s+([0-9a-f]{40})\t(.+)$')
+        if (-not $match.Success)
+        {
+            throw "Canonical basis tree contains an unsupported entry: $line"
+        }
+        $expected[$match.Groups[2].Value] = $match.Groups[1].Value
+    }
+    if ($expected.Count -eq 0)
+    {
+        throw 'Canonical basis archive contains no files'
+    }
+
+    $actualPaths = @(Get-ChildItem -LiteralPath $DestinationRoot -File -Recurse | ForEach-Object {
+            Get-RepositoryRelativePath $_.FullName $DestinationRoot
+        })
+    $missing = @($expected.Keys | Where-Object { $actualPaths -notcontains $_ })
+    $unexpected = @($actualPaths | Where-Object { -not $expected.ContainsKey($_) })
+    if ($missing.Count -gt 0 -or $unexpected.Count -gt 0)
+    {
+        throw "Materialized basis file set mismatch. Missing: $($missing -join ', '); unexpected: $($unexpected -join ', ')"
+    }
+    & git -C $DestinationRoot init --quiet
+    if ($LASTEXITCODE -ne 0)
+    {
+        throw 'Cannot initialize isolated Git metadata for clang-uml basis discovery'
+    }
+    & git -C $DestinationRoot config core.autocrlf false
+    & git -C $DestinationRoot config user.email 'portfolio-basis@invalid.example'
+    & git -C $DestinationRoot config user.name 'Portfolio Basis'
+    foreach ($relativePath in $expected.Keys)
+    {
+        $materializedPath = Join-Path $DestinationRoot $relativePath
+        $actualBlob = @(& git -C $DestinationRoot hash-object "--path=$relativePath" $materializedPath 2>&1) -join "`n"
+        if ($LASTEXITCODE -ne 0)
+        {
+            throw "Cannot hash materialized basis file: $relativePath`n$actualBlob"
+        }
+        $actualBlob = $actualBlob.Trim()
+        if ($actualBlob -ne $expected[$relativePath])
+        {
+            throw "Materialized basis blob mismatch: $relativePath (expected $($expected[$relativePath]), actual $actualBlob)"
+        }
+    }
+    & git -C $DestinationRoot add --all
+    if ($LASTEXITCODE -ne 0)
+    {
+        throw 'Cannot index the materialized basis for clang-uml source discovery'
+    }
+    & git -C $DestinationRoot commit --quiet -m 'materialized canonical basis'
+    if ($LASTEXITCODE -ne 0)
+    {
+        throw 'Cannot commit isolated Git metadata for clang-uml source discovery'
+    }
+    return (Resolve-Path -LiteralPath $DestinationRoot).Path
+}
+
+function Convert-ToBasisCompileDatabase(
+    [pscustomobject]$CompileProvenance,
+    [string]$BasisSourceRoot,
+    [string]$OutputDirectory)
+{
+    New-Item -ItemType Directory -Path $OutputDirectory -Force | Out-Null
+    $parsedDatabase = Get-Content -LiteralPath $CompileProvenance.DatabasePath -Raw | ConvertFrom-Json
+    [object[]]$entries = if ($parsedDatabase -is [System.Array]) { $parsedDatabase } else { @($parsedDatabase) }
+    $rewritten = @()
+    foreach ($entry in $entries)
+    {
+        $sourcePath = Get-FullPath ([string]$entry.file) ([string]$entry.directory)
+        $relativeSource = Get-RepositoryRelativePath $sourcePath $CompileProvenance.SourceRoot
+        if (-not (Test-DiagramTranslationUnit $relativeSource))
+        {
+            continue
+        }
+        $basisFile = Join-Path $BasisSourceRoot $relativeSource
+        if (-not (Test-Path -LiteralPath $basisFile -PathType Leaf))
+        {
+            throw "Selected basis translation unit is missing: $relativeSource"
+        }
+        $rewrittenCommand = [string]$entry.command
+        foreach ($dependencyRoot in @($CompileProvenance.VcpkgInstalledRoots))
+        {
+            $rewrittenCommand = Replace-OrdinalIgnoreCase `
+                $rewrittenCommand `
+                $dependencyRoot `
+                $CompileProvenance.VcpkgInstalled
+            $rewrittenCommand = Replace-OrdinalIgnoreCase `
+                $rewrittenCommand `
+                $dependencyRoot.Replace('\', '/') `
+                $CompileProvenance.VcpkgInstalled.Replace('\', '/')
+        }
+        $rewrittenCommand = Replace-OrdinalIgnoreCase `
+            $rewrittenCommand `
+            $CompileProvenance.SourceRoot `
+            $BasisSourceRoot
+        $rewrittenCommand = Replace-OrdinalIgnoreCase `
+            $rewrittenCommand `
+            $CompileProvenance.SourceRoot.Replace('\', '/') `
+            $BasisSourceRoot.Replace('\', '/')
+        if ($rewrittenCommand.IndexOf(
+                $CompileProvenance.SourceRoot,
+                [System.StringComparison]::OrdinalIgnoreCase) -ge 0)
+        {
+            throw "Basis compile command still references the documentation worktree: $relativeSource"
+        }
+        foreach ($dependencyRoot in @($CompileProvenance.VcpkgInstalledRoots))
+        {
+            $isCanonicalDependencyRoot = $dependencyRoot.Equals(
+                $CompileProvenance.VcpkgInstalled,
+                [System.StringComparison]::OrdinalIgnoreCase)
+            $retainsDependencyRoot = $rewrittenCommand.IndexOf(
+                $dependencyRoot,
+                [System.StringComparison]::OrdinalIgnoreCase) -ge 0 -or
+                $rewrittenCommand.Replace('\', '/').IndexOf(
+                    $dependencyRoot.Replace('\', '/'),
+                    [System.StringComparison]::OrdinalIgnoreCase) -ge 0
+            if (-not $isCanonicalDependencyRoot -and $retainsDependencyRoot)
+            {
+                throw "Basis compile command retains a noncanonical vcpkg root: $relativeSource"
+            }
+        }
+        $record = [ordered]@{
+            directory = [string]$entry.directory
+            command = $rewrittenCommand
+            file = $basisFile
+        }
+        if (-not [string]::IsNullOrWhiteSpace([string]$entry.output))
+        {
+            $record.output = [string]$entry.output
+        }
+        $rewritten += [pscustomobject]$record
+    }
+    if ($rewritten.Count -ne $CompileProvenance.SelectedPaths.Count)
+    {
+        throw "Basis compile database selected count mismatch: $($rewritten.Count)"
+    }
+    $databasePath = Join-Path $OutputDirectory 'compile_commands.json'
+    $json = ($rewritten | ConvertTo-Json -Depth 10).Replace("`r`n", "`n") + "`n"
+    [System.IO.File]::WriteAllText(
+        $databasePath,
+        $json,
+        [System.Text.UTF8Encoding]::new($false))
+    return $OutputDirectory
 }
 
 function Assert-VcpkgInstalledCompleteness(
@@ -930,8 +1206,9 @@ function Assert-PrivacySafeSnapshotText(
     [string]$Label)
 {
     foreach ($pattern in @(
-            '(?i)[A-Z]:/Users/',
-            '(?i)AppData|/Temp/|\.worktrees|siwon',
+            '(?i)[A-Z]:[\\/]{1,2}(?:Users|Documents and Settings)[\\/]{1,2}[^\\/\s"''<>:]+',
+            '(?i)(?:^|[\s"''=:(])/(?:home|Users)/[^/\s"''<>]+(?:/|$)',
+            '(?i)AppData|[\\/]Temp[\\/]|\.worktrees',
             '(?i)"(?:generatedAt|timestamp|createdAt)"\s*:',
             '(?i)(?:^|[\r\n]|\\n)\s*(?:SITE|COMPUTERNAME|HOSTNAME|HOST)(?:(?::[^=\\\r\n]*)?=|:\s*)',
             '(?i)"(?:site|computerName|hostName|hostname|host)"\s*:',
@@ -967,6 +1244,7 @@ function New-GenerationEvidenceSnapshots(
     $cacheText = Get-Content -LiteralPath $CompileProvenance.CachePath -Raw
     $rootReplacements = @(
         [pscustomobject]@{ source = $CompileProvenance.VcpkgInstalled; token = '${VCPKG_INSTALLED_ROOT}' },
+        [pscustomobject]@{ source = $CompileProvenance.CacheVcpkgInstalled; token = '${VCPKG_INSTALLED_ROOT}' },
         [pscustomobject]@{ source = $CompileProvenance.BuildDirectory; token = '${BUILD_ROOT}' },
         [pscustomobject]@{ source = $RootPath; token = '${REPOSITORY_ROOT}' },
         [pscustomobject]@{ source = $CompileProvenance.Compiler; token = '${MSVC_COMPILER}' },
@@ -974,6 +1252,13 @@ function New-GenerationEvidenceSnapshots(
         [pscustomobject]@{ source = $CompileProvenance.CmakeCommand; token = '${CMAKE}' },
         [pscustomobject]@{ source = $CompileProvenance.Toolchain; token = '${VCPKG_TOOLCHAIN}' }
     )
+    foreach ($dependencyRoot in @($CompileProvenance.VcpkgInstalledRoots))
+    {
+        $rootReplacements += [pscustomobject]@{
+            source = $dependencyRoot
+            token = '${VCPKG_INSTALLED_ROOT}'
+        }
+    }
     foreach ($powerShellMatch in [regex]::Matches(
             $cacheText,
             '(?m)^(?:DXA_POWERSHELL_EXECUTABLE|Z_VCPKG_PWSH_PATH|Z_VCPKG_POWERSHELL_PATH):[^=]+=(.+?)\r?$'))
@@ -1186,6 +1471,12 @@ function New-ClassGenerationManifest(
                 sha256 = Get-Sha256Hex $_
             }
         })
+    $manifestVcpkgInstalled = Get-NormalizedManifestPath $CompileProvenance.VcpkgInstalled $RootPath
+    if (-not [string]::IsNullOrWhiteSpace(
+            [string]$CompileProvenance.VcpkgInstalledManifestPath))
+    {
+        $manifestVcpkgInstalled = $CompileProvenance.VcpkgInstalledManifestPath
+    }
 
     return [pscustomobject][ordered]@{
         schemaVersion = 2
@@ -1230,7 +1521,7 @@ function New-ClassGenerationManifest(
                 compilerIdentity = $CompileProvenance.CompilerIdentity
                 makeProgram = Get-NormalizedManifestPath $CompileProvenance.MakeProgram $RootPath
                 toolchain = Get-NormalizedManifestPath $CompileProvenance.Toolchain $RootPath
-                vcpkgInstalled = Get-NormalizedManifestPath $CompileProvenance.VcpkgInstalled $RootPath
+                vcpkgInstalled = $manifestVcpkgInstalled
             }
         }
         dependencies = [pscustomobject][ordered]@{
@@ -1333,7 +1624,6 @@ if ($basisTree -ne $BasisTreeSha)
     throw "Canonical basis tree mismatch: $basisTree"
 }
 Invoke-Git @('merge-base', '--is-ancestor', $BasisCommitSha, 'HEAD')
-Assert-RepositoryBasisInputs $script:ResolvedRepositoryRoot $BasisCommitSha
 
 if (-not (Test-Path -LiteralPath $ClangUmlExecutable -PathType Leaf))
 {
@@ -1359,7 +1649,6 @@ if (-not (Test-PathWithin $resolvedCompileDatabaseDirectory $script:ResolvedRepo
 {
     throw "Compile database directory must stay inside the repository: $resolvedCompileDatabaseDirectory"
 }
-$compileProvenance = Assert-CompileDatabase $resolvedCompileDatabaseDirectory $script:ResolvedRepositoryRoot $BasisCommitSha
 
 $configPath = Join-Path $script:ResolvedRepositoryRoot '.clang-uml'
 if (-not (Test-Path -LiteralPath $configPath -PathType Leaf))
@@ -1368,28 +1657,55 @@ if (-not (Test-Path -LiteralPath $configPath -PathType Leaf))
 }
 
 $temporaryBase = [System.IO.Path]::GetFullPath([System.IO.Path]::GetTempPath()).TrimEnd('\', '/')
-$temporaryOutput = Join-Path $temporaryBase "dxa-clang-uml-$PID-$([guid]::NewGuid().ToString('N'))"
-$temporaryOutput = [System.IO.Path]::GetFullPath($temporaryOutput)
-if (-not (Test-PathWithin $temporaryOutput $temporaryBase) -or
-    -not ([System.IO.Path]::GetFileName($temporaryOutput)).StartsWith('dxa-clang-uml-'))
+$temporaryWorkspace = Join-Path $temporaryBase "dxa-clang-uml-$PID-$([guid]::NewGuid().ToString('N'))"
+$temporaryWorkspace = [System.IO.Path]::GetFullPath($temporaryWorkspace)
+if (-not (Test-PathWithin $temporaryWorkspace $temporaryBase) -or
+    -not ([System.IO.Path]::GetFileName($temporaryWorkspace)).StartsWith('dxa-clang-uml-'))
 {
-    throw "Unsafe temporary output path: $temporaryOutput"
+    throw "Unsafe temporary workspace path: $temporaryWorkspace"
 }
+$temporaryOutput = Join-Path $temporaryWorkspace 'output'
+$temporaryBasisSource = Join-Path $temporaryWorkspace 'basis-source'
+$temporaryCompileDatabase = Join-Path $temporaryWorkspace 'compile-database'
 
 $results = @()
 try
 {
+    New-Item -ItemType Directory -Path $temporaryWorkspace | Out-Null
+    $materializedBasisSource = New-MaterializedBasisSource `
+        -DestinationRoot $temporaryBasisSource `
+        -BasisSha $BasisCommitSha
+    $generationConfigPath = Join-Path $materializedBasisSource '.clang-uml'
+    Copy-Item -LiteralPath $configPath -Destination $generationConfigPath
+    $compileProvenance = Assert-CompileDatabase `
+        -DatabaseDirectory $resolvedCompileDatabaseDirectory `
+        -RootPath $script:ResolvedRepositoryRoot `
+        -BasisSha $BasisCommitSha `
+        -BasisSourceRoot $materializedBasisSource `
+        -AllowExternalVcpkg
+    $clangCompileDatabase = Convert-ToBasisCompileDatabase `
+        -CompileProvenance $compileProvenance `
+        -BasisSourceRoot $materializedBasisSource `
+        -OutputDirectory $temporaryCompileDatabase
     New-Item -ItemType Directory -Path $temporaryOutput | Out-Null
-    & $ClangUmlExecutable `
-        -c $configPath `
-        -d $resolvedCompileDatabaseDirectory `
-        -n engine network `
-        -g json `
-        -o $temporaryOutput `
-        --quiet
-    if ($LASTEXITCODE -ne 0)
+    Push-Location $materializedBasisSource
+    try
     {
-        throw "clang-uml generation failed with exit code $LASTEXITCODE"
+        & $ClangUmlExecutable `
+            -c $generationConfigPath `
+            -d $clangCompileDatabase `
+            -n engine network `
+            -g json `
+            -o $temporaryOutput `
+            --quiet
+        if ($LASTEXITCODE -ne 0)
+        {
+            throw "clang-uml generation failed with exit code $LASTEXITCODE"
+        }
+    }
+    finally
+    {
+        Pop-Location
     }
 
     foreach ($diagramName in $DiagramNames)
@@ -1399,7 +1715,10 @@ try
         {
             throw "clang-uml did not generate $diagramName.json"
         }
-        $results += Assert-RawClassDiagram $diagramName $jsonPath
+        $results += Assert-RawClassDiagram `
+            -DiagramName $diagramName `
+            -JsonPath $jsonPath `
+            -SourceRoot $materializedBasisSource
     }
 
     $snapshotProvenance = New-GenerationEvidenceSnapshots `
@@ -1431,10 +1750,19 @@ try
     New-Item -ItemType Directory -Path $destinationDirectory -Force | Out-Null
     foreach ($diagramName in $DiagramNames)
     {
-        Move-Item `
-            -LiteralPath (Join-Path $temporaryOutput "$diagramName.json") `
-            -Destination (Join-Path $destinationDirectory "$diagramName.json") `
-            -Force
+        $generatedJsonPath = Join-Path $temporaryOutput "$diagramName.json"
+        $destinationJsonPath = Join-Path $destinationDirectory "$diagramName.json"
+        if (Test-Path -LiteralPath $destinationJsonPath -PathType Leaf)
+        {
+            if ((Get-Sha256Hex $generatedJsonPath) -ne (Get-Sha256Hex $destinationJsonPath))
+            {
+                throw "$diagramName raw AST differs from the committed canonical-basis output"
+            }
+        }
+        else
+        {
+            Move-Item -LiteralPath $generatedJsonPath -Destination $destinationJsonPath
+        }
     }
     $destinationEvidenceDirectory = Join-Path $destinationDirectory 'evidence'
     if (Test-Path -LiteralPath $destinationEvidenceDirectory)
@@ -1459,11 +1787,11 @@ try
 }
 finally
 {
-    if ((Test-Path -LiteralPath $temporaryOutput) -and
-        (Test-PathWithin $temporaryOutput $temporaryBase) -and
-        ([System.IO.Path]::GetFileName($temporaryOutput)).StartsWith('dxa-clang-uml-'))
+    if ((Test-Path -LiteralPath $temporaryWorkspace) -and
+        (Test-PathWithin $temporaryWorkspace $temporaryBase) -and
+        ([System.IO.Path]::GetFileName($temporaryWorkspace)).StartsWith('dxa-clang-uml-'))
     {
-        Remove-Item -LiteralPath $temporaryOutput -Recurse -Force
+        Remove-Item -LiteralPath $temporaryWorkspace -Recurse -Force
     }
 }
 

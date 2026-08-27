@@ -29,8 +29,8 @@
                              "sha256":  "88c8344236a27a6e727e0a8edc49aaa2690bdc7a9464b9d18cc7abe70a9f1c0d"
                          },
     "sourceDigests":  {
-                          "compileCommandsRawSha256":  "30c8113df2a0e088181d4cdfe0ea335d3e4c49fb958564fe7059457752058e37",
-                          "cmakeCacheRawSha256":  "dbba9982ca36b6d955cbed25c85a0384504adc7277c113a419e4ec737d2ed6f6",
+                          "compileCommandsRawSha256":  "d8be6f437ddb8b957e77347c6baea03d420380fed776aa81cbc4152811834ed8",
+                          "cmakeCacheRawSha256":  "064a0a671318ca71f1e80572457774eed38cc53c73140c74c3d7e308fc932ce0",
                           "vcpkgStatusRawSha256":  "8e3483cfcf179994fba1dcfc632325190401fde2404e333bcf5366b9d29e30f2"
                       }
 }
