@@ -53,6 +53,63 @@ function Get-FullPath([string]$PathValue, [string]$BasePath)
     }
 }
 
+function Get-Sha256Hex([string]$FilePath)
+{
+    return (Get-FileHash -LiteralPath $FilePath -Algorithm SHA256).Hash.ToLowerInvariant()
+}
+
+function Get-Utf8StringSha256([string]$Value)
+{
+    $bytes = [System.Text.UTF8Encoding]::new($false).GetBytes($Value)
+    $algorithm = [System.Security.Cryptography.SHA256]::Create()
+    try
+    {
+        return ([System.BitConverter]::ToString($algorithm.ComputeHash($bytes))).Replace('-', '').ToLowerInvariant()
+    }
+    finally
+    {
+        $algorithm.Dispose()
+    }
+}
+
+function Get-NormalizedTextSha256([string]$FilePath)
+{
+    $content = (Get-Content -LiteralPath $FilePath -Raw).Replace("`r`n", "`n")
+    return Get-Utf8StringSha256 $content
+}
+
+function Get-NormalizedManifestPath(
+    [string]$AbsolutePath,
+    [string]$RootPath)
+{
+    $absolute = [System.IO.Path]::GetFullPath($AbsolutePath).TrimEnd('\', '/')
+    $root = [System.IO.Path]::GetFullPath($RootPath).TrimEnd('\', '/')
+    if ($absolute.Equals($root, [System.StringComparison]::OrdinalIgnoreCase))
+    {
+        return '.'
+    }
+    if (Test-PathWithin $absolute $root)
+    {
+        return $absolute.Substring($root.Length).TrimStart('\', '/').Replace('\', '/')
+    }
+    return $absolute.Replace('\', '/')
+}
+
+function Get-WindowsFileId([string]$FilePath)
+{
+    $output = @(& fsutil.exe file queryfileid $FilePath 2>&1) -join "`n"
+    if ($LASTEXITCODE -ne 0)
+    {
+        throw "File identity cannot be resolved: $FilePath`n$output"
+    }
+    $match = [regex]::Match($output, '0x[0-9a-fA-F]+')
+    if (-not $match.Success)
+    {
+        throw "File identity output is unrecognized: $FilePath`n$output"
+    }
+    return $match.Value.ToLowerInvariant()
+}
+
 function Test-PathWithin([string]$CandidatePath, [string]$ParentPath)
 {
     $candidate = [System.IO.Path]::GetFullPath($CandidatePath).TrimEnd('\', '/')
@@ -207,12 +264,29 @@ function Assert-CompileDatabase(
     {
         throw "CMake CXX compiler must be an existing MSVC cl.exe: $compilerPath"
     }
+    $compilerPath = (Resolve-Path -LiteralPath $compilerPath).Path
+    $cacheCompilerFileId = Get-WindowsFileId $compilerPath
     $makeProgram = Get-FullPath (Get-CMakeCacheValue $cacheText 'CMAKE_MAKE_PROGRAM') $resolvedDatabaseDirectory
     if ([System.IO.Path]::GetFileName($makeProgram) -ne 'ninja.exe' -or
         -not (Test-Path -LiteralPath $makeProgram -PathType Leaf))
     {
         throw "CMake make program must be an existing ninja.exe: $makeProgram"
     }
+    $makeProgram = (Resolve-Path -LiteralPath $makeProgram).Path
+    $cmakeCommand = Get-FullPath (Get-CMakeCacheValue $cacheText 'CMAKE_COMMAND') $resolvedDatabaseDirectory
+    if ([System.IO.Path]::GetFileName($cmakeCommand) -ne 'cmake.exe' -or
+        -not (Test-Path -LiteralPath $cmakeCommand -PathType Leaf))
+    {
+        throw "CMAKE_COMMAND must be an existing cmake.exe: $cmakeCommand"
+    }
+    $cmakeCommand = (Resolve-Path -LiteralPath $cmakeCommand).Path
+    $toolchain = Get-FullPath (Get-CMakeCacheValue $cacheText 'CMAKE_TOOLCHAIN_FILE') $resolvedDatabaseDirectory
+    if ([System.IO.Path]::GetFileName($toolchain) -ne 'vcpkg.cmake' -or
+        -not (Test-Path -LiteralPath $toolchain -PathType Leaf))
+    {
+        throw "CMAKE_TOOLCHAIN_FILE must be an existing vcpkg.cmake: $toolchain"
+    }
+    $toolchain = (Resolve-Path -LiteralPath $toolchain).Path
     $vcpkgInstalled = Get-FullPath (Get-CMakeCacheValue $cacheText 'VCPKG_INSTALLED_DIR') $resolvedDatabaseDirectory
     if (-not (Test-PathWithin $vcpkgInstalled $resolvedDatabaseDirectory) -or
         -not (Test-Path -LiteralPath $vcpkgInstalled -PathType Container))
@@ -309,6 +383,25 @@ function Assert-CompileDatabase(
         {
             throw "Selected translation unit does not have a recognizable MSVC C++ command: $relativeSource"
         }
+        $compilerMatch = [regex]::Match($command, '^\s*(?:"([^"]+)"|(\S+))')
+        $commandCompilerValue = if ($compilerMatch.Groups[1].Success)
+        {
+            $compilerMatch.Groups[1].Value
+        }
+        else
+        {
+            $compilerMatch.Groups[2].Value
+        }
+        if (-not [System.IO.Path]::IsPathRooted($commandCompilerValue) -or
+            -not (Test-Path -LiteralPath $commandCompilerValue -PathType Leaf))
+        {
+            throw "Compilation command compiler is unresolved or relative for ${relativeSource}: $commandCompilerValue"
+        }
+        $commandCompiler = (Resolve-Path -LiteralPath $commandCompilerValue).Path
+        if ((Get-WindowsFileId $commandCompiler) -ne $cacheCompilerFileId)
+        {
+            throw "Compilation command compiler does not match the normalized CMake cache compiler for ${relativeSource}: $commandCompiler"
+        }
         foreach ($dependencyMatch in [regex]::Matches(
                 $command.Replace('\', '/'),
                 '(?i)[A-Z]:/[^\s"]*vcpkg_installed[^\s"]*'))
@@ -343,7 +436,53 @@ function Assert-CompileDatabase(
         throw "Compilation database selected source set does not match basis. Missing: $($missingSources -join ', '); unexpected: $($unexpectedSources -join ', ')"
     }
 
+    [string[]]$selectedPaths = @($usedSources)
+    [System.Array]::Sort($selectedPaths, [System.StringComparer]::Ordinal)
+    $cmakeVersionOutput = @(& $cmakeCommand --version 2>&1) -join "`n"
+    if ($cmakeVersionOutput -notmatch '(?m)^cmake version [0-9]+\.[0-9]+\.[^\r\n]+$')
+    {
+        throw "CMake version cannot be identified: $cmakeVersionOutput"
+    }
+    $cmakeVersion = [regex]::Match($cmakeVersionOutput, '(?m)^cmake version [^\r\n]+$').Value
+    $ninjaVersion = (@(& $makeProgram --version 2>&1) -join "`n").Trim()
+    if ($ninjaVersion -notmatch '^[0-9]+\.[0-9]+\.[0-9]+$')
+    {
+        throw "Ninja version cannot be identified: $ninjaVersion"
+    }
+    $previousErrorActionPreference = $ErrorActionPreference
+    try
+    {
+        $ErrorActionPreference = 'Continue'
+        $msvcOutput = @(& $compilerPath 2>&1) -join "`n"
+    }
+    finally
+    {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
+    $msvcMatch = [regex]::Match($msvcOutput, '\b19\.[0-9]+\.[0-9]+(?:\.[0-9]+)?\b')
+    if (-not $msvcMatch.Success)
+    {
+        throw "MSVC version cannot be identified: $msvcOutput"
+    }
+
     Write-Host "validated compile database: $projectEntryCount translation units, $($usedSources.Count) selected"
+    return [pscustomobject][ordered]@{
+        DatabasePath = $databasePath
+        CachePath = $cachePath
+        TotalTranslationUnits = $projectEntryCount
+        SelectedPaths = $selectedPaths
+        Generator = $generator
+        SourceRoot = $cacheSourceRoot
+        BuildDirectory = $resolvedDatabaseDirectory
+        Compiler = $compilerPath
+        MakeProgram = $makeProgram
+        CmakeCommand = $cmakeCommand
+        Toolchain = $toolchain
+        VcpkgInstalled = $vcpkgInstalled
+        CmakeVersion = $cmakeVersion
+        NinjaVersion = $ninjaVersion
+        MsvcVersion = $msvcMatch.Value
+    }
 }
 
 function Assert-RawClassDiagram([string]$DiagramName, [string]$JsonPath)
@@ -485,6 +624,203 @@ function Assert-RepositoryBasisInputs(
     }
 }
 
+function Get-VcpkgInstalledProvenance([string]$VcpkgInstalledRoot)
+{
+    $statusPath = Join-Path $VcpkgInstalledRoot 'vcpkg\status'
+    $infoDirectory = Join-Path $VcpkgInstalledRoot 'vcpkg\info'
+    $shareDirectory = Join-Path $VcpkgInstalledRoot 'x64-windows\share'
+    if (-not (Test-Path -LiteralPath $statusPath -PathType Leaf))
+    {
+        throw "Installed vcpkg status is missing: $statusPath"
+    }
+    if (-not (Test-Path -LiteralPath $infoDirectory -PathType Container))
+    {
+        throw "Installed vcpkg info directory is missing: $infoDirectory"
+    }
+    if (-not (Test-Path -LiteralPath $shareDirectory -PathType Container))
+    {
+        throw "Installed vcpkg share directory is missing: $shareDirectory"
+    }
+
+    $metadataPaths = [System.Collections.Generic.List[string]]::new()
+    foreach ($file in @(Get-ChildItem -LiteralPath $infoDirectory -Filter '*.list' -File))
+    {
+        $metadataPaths.Add((Get-RepositoryRelativePath $file.FullName $VcpkgInstalledRoot))
+    }
+    foreach ($file in @(Get-ChildItem -LiteralPath $shareDirectory -Filter 'vcpkg_abi_info.txt' -File -Recurse))
+    {
+        $metadataPaths.Add((Get-RepositoryRelativePath $file.FullName $VcpkgInstalledRoot))
+    }
+    [string[]]$sortedPaths = @($metadataPaths)
+    [System.Array]::Sort($sortedPaths, [System.StringComparer]::Ordinal)
+    if ($sortedPaths.Count -eq 0)
+    {
+        throw 'Installed vcpkg package metadata set must not be empty'
+    }
+    $entries = @($sortedPaths | ForEach-Object {
+            [pscustomobject][ordered]@{
+                path = $_
+                sha256 = Get-Sha256Hex (Join-Path $VcpkgInstalledRoot $_)
+            }
+        })
+    $setMaterial = ($entries | ForEach-Object { "$($_.path)`0$($_.sha256)`n" }) -join ''
+    return [pscustomobject][ordered]@{
+        status = [pscustomobject][ordered]@{
+            path = 'vcpkg/status'
+            sha256 = Get-Sha256Hex $statusPath
+        }
+        metadataFileCount = $entries.Count
+        metadataSetSha256 = Get-Utf8StringSha256 $setMaterial
+        metadataFiles = $entries
+    }
+}
+
+function New-ClassGenerationManifest(
+    [string]$RootPath,
+    [string]$ConfigPath,
+    [string]$GeneratorPath,
+    [string]$ClangFullVersion,
+    [pscustomobject]$CompileProvenance,
+    [string]$OutputDirectory,
+    [object[]]$DiagramResults)
+{
+    $normalizedClangVersion = $ClangFullVersion.Replace("`r`n", "`n").TrimEnd()
+    $llvmMatch = [regex]::Match(
+        $normalizedClangVersion,
+        '(?m)^Using LLVM/Clang libraries version:\s*(.+)$')
+    if (-not $llvmMatch.Success)
+    {
+        throw 'clang-uml full version does not contain the LLVM identity'
+    }
+    $selectedSetMaterial = "$($CompileProvenance.SelectedPaths -join "`n")`n"
+    $vcpkgManifestPath = Join-Path $RootPath 'vcpkg.json'
+    if (-not (Test-Path -LiteralPath $vcpkgManifestPath -PathType Leaf))
+    {
+        throw 'vcpkg.json is missing from the generation source root'
+    }
+    $vcpkgConfigurationPath = Join-Path $RootPath 'vcpkg-configuration.json'
+    $vcpkgConfiguration = if (Test-Path -LiteralPath $vcpkgConfigurationPath -PathType Leaf)
+    {
+        [pscustomobject][ordered]@{
+            path = 'vcpkg-configuration.json'
+            sha256 = Get-Sha256Hex $vcpkgConfigurationPath
+        }
+    }
+    else
+    {
+        $null
+    }
+    $installed = Get-VcpkgInstalledProvenance $CompileProvenance.VcpkgInstalled
+
+    $diagrams = [ordered]@{}
+    foreach ($diagramName in $DiagramNames)
+    {
+        $result = @($DiagramResults | Where-Object { $_.Name -eq $diagramName })[0]
+        if ($null -eq $result)
+        {
+            throw "Diagram result is missing while building manifest: $diagramName"
+        }
+        $jsonPath = Join-Path $OutputDirectory "$diagramName.json"
+        $diagrams[$diagramName] = [pscustomobject][ordered]@{
+            path = "docs/diagrams/class/$diagramName.json"
+            sha256 = Get-Sha256Hex $jsonPath
+            classCount = $result.ClassCount
+            relationshipCount = $result.RelationshipCount
+        }
+    }
+
+    return [pscustomobject][ordered]@{
+        schemaVersion = 1
+        basis = [pscustomobject][ordered]@{
+            commitSha = $BasisCommitSha
+            treeSha = $BasisTreeSha
+        }
+        tooling = [pscustomobject][ordered]@{
+            clangUml = [pscustomobject][ordered]@{
+                version = $RequiredToolVersion
+                fullVersion = $normalizedClangVersion
+                llvmIdentity = $llvmMatch.Groups[1].Value.Trim()
+            }
+            config = [pscustomobject][ordered]@{
+                path = '.clang-uml'
+                sha256 = Get-NormalizedTextSha256 $ConfigPath
+            }
+            generator = [pscustomobject][ordered]@{
+                path = 'scripts/portfolio/generate-class-diagrams.ps1'
+                sha256 = Get-NormalizedTextSha256 $GeneratorPath
+            }
+            cmakeVersion = $CompileProvenance.CmakeVersion
+            ninjaVersion = $CompileProvenance.NinjaVersion
+            msvcVersion = $CompileProvenance.MsvcVersion
+        }
+        compilation = [pscustomobject][ordered]@{
+            compileCommands = [pscustomobject][ordered]@{
+                path = 'out/build/portfolio-clang-uml/compile_commands.json'
+                sha256 = Get-Sha256Hex $CompileProvenance.DatabasePath
+                totalTranslationUnits = $CompileProvenance.TotalTranslationUnits
+                selectedTranslationUnits = $CompileProvenance.SelectedPaths.Count
+                selectedPathsSha256 = Get-Utf8StringSha256 $selectedSetMaterial
+                selectedPaths = $CompileProvenance.SelectedPaths
+            }
+            cmakeCache = [pscustomobject][ordered]@{
+                path = 'out/build/portfolio-clang-uml/CMakeCache.txt'
+                sha256 = Get-Sha256Hex $CompileProvenance.CachePath
+                generator = $CompileProvenance.Generator
+                homeDirectory = Get-NormalizedManifestPath $CompileProvenance.SourceRoot $RootPath
+                buildDirectory = Get-NormalizedManifestPath $CompileProvenance.BuildDirectory $RootPath
+                compiler = Get-NormalizedManifestPath $CompileProvenance.Compiler $RootPath
+                makeProgram = Get-NormalizedManifestPath $CompileProvenance.MakeProgram $RootPath
+                toolchain = Get-NormalizedManifestPath $CompileProvenance.Toolchain $RootPath
+                vcpkgInstalled = Get-NormalizedManifestPath $CompileProvenance.VcpkgInstalled $RootPath
+            }
+        }
+        dependencies = [pscustomobject][ordered]@{
+            vcpkgManifest = [pscustomobject][ordered]@{
+                path = 'vcpkg.json'
+                sha256 = Get-Sha256Hex $vcpkgManifestPath
+            }
+            vcpkgConfiguration = $vcpkgConfiguration
+            installed = $installed
+        }
+        diagrams = [pscustomobject]$diagrams
+    }
+}
+
+function Write-And-ValidateClassGenerationManifest(
+    [pscustomobject]$Manifest,
+    [string]$ManifestPath,
+    [string]$RootPath,
+    [string]$ConfigPath,
+    [string]$GeneratorPath,
+    [pscustomobject]$CompileProvenance,
+    [string]$OutputDirectory)
+{
+    $json = ($Manifest | ConvertTo-Json -Depth 20).Replace("`r`n", "`n") + "`n"
+    [System.IO.File]::WriteAllText(
+        $ManifestPath,
+        $json,
+        [System.Text.UTF8Encoding]::new($false))
+    $document = Get-Content -LiteralPath $ManifestPath -Raw | ConvertFrom-Json
+    if ($document.schemaVersion -ne 1 -or
+        $document.basis.commitSha -ne $BasisCommitSha -or
+        $document.basis.treeSha -ne $BasisTreeSha -or
+        $document.tooling.config.sha256 -ne (Get-NormalizedTextSha256 $ConfigPath) -or
+        $document.tooling.generator.sha256 -ne (Get-NormalizedTextSha256 $GeneratorPath) -or
+        $document.compilation.compileCommands.sha256 -ne (Get-Sha256Hex $CompileProvenance.DatabasePath) -or
+        $document.compilation.cmakeCache.sha256 -ne (Get-Sha256Hex $CompileProvenance.CachePath))
+    {
+        throw 'Generated class manifest failed its input provenance validation'
+    }
+    foreach ($diagramName in $DiagramNames)
+    {
+        $jsonPath = Join-Path $OutputDirectory "$diagramName.json"
+        if ($document.diagrams.$diagramName.sha256 -ne (Get-Sha256Hex $jsonPath))
+        {
+            throw "Generated class manifest failed raw JSON validation: $diagramName"
+        }
+    }
+}
+
 function Invoke-ClassDiagramGeneration
 {
 if ([string]::IsNullOrWhiteSpace($RepositoryRoot))
@@ -539,7 +875,7 @@ if (-not (Test-PathWithin $resolvedCompileDatabaseDirectory $script:ResolvedRepo
 {
     throw "Compile database directory must stay inside the repository: $resolvedCompileDatabaseDirectory"
 }
-Assert-CompileDatabase $resolvedCompileDatabaseDirectory $script:ResolvedRepositoryRoot $BasisCommitSha
+$compileProvenance = Assert-CompileDatabase $resolvedCompileDatabaseDirectory $script:ResolvedRepositoryRoot $BasisCommitSha
 
 $configPath = Join-Path $script:ResolvedRepositoryRoot '.clang-uml'
 if (-not (Test-Path -LiteralPath $configPath -PathType Leaf))
@@ -582,6 +918,24 @@ try
         $results += Assert-RawClassDiagram $diagramName $jsonPath
     }
 
+    $manifestPath = Join-Path $temporaryOutput 'manifest.json'
+    $manifest = New-ClassGenerationManifest `
+        -RootPath $script:ResolvedRepositoryRoot `
+        -ConfigPath $configPath `
+        -GeneratorPath $PSCommandPath `
+        -ClangFullVersion $versionOutput `
+        -CompileProvenance $compileProvenance `
+        -OutputDirectory $temporaryOutput `
+        -DiagramResults $results
+    Write-And-ValidateClassGenerationManifest `
+        -Manifest $manifest `
+        -ManifestPath $manifestPath `
+        -RootPath $script:ResolvedRepositoryRoot `
+        -ConfigPath $configPath `
+        -GeneratorPath $PSCommandPath `
+        -CompileProvenance $compileProvenance `
+        -OutputDirectory $temporaryOutput
+
     $destinationDirectory = Join-Path $script:ResolvedRepositoryRoot 'docs\diagrams\class'
     New-Item -ItemType Directory -Path $destinationDirectory -Force | Out-Null
     foreach ($diagramName in $DiagramNames)
@@ -591,6 +945,10 @@ try
             -Destination (Join-Path $destinationDirectory "$diagramName.json") `
             -Force
     }
+    Move-Item `
+        -LiteralPath $manifestPath `
+        -Destination (Join-Path $destinationDirectory 'manifest.json') `
+        -Force
 }
 finally
 {

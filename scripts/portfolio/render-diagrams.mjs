@@ -12,6 +12,7 @@ const EXPECTED_SOURCE_FILES = [
     'system-architecture.json'
 ];
 const EXPECTED_CLASS_SOURCE_FILES = ['engine.json', 'network.json'];
+const EXPECTED_CLASS_DIRECTORY_JSON_FILES = ['engine.json', 'manifest.json', 'network.json'];
 const CLASS_DIAGRAM_CONTRACTS = {
     engine: {
         title: `Engine AST class diagram | code basis ${CANONICAL_BASIS_COMMIT_SHA}`,
@@ -924,12 +925,13 @@ async function main() {
         process.exitCode = 1;
         return;
     }
-    if (classSourceFiles.length !== EXPECTED_CLASS_SOURCE_FILES.length
-        || classSourceFiles.some((file, index) => file !== EXPECTED_CLASS_SOURCE_FILES[index])) {
-        console.error(`expected class diagram source files: ${EXPECTED_CLASS_SOURCE_FILES.join(', ')}`);
+    if (classSourceFiles.length !== EXPECTED_CLASS_DIRECTORY_JSON_FILES.length
+        || classSourceFiles.some((file, index) => file !== EXPECTED_CLASS_DIRECTORY_JSON_FILES[index])) {
+        console.error(`expected class directory JSON files: ${EXPECTED_CLASS_DIRECTORY_JSON_FILES.join(', ')}`);
         process.exitCode = 1;
         return;
     }
+    classSourceFiles = classSourceFiles.filter((file) => EXPECTED_CLASS_SOURCE_FILES.includes(file));
     for (const sourceFile of classSourceFiles) {
         let diagram;
         try {

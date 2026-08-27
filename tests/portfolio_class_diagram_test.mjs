@@ -13,6 +13,7 @@ const powershellExecutable = path.join(
     'System32/WindowsPowerShell/v1.0/powershell.exe'
 );
 const basisCommitSha = '884e5e70d68d9fcf9dfe5638d97e06623da154c2';
+const basisTreeSha = 'a3d167d7ddb3fadfe5ce9a2dfea6f5a58b170890';
 const clangUmlVersion = '0.6.3';
 const diagramNames = ['engine', 'network'];
 const expectedNames = {
@@ -60,6 +61,14 @@ function escapeHtmlForExpectation(value) {
 
 function normalizedTextSha256(content) {
     return createHash('sha256').update(String(content).replaceAll('\r\n', '\n')).digest('hex');
+}
+
+function sha256(content) {
+    return createHash('sha256').update(content).digest('hex');
+}
+
+function compareOrdinal(left, right) {
+    return left < right ? -1 : (left > right ? 1 : 0);
 }
 
 function relationshipMidpoint(html, source, destination) {
@@ -167,6 +176,8 @@ async function addCompileDatabaseFixture(fixture) {
     const vcpkgDirectory = path.join(buildDirectory, 'vcpkg_installed');
     const compiler = 'C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/bin/Hostx64/x64/cl.exe';
     const ninja = 'C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/Ninja/ninja.exe';
+    const cmake = 'C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/bin/cmake.exe';
+    const toolchain = 'C:/Program Files/Microsoft Visual Studio/2022/Community/VC/vcpkg/scripts/buildsystems/vcpkg.cmake';
     const selectedSources = [
         'engine/src/windows/EngineApp.cpp',
         'apps/game_client/src/GameSession.cpp',
@@ -181,6 +192,8 @@ async function addCompileDatabaseFixture(fixture) {
         [
             `CMAKE_CXX_COMPILER:FILEPATH=${compiler}`,
             `CMAKE_MAKE_PROGRAM:FILEPATH=${ninja}`,
+            `CMAKE_COMMAND:INTERNAL=${cmake}`,
+            `CMAKE_TOOLCHAIN_FILE:FILEPATH=${toolchain}`,
             `VCPKG_INSTALLED_DIR:PATH=${vcpkgDirectory.replaceAll('\\', '/')}`,
             'CMAKE_GENERATOR:INTERNAL=Ninja',
             `CMAKE_HOME_DIRECTORY:INTERNAL=${fixture.root.replaceAll('\\', '/')}`,
@@ -306,6 +319,32 @@ test('compile database provenance rejects a tampered compiler command', async ()
     }
 });
 
+test('compile database provenance rejects a different executable also named cl.exe', async () => {
+    const fixture = await addCompileDatabaseFixture(await createBasisInputFixture());
+    try {
+        const fakeCompiler = path.join(fixture.buildDirectory, 'tools/cl.exe');
+        await mkdir(path.dirname(fakeCompiler), { recursive: true });
+        await writeFile(fakeCompiler, 'not the cache compiler\n', 'utf8');
+        const commandCompiler = /^"([^"]+)"/u.exec(fixture.compileEntries[0].command)?.[1];
+        fixture.compileEntries[0].command = fixture.compileEntries[0].command.replace(
+            commandCompiler,
+            fakeCompiler.replaceAll('\\', '/')
+        );
+        await writeFile(
+            path.join(fixture.buildDirectory, 'compile_commands.json'),
+            `${JSON.stringify(fixture.compileEntries, null, 2)}\n`,
+            'utf8'
+        );
+
+        const result = validateFixtureCompileDatabase(fixture);
+
+        assert.notEqual(result.status, 0, 'different cl.exe was accepted');
+        assert.match(result.stderr, /cache compiler/iu);
+    } finally {
+        await rm(fixture.root, { recursive: true, force: true });
+    }
+});
+
 test('compile database provenance rejects a non-Ninja CMake cache', async () => {
     const fixture = await addCompileDatabaseFixture(await createBasisInputFixture());
     try {
@@ -379,6 +418,25 @@ test('compile database provenance rejects an untracked selected translation unit
     }
 });
 
+test('compile database provenance rejects a selected translation-unit set mismatch', async () => {
+    const fixture = await addCompileDatabaseFixture(await createBasisInputFixture());
+    try {
+        fixture.compileEntries = fixture.compileEntries.slice(0, -1);
+        await writeFile(
+            path.join(fixture.buildDirectory, 'compile_commands.json'),
+            `${JSON.stringify(fixture.compileEntries, null, 2)}\n`,
+            'utf8'
+        );
+
+        const result = validateFixtureCompileDatabase(fixture);
+
+        assert.notEqual(result.status, 0, 'selected translation-unit set mismatch was accepted');
+        assert.match(result.stderr, /selected source set does not match basis/iu);
+    } finally {
+        await rm(fixture.root, { recursive: true, force: true });
+    }
+});
+
 test('.clang-uml defines the engine and network AST scopes with metadata', async () => {
     const config = await readFile(path.join(repositoryRoot, '.clang-uml'), 'utf8');
 
@@ -389,6 +447,89 @@ test('.clang-uml defines the engine and network AST scopes with metadata', async
     assert.match(config, /^generate_metadata:\s*true\s*$/mu);
     assert.match(config, /^remove_compile_flags:\s*\r?\n\s+- ['"]?\/WX['"]?\s*$/mu);
     assert.doesNotMatch(config, /(?:^|[/\\])(?:tests?|third_party)(?:[/\\]|$)/imu);
+});
+
+test('committed generation manifest deterministically binds AST generation inputs and outputs', async () => {
+    const manifestPath = path.join(repositoryRoot, 'docs/diagrams/class/manifest.json');
+    const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
+    const [config, generator, vcpkgManifest] = await Promise.all([
+        readFile(path.join(repositoryRoot, '.clang-uml'), 'utf8'),
+        readFile(generatorScriptPath, 'utf8'),
+        readFile(path.join(repositoryRoot, 'vcpkg.json'))
+    ]);
+
+    assert.equal(manifest.schemaVersion, 1);
+    assert.deepEqual(manifest.basis, {
+        commitSha: basisCommitSha,
+        treeSha: basisTreeSha
+    });
+    assert.equal(manifest.tooling.clangUml.version, clangUmlVersion);
+    assert.match(manifest.tooling.clangUml.fullVersion, /^clang-uml 0\.6\.3\n/iu);
+    assert.match(manifest.tooling.clangUml.llvmIdentity, /^clang version 22\.1\.8\b/u);
+    assert.deepEqual(manifest.tooling.config, {
+        path: '.clang-uml',
+        sha256: normalizedTextSha256(config)
+    });
+    assert.deepEqual(manifest.tooling.generator, {
+        path: 'scripts/portfolio/generate-class-diagrams.ps1',
+        sha256: normalizedTextSha256(generator)
+    });
+    assert.match(manifest.tooling.cmakeVersion, /^cmake version 3\.31\.6/iu);
+    assert.equal(manifest.tooling.ninjaVersion, '1.12.1');
+    assert.match(manifest.tooling.msvcVersion, /^19\.44\.35228/u);
+
+    const compile = manifest.compilation.compileCommands;
+    assert.equal(compile.path, 'out/build/portfolio-clang-uml/compile_commands.json');
+    assert.match(compile.sha256, /^[0-9a-f]{64}$/u);
+    assert.equal(compile.totalTranslationUnits, 172);
+    assert.equal(compile.selectedTranslationUnits, 44);
+    assert.equal(compile.selectedPaths.length, 44);
+    assert.deepEqual(compile.selectedPaths, [...compile.selectedPaths].sort(compareOrdinal));
+    assert.equal(new Set(compile.selectedPaths).size, compile.selectedPaths.length);
+    assert.equal(compile.selectedPathsSha256, sha256(`${compile.selectedPaths.join('\n')}\n`));
+
+    const cache = manifest.compilation.cmakeCache;
+    assert.equal(cache.path, 'out/build/portfolio-clang-uml/CMakeCache.txt');
+    assert.match(cache.sha256, /^[0-9a-f]{64}$/u);
+    assert.equal(cache.generator, 'Ninja');
+    assert.equal(cache.homeDirectory, '.');
+    assert.equal(cache.buildDirectory, 'out/build/portfolio-clang-uml');
+    assert.match(cache.compiler, /\/cl\.exe$/iu);
+    assert.match(cache.makeProgram, /\/ninja\.exe$/iu);
+    assert.match(cache.toolchain, /\/vcpkg\.cmake$/iu);
+    assert.equal(cache.vcpkgInstalled, 'out/build/portfolio-clang-uml/vcpkg_installed');
+
+    assert.deepEqual(manifest.dependencies.vcpkgManifest, {
+        path: 'vcpkg.json',
+        sha256: sha256(vcpkgManifest)
+    });
+    assert.equal(manifest.dependencies.vcpkgConfiguration, null);
+    assert.equal(manifest.dependencies.installed.status.path, 'vcpkg/status');
+    assert.match(manifest.dependencies.installed.status.sha256, /^[0-9a-f]{64}$/u);
+    const metadataFiles = manifest.dependencies.installed.metadataFiles;
+    assert.equal(manifest.dependencies.installed.metadataFileCount, metadataFiles.length);
+    assert.ok(metadataFiles.length > 0);
+    assert.deepEqual(metadataFiles, [...metadataFiles].sort((left, right) => compareOrdinal(left.path, right.path)));
+    assert.ok(metadataFiles.every((entry) => (
+        /^(?:vcpkg\/info\/.+\.list|x64-windows\/share\/.+\/vcpkg_abi_info\.txt)$/u.test(entry.path)
+        && /^[0-9a-f]{64}$/u.test(entry.sha256)
+    )));
+    assert.equal(
+        manifest.dependencies.installed.metadataSetSha256,
+        sha256(metadataFiles.map((entry) => `${entry.path}\0${entry.sha256}\n`).join(''))
+    );
+
+    for (const diagramName of diagramNames) {
+        const rawPath = path.join(repositoryRoot, `docs/diagrams/class/${diagramName}.json`);
+        const rawBytes = await readFile(rawPath);
+        const raw = JSON.parse(rawBytes.toString('utf8'));
+        assert.deepEqual(manifest.diagrams[diagramName], {
+            path: `docs/diagrams/class/${diagramName}.json`,
+            sha256: sha256(rawBytes),
+            classCount: raw.elements.length,
+            relationshipCount: raw.relationships.length
+        });
+    }
 });
 
 test('class validator rejects hand-authored JSON that only imitates a clang-uml envelope', async () => {
@@ -518,7 +659,7 @@ for (const diagramName of diagramNames) {
     });
 }
 
-test('class diagrams move to verified only with the four generated outputs and pinned proof', async () => {
+test('class diagrams move to verified only with the generation manifest and pinned outputs', async () => {
     const [releaseStatusText, config, generator] = await Promise.all([
         readFile(path.join(repositoryRoot, 'docs/portfolio/release-status.json'), 'utf8'),
         readFile(path.join(repositoryRoot, '.clang-uml'), 'utf8'),
@@ -530,14 +671,20 @@ test('class diagrams move to verified only with the four generated outputs and p
         'docs/diagrams/class/engine.json',
         'docs/diagrams/class/network.json',
         'docs/diagrams/class/engine.html',
-        'docs/diagrams/class/network.html'
+        'docs/diagrams/class/network.html',
+        'docs/diagrams/class/manifest.json'
     ];
+    const manifestBytes = await readFile(path.join(repositoryRoot, expectedEvidence[4]));
 
     assert.equal(item?.status, 'verified');
     assert.deepEqual(item?.evidence, expectedEvidence);
     assert.equal(item?.proof?.tool, 'clang-uml');
     assert.equal(item?.proof?.toolVersion, clangUmlVersion);
     assert.equal(item?.proof?.basisCommitSha, basisCommitSha);
+    assert.deepEqual(item?.proof?.manifest, {
+        path: expectedEvidence[4],
+        sha256: sha256(manifestBytes)
+    });
     assert.deepEqual(item?.proof?.inputs, {
         config: {
             path: '.clang-uml',
@@ -684,4 +831,17 @@ test('committed class HTML and combined index exactly match the renderer', async
     assert.equal(committedIndex, renderer.renderIndex(manualEntries));
     assert.match(committedIndex, /href="class\/engine\.html"/u);
     assert.match(committedIndex, /href="class\/network\.html"/u);
+});
+
+test('renderer check treats manifest JSON as provenance rather than a diagram source', () => {
+    const result = spawnSync(
+        process.execPath,
+        ['scripts/portfolio/render-diagrams.mjs', '--root', '.', '--check'],
+        { cwd: repositoryRoot, encoding: 'utf8' }
+    );
+
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.match(result.stdout, /validated class\/engine\.json/u);
+    assert.match(result.stdout, /validated class\/network\.json/u);
+    assert.doesNotMatch(result.stdout, /validated class\/manifest\.json/u);
 });

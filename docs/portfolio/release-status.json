@@ -100,12 +100,17 @@
         "docs/diagrams/class/engine.json",
         "docs/diagrams/class/network.json",
         "docs/diagrams/class/engine.html",
-        "docs/diagrams/class/network.html"
+        "docs/diagrams/class/network.html",
+        "docs/diagrams/class/manifest.json"
       ],
       "proof": {
         "tool": "clang-uml",
         "toolVersion": "0.6.3",
         "basisCommitSha": "884e5e70d68d9fcf9dfe5638d97e06623da154c2",
+        "manifest": {
+          "path": "docs/diagrams/class/manifest.json",
+          "sha256": "0b8358bb3f9d74816d8c78b91f7ee6c6f553eaf70467836bbfa66573ad5de978"
+        },
         "inputs": {
           "config": {
             "path": ".clang-uml",
@@ -113,7 +118,7 @@
           },
           "generator": {
             "path": "scripts/portfolio/generate-class-diagrams.ps1",
-            "sha256": "fb935a83c3f453648d25b3617329de1d4ccfbce70985cb7feab4898d207e3b06"
+            "sha256": "ffccda6ece35ae854cae4447fcd907d2ac9262fa697fc2fc9262cbb3e95492e4"
           }
         },
         "outputs": {
@@ -127,7 +132,7 @@
           }
         }
       },
-      "note": "clang-uml 0.6.3 raw AST JSON에서 engine 9개 class와 5개 relationship, network 9개 class와 1개 relationship을 확인하고 deterministic HTML을 1280px와 768px dark browser에서 검수했다."
+      "note": "clang-uml 0.6.3 raw AST JSON과 generation manifest에서 engine 9개 class와 5개 relationship, network 9개 class와 1개 relationship 및 compile, CMake, vcpkg provenance를 확인했다."
     },
     {
       "id": "portfolio-pdf",

@@ -42,6 +42,7 @@ const REQUIRED_CLASS_DIAGRAM_PATHS = [
     'docs/diagrams/class/engine.html',
     'docs/diagrams/class/network.html'
 ];
+const CLASS_GENERATION_MANIFEST_PATH = 'docs/diagrams/class/manifest.json';
 const REQUIRED_RUNTIME_LFS_PATHS = [
     'assets/runtime/characters/cyber-runner.dxam',
     'assets/runtime/environment/colormap.dds',
@@ -133,6 +134,250 @@ function normalizedTextSha256(content) {
     return sha256(String(content).replaceAll('\r\n', '\n'));
 }
 
+function selectedTranslationUnit(relativePath) {
+    return /^engine\/src\/.+\.cpp$/u.test(relativePath)
+        || /^apps\/(?:game_client|game_server|lobby_server)\/src\/.+\.cpp$/u.test(relativePath)
+        || relativePath === 'tests/engine_resource_pool_test.cpp';
+}
+
+function compareOrdinal(left, right) {
+    return left < right ? -1 : (left > right ? 1 : 0);
+}
+
+function validateSortedHashEntries(entries, field) {
+    const errors = [];
+    if (!Array.isArray(entries) || entries.length === 0) {
+        return [`${field}: must be a nonempty array`];
+    }
+    const paths = entries.map((entry) => entry?.path);
+    const sortedPaths = [...paths].sort((left, right) => compareOrdinal(String(left), String(right)));
+    if (paths.some((entryPath, index) => entryPath !== sortedPaths[index])) {
+        errors.push(`${field}: paths must be sorted in ordinal repository order`);
+    }
+    if (new Set(paths).size !== paths.length) {
+        errors.push(`${field}: paths must be unique`);
+    }
+    for (const [index, entry] of entries.entries()) {
+        if (typeof entry?.path !== 'string'
+            || !/^(?:vcpkg\/info\/.+\.list|x64-windows\/share\/.+\/vcpkg_abi_info\.txt)$/u.test(entry.path)) {
+            errors.push(`${field}[${index}].path: must be installed list or ABI metadata`);
+        }
+        if (!/^[0-9a-f]{64}$/u.test(entry?.sha256 ?? '')) {
+            errors.push(`${field}[${index}].sha256: must be a lowercase SHA-256`);
+        }
+    }
+    return errors;
+}
+
+async function validateClassGenerationManifest(manifest, options) {
+    const errors = [];
+    const field = 'class-diagrams.proof.manifest';
+    if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest)) {
+        return [`${field}: must be an object`];
+    }
+    if (manifest.schemaVersion !== 1) {
+        errors.push(`${field}.schemaVersion: must be 1`);
+    }
+    if (manifest.basis?.commitSha !== CANONICAL_CODE_BASIS_SHA) {
+        errors.push(`${field}.basis.commitSha: must match the canonical code basis SHA`);
+    }
+    if (manifest.basis?.treeSha !== 'a3d167d7ddb3fadfe5ce9a2dfea6f5a58b170890') {
+        errors.push(`${field}.basis.treeSha: must match the canonical code basis tree`);
+    }
+    if (options.verifyClassBasisCommit ?? true) {
+        const treeResult = spawnSync(
+            'git',
+            ['show', '-s', '--format=%T', CANONICAL_CODE_BASIS_SHA],
+            { cwd: options.root, encoding: 'utf8' }
+        );
+        if (treeResult.status !== 0 || treeResult.stdout.trim() !== manifest.basis?.treeSha) {
+            errors.push(`${field}.basis.treeSha: current Git object does not match manifest`);
+        }
+    }
+
+    const clangUml = manifest.tooling?.clangUml;
+    if (clangUml?.version !== '0.6.3') {
+        errors.push(`${field}.tooling.clangUml.version: must be 0.6.3`);
+    }
+    if (typeof clangUml?.fullVersion !== 'string'
+        || !/^clang-uml 0\.6\.3\n/iu.test(clangUml.fullVersion)
+        || !clangUml.fullVersion.includes(`Using LLVM/Clang libraries version: ${clangUml.llvmIdentity}`)) {
+        errors.push(`${field}.tooling.clangUml.fullVersion: must contain the exact clang-uml and LLVM identity`);
+    }
+    if (typeof clangUml?.llvmIdentity !== 'string'
+        || !/^clang version 22\.1\.8\b/u.test(clangUml.llvmIdentity)) {
+        errors.push(`${field}.tooling.clangUml.llvmIdentity: must identify clang 22.1.8`);
+    }
+    for (const [inputName, requiredPath] of [
+        ['config', '.clang-uml'],
+        ['generator', 'scripts/portfolio/generate-class-diagrams.ps1']
+    ]) {
+        const input = manifest.tooling?.[inputName];
+        if (input?.path !== requiredPath) {
+            errors.push(`${field}.tooling.${inputName}.path: must be ${requiredPath}`);
+            continue;
+        }
+        try {
+            const content = await readFile(path.join(options.root, requiredPath), 'utf8');
+            if (normalizedTextSha256(content) !== input.sha256) {
+                errors.push(`${field}.tooling.${inputName}.sha256: current file does not match generation manifest`);
+            }
+        } catch (error) {
+            errors.push(`${field}.tooling.${inputName}.path: cannot read current input: ${error.message}`);
+        }
+    }
+    if (!/^cmake version 3\.31\.6/iu.test(manifest.tooling?.cmakeVersion ?? '')) {
+        errors.push(`${field}.tooling.cmakeVersion: must identify CMake 3.31.6`);
+    }
+    if (manifest.tooling?.ninjaVersion !== '1.12.1') {
+        errors.push(`${field}.tooling.ninjaVersion: must be 1.12.1`);
+    }
+    if (!/^19\.44\.35228/u.test(manifest.tooling?.msvcVersion ?? '')) {
+        errors.push(`${field}.tooling.msvcVersion: must identify MSVC 19.44.35228`);
+    }
+
+    const compileCommands = manifest.compilation?.compileCommands;
+    if (compileCommands?.path !== 'out/build/portfolio-clang-uml/compile_commands.json') {
+        errors.push(`${field}.compilation.compileCommands.path: unexpected generation path`);
+    }
+    if (!/^[0-9a-f]{64}$/u.test(compileCommands?.sha256 ?? '')) {
+        errors.push(`${field}.compilation.compileCommands.sha256: must be a lowercase SHA-256`);
+    }
+    if (compileCommands?.totalTranslationUnits !== 172 || compileCommands?.selectedTranslationUnits !== 44) {
+        errors.push(`${field}.compilation.compileCommands: expected 172 total and 44 selected translation units`);
+    }
+    const selectedPaths = compileCommands?.selectedPaths;
+    if (!Array.isArray(selectedPaths)
+        || selectedPaths.length !== compileCommands?.selectedTranslationUnits
+        || new Set(selectedPaths).size !== selectedPaths.length
+        || selectedPaths.some((entryPath, index) => entryPath !== [...selectedPaths].sort(compareOrdinal)[index])
+        || selectedPaths.some((entryPath) => !selectedTranslationUnit(entryPath))) {
+        errors.push(`${field}.compilation.compileCommands.selectedPaths: must be the sorted unique selected TU set`);
+    } else {
+        const selectedHash = sha256(`${selectedPaths.join('\n')}\n`);
+        if (compileCommands.selectedPathsSha256 !== selectedHash) {
+            errors.push(`${field}.compilation.compileCommands.selectedPathsSha256: selected TU set hash mismatch`);
+        }
+        if (options.verifyClassBasisCommit ?? true) {
+            const expectedResult = spawnSync(
+                'git',
+                [
+                    'ls-tree', '-r', '--name-only', CANONICAL_CODE_BASIS_SHA, '--',
+                    'engine/src', 'apps/game_client/src', 'apps/game_server/src',
+                    'apps/lobby_server/src', 'tests/engine_resource_pool_test.cpp'
+                ],
+                { cwd: options.root, encoding: 'utf8' }
+            );
+            const expectedPaths = expectedResult.stdout
+                .split(/\r?\n/u)
+                .filter((entryPath) => entryPath && selectedTranslationUnit(entryPath))
+                .sort(compareOrdinal);
+            if (expectedResult.status !== 0 || JSON.stringify(expectedPaths) !== JSON.stringify(selectedPaths)) {
+                errors.push(`${field}.compilation.compileCommands.selectedPaths: basis TU set mismatch`);
+            }
+        }
+    }
+
+    const cache = manifest.compilation?.cmakeCache;
+    const normalizedCacheFields = {
+        path: 'out/build/portfolio-clang-uml/CMakeCache.txt',
+        generator: 'Ninja',
+        homeDirectory: '.',
+        buildDirectory: 'out/build/portfolio-clang-uml',
+        vcpkgInstalled: 'out/build/portfolio-clang-uml/vcpkg_installed'
+    };
+    for (const [cacheField, expected] of Object.entries(normalizedCacheFields)) {
+        if (cache?.[cacheField] !== expected) {
+            errors.push(`${field}.compilation.cmakeCache.${cacheField}: must be ${expected}`);
+        }
+    }
+    if (!/^[0-9a-f]{64}$/u.test(cache?.sha256 ?? '')) {
+        errors.push(`${field}.compilation.cmakeCache.sha256: must be a lowercase SHA-256`);
+    }
+    for (const [cacheField, filePattern] of [
+        ['compiler', /\/cl\.exe$/iu],
+        ['makeProgram', /\/ninja\.exe$/iu],
+        ['toolchain', /\/vcpkg\.cmake$/iu]
+    ]) {
+        if (typeof cache?.[cacheField] !== 'string'
+            || !/^[A-Za-z]:\//u.test(cache[cacheField])
+            || !filePattern.test(cache[cacheField])) {
+            errors.push(`${field}.compilation.cmakeCache.${cacheField}: invalid normalized tool path`);
+        }
+    }
+
+    const vcpkgManifest = manifest.dependencies?.vcpkgManifest;
+    if (vcpkgManifest?.path !== 'vcpkg.json') {
+        errors.push(`${field}.dependencies.vcpkgManifest.path: must be vcpkg.json`);
+    } else {
+        try {
+            const content = await readFile(path.join(options.root, 'vcpkg.json'));
+            if (sha256(content) !== vcpkgManifest.sha256) {
+                errors.push(`${field}.dependencies.vcpkgManifest.sha256: current vcpkg.json mismatch`);
+            }
+        } catch (error) {
+            errors.push(`${field}.dependencies.vcpkgManifest.path: cannot read vcpkg.json: ${error.message}`);
+        }
+    }
+    const configurationPath = path.join(options.root, 'vcpkg-configuration.json');
+    try {
+        const content = await readFile(configurationPath);
+        if (manifest.dependencies?.vcpkgConfiguration?.path !== 'vcpkg-configuration.json'
+            || manifest.dependencies.vcpkgConfiguration.sha256 !== sha256(content)) {
+            errors.push(`${field}.dependencies.vcpkgConfiguration: current file mismatch`);
+        }
+    } catch (error) {
+        if (error.code !== 'ENOENT' || manifest.dependencies?.vcpkgConfiguration !== null) {
+            errors.push(`${field}.dependencies.vcpkgConfiguration: must be null when file is absent`);
+        }
+    }
+    const installed = manifest.dependencies?.installed;
+    if (installed?.status?.path !== 'vcpkg/status'
+        || !/^[0-9a-f]{64}$/u.test(installed?.status?.sha256 ?? '')) {
+        errors.push(`${field}.dependencies.installed.status: invalid status provenance`);
+    }
+    const metadataErrors = validateSortedHashEntries(
+        installed?.metadataFiles,
+        `${field}.dependencies.installed.metadataFiles`
+    );
+    errors.push(...metadataErrors);
+    if (Array.isArray(installed?.metadataFiles)) {
+        if (installed.metadataFileCount !== installed.metadataFiles.length) {
+            errors.push(`${field}.dependencies.installed.metadataFileCount: does not match metadata files`);
+        }
+        const material = installed.metadataFiles.map((entry) => `${entry.path}\0${entry.sha256}\n`).join('');
+        if (installed.metadataSetSha256 !== sha256(material)) {
+            errors.push(`${field}.dependencies.installed.metadataSetSha256: package metadata set hash mismatch`);
+        }
+    }
+
+    for (const [diagramName, expectedCounts] of Object.entries({
+        engine: { classes: 9, relationships: 5 },
+        network: { classes: 9, relationships: 1 }
+    })) {
+        const diagramProof = manifest.diagrams?.[diagramName];
+        const relativePath = `docs/diagrams/class/${diagramName}.json`;
+        if (diagramProof?.path !== relativePath) {
+            errors.push(`${field}.diagrams.${diagramName}.path: must be ${relativePath}`);
+            continue;
+        }
+        try {
+            const bytes = await readFile(path.join(options.root, relativePath));
+            const diagram = JSON.parse(bytes.toString('utf8'));
+            if (diagramProof.sha256 !== sha256(bytes)
+                || diagramProof.classCount !== expectedCounts.classes
+                || diagramProof.relationshipCount !== expectedCounts.relationships
+                || diagramProof.classCount !== diagram.elements?.length
+                || diagramProof.relationshipCount !== diagram.relationships?.length) {
+                errors.push(`${field}.diagrams.${diagramName}: committed raw JSON hash or counts mismatch`);
+            }
+        } catch (error) {
+            errors.push(`${field}.diagrams.${diagramName}: cannot validate raw JSON: ${error.message}`);
+        }
+    }
+    return errors;
+}
+
 async function validateClassDiagramProof(item, evidencePaths, options) {
     const errors = [];
     const proof = item.proof;
@@ -154,6 +399,30 @@ async function validateClassDiagramProof(item, evidencePaths, options) {
     for (const [index, requiredPath] of REQUIRED_CLASS_DIAGRAM_PATHS.entries()) {
         if (proofPaths[index] !== requiredPath || !evidencePaths.includes(requiredPath)) {
             errors.push(`${item.id}.proof.outputs: must list ${requiredPath}`);
+        }
+    }
+
+    const manifestProof = proof?.manifest;
+    if (manifestProof?.path !== CLASS_GENERATION_MANIFEST_PATH
+        || !evidencePaths.includes(CLASS_GENERATION_MANIFEST_PATH)) {
+        errors.push(`${item.id}.proof.manifest.path: must be ${CLASS_GENERATION_MANIFEST_PATH}`);
+    }
+    if (!/^[0-9a-f]{64}$/u.test(manifestProof?.sha256 ?? '')) {
+        errors.push(`${item.id}.proof.manifest.sha256: must be a lowercase SHA-256`);
+    } else if (manifestProof?.path === CLASS_GENERATION_MANIFEST_PATH) {
+        try {
+            const manifestBytes = await readFile(path.join(options.root, CLASS_GENERATION_MANIFEST_PATH));
+            if (sha256(manifestBytes) !== manifestProof.sha256) {
+                errors.push(`${item.id}.proof.manifest.sha256: current manifest does not match release proof`);
+            }
+            const manifest = JSON.parse(manifestBytes.toString('utf8'));
+            errors.push(...await validateClassGenerationManifest(manifest, options));
+            if (proof?.inputs?.config?.sha256 !== manifest.tooling?.config?.sha256
+                || proof?.inputs?.generator?.sha256 !== manifest.tooling?.generator?.sha256) {
+                errors.push(`${item.id}.proof.manifest: tooling hashes do not match release proof inputs`);
+            }
+        } catch (error) {
+            errors.push(`${item.id}.proof.manifest: cannot load generation manifest: ${error.message}`);
         }
     }
 

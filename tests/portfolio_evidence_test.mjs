@@ -107,12 +107,13 @@ function normalizedTextSha256(content) {
     return sha256(String(content).replaceAll('\r\n', '\n'));
 }
 
-function setVerifiedClassProof(document, inputs) {
+function setVerifiedClassProof(document, inputs, manifestProof) {
     const paths = [
         'docs/diagrams/class/engine.json',
         'docs/diagrams/class/network.json',
         'docs/diagrams/class/engine.html',
-        'docs/diagrams/class/network.html'
+        'docs/diagrams/class/network.html',
+        ...(manifestProof ? ['docs/diagrams/class/manifest.json'] : [])
     ];
     const item = document.items.find((candidate) => candidate.id === 'class-diagrams');
     item.status = 'verified';
@@ -122,6 +123,7 @@ function setVerifiedClassProof(document, inputs) {
         toolVersion: '0.6.3',
         basisCommitSha,
         inputs,
+        ...(manifestProof ? { manifest: manifestProof } : {}),
         outputs: {
             engine: { json: paths[0], html: paths[2] },
             network: { json: paths[1], html: paths[3] }
@@ -133,15 +135,17 @@ function setVerifiedClassProof(document, inputs) {
 async function createValidClassProofFixture(document, root) {
     const configPath = '.clang-uml';
     const generatorPath = 'scripts/portfolio/generate-class-diagrams.ps1';
-    const [config, generator] = await Promise.all([
+    const [config, generator, vcpkgManifest] = await Promise.all([
         readFile(path.join(repositoryRoot, configPath), 'utf8'),
-        readFile(path.join(repositoryRoot, generatorPath), 'utf8')
+        readFile(path.join(repositoryRoot, generatorPath), 'utf8'),
+        readFile(path.join(repositoryRoot, 'vcpkg.json'))
     ]);
     for (const [relativePath, content] of [[configPath, config], [generatorPath, generator]]) {
         const target = path.join(root, relativePath);
         await mkdir(path.dirname(target), { recursive: true });
         await writeFile(target, content, 'utf8');
     }
+    await writeFile(path.join(root, 'vcpkg.json'), vcpkgManifest);
 
     for (const diagramName of ['engine', 'network']) {
         const jsonPath = `docs/diagrams/class/${diagramName}.json`;
@@ -168,9 +172,18 @@ async function createValidClassProofFixture(document, root) {
         }
     }
 
+    const manifestPath = 'docs/diagrams/class/manifest.json';
+    const manifestBytes = await readFile(path.join(repositoryRoot, manifestPath));
+    const targetManifest = path.join(root, manifestPath);
+    await mkdir(path.dirname(targetManifest), { recursive: true });
+    await writeFile(targetManifest, manifestBytes);
+
     return setVerifiedClassProof(document, {
         config: { path: configPath, sha256: normalizedTextSha256(config) },
         generator: { path: generatorPath, sha256: normalizedTextSha256(generator) }
+    }, {
+        path: manifestPath,
+        sha256: sha256(manifestBytes)
     });
 }
 
@@ -628,6 +641,73 @@ test('verified class diagrams reject changed config and generator provenance', a
 
         assert.ok(errors.some((error) => error.includes('proof.inputs.config.sha256')));
         assert.ok(errors.some((error) => error.includes('proof.inputs.generator.sha256')));
+    });
+});
+
+test('verified class diagrams require a generation-time provenance manifest', async () => {
+    await withReleaseFixture(async (document, root) => {
+        const { item } = await createValidClassProofFixture(document, root);
+        item.evidence = item.evidence.filter((relativePath) => relativePath !== 'docs/diagrams/class/manifest.json');
+        delete item.proof.manifest;
+        await rm(path.join(root, 'docs/diagrams/class/manifest.json'));
+
+        const errors = await validateReleaseStatus(document, {
+            root,
+            verifyClassBasisCommit: false
+        });
+
+        assert.ok(errors.some((error) => error.includes('proof.manifest.path')));
+        assert.ok(errors.some((error) => error.includes('proof.manifest.sha256')));
+    });
+});
+
+test('verified class manifest validates without ignored generation build artifacts', async () => {
+    await withReleaseFixture(async (document, root) => {
+        await createValidClassProofFixture(document, root);
+
+        const errors = await validateReleaseStatus(document, {
+            root,
+            verifyClassBasisCommit: false
+        });
+
+        assert.equal(errors.some((error) => error.includes('class-diagrams')), false, errors.join('\n'));
+        assert.equal(await readdir(path.join(root, 'out')).catch((error) => error.code), 'ENOENT');
+    });
+});
+
+test('verified class diagrams reject a hand-edited manifest even when its proof hash is updated', async () => {
+    await withReleaseFixture(async (document, root) => {
+        const { item } = await createValidClassProofFixture(document, root);
+        const manifestPath = path.join(root, 'docs/diagrams/class/manifest.json');
+        const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
+        manifest.schemaVersion = 99;
+        const tampered = `${JSON.stringify(manifest, null, 2)}\n`;
+        await writeFile(manifestPath, tampered, 'utf8');
+        item.proof.manifest.sha256 = sha256(tampered);
+
+        const errors = await validateReleaseStatus(document, {
+            root,
+            verifyClassBasisCommit: false
+        });
+
+        assert.ok(errors.some((error) => error.includes('proof.manifest.schemaVersion')));
+    });
+});
+
+test('verified class diagrams reject raw JSON that no longer matches the generation manifest', async () => {
+    await withReleaseFixture(async (document, root) => {
+        await createValidClassProofFixture(document, root);
+        const enginePath = path.join(root, 'docs/diagrams/class/engine.json');
+        const engine = JSON.parse(await readFile(enginePath, 'utf8'));
+        engine.elements[0].name = 'TamperedRenderer';
+        await writeFile(enginePath, `${JSON.stringify(engine, null, 2)}\n`, 'utf8');
+
+        const errors = await validateReleaseStatus(document, {
+            root,
+            verifyClassBasisCommit: false
+        });
+
+        assert.ok(errors.some((error) => error.includes('proof.manifest.diagrams.engine')));
     });
 });
 
