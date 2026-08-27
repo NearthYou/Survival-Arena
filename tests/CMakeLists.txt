@@ -1,5 +1,14 @@
 find_package(GTest CONFIG REQUIRED)
 
+find_program(DXA_NODE_EXECUTABLE NAMES node)
+if(DXA_NODE_EXECUTABLE)
+    add_test(
+        NAME PortfolioEvidence.ValidatesSources
+        COMMAND ${DXA_NODE_EXECUTABLE} --test
+                "${PROJECT_SOURCE_DIR}/tests/portfolio_evidence_test.mjs"
+    )
+endif()
+
 add_executable(
     dxa_tests
     client_options_test.cpp
