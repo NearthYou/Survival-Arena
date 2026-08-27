@@ -5,6 +5,35 @@ import test from 'node:test';
 import { renderDiagram, validateDiagram } from '../scripts/portfolio/render-diagrams.mjs';
 
 const basisCommitSha = '884e5e70d68d9fcf9dfe5638d97e06623da154c2';
+const flowDiagramNames = [
+    'system-architecture',
+    'room-lifecycle',
+    'snapshot-data-flow'
+];
+
+function normalizeMarkupText(markup) {
+    return markup.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function extractGroupRectangles(markup, groupClass) {
+    const pattern = new RegExp(
+        `<g class="${groupClass}"[\\s\\S]*?<rect x="([^"]+)" y="([^"]+)" width="([^"]+)" height="([^"]+)"`,
+        'g'
+    );
+    return [...markup.matchAll(pattern)].map((match) => ({
+        x: Number(match[1]),
+        y: Number(match[2]),
+        width: Number(match[3]),
+        height: Number(match[4])
+    }));
+}
+
+function rectanglesOverlap(left, right) {
+    return left.x < right.x + right.width
+        && left.x + left.width > right.x
+        && left.y < right.y + right.height
+        && left.y + left.height > right.y;
+}
 
 function createFlowDiagram() {
     return {
@@ -110,7 +139,7 @@ test('keeps full flow responsibilities out of SVG while preserving numbered mark
 
     const html = renderDiagram(diagram);
     const svg = html.match(/<svg[\s\S]*?<\/svg>/)?.[0] ?? '';
-    const svgText = svg.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    const svgText = normalizeMarkupText(svg);
 
     assert.equal(svgText.includes(responsibility), false);
     assert.match(svg, />1<\/tspan>/);
@@ -122,7 +151,7 @@ test('keeps full sequence messages visible in the SVG', () => {
 
     const html = renderDiagram(diagram);
     const svg = html.match(/<svg[\s\S]*?<\/svg>/)?.[0] ?? '';
-    const svgText = svg.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    const svgText = normalizeMarkupText(svg);
 
     assert.equal(svgText.includes(diagram.steps[0].label), true);
     assert.equal(svgText.includes(diagram.steps[1].label), true);
@@ -139,31 +168,46 @@ test('system architecture routes protocol input to simulation state through the 
     assert.match(gameServerBoundary.label, /simulation state/);
 });
 
-test('room lifecycle renders non-overlapping numbered flow markers', async () => {
-    const sourcePath = new URL('../docs/diagrams/source/room-lifecycle.json', import.meta.url);
-    const diagram = JSON.parse(await readFile(sourcePath, 'utf8'));
+for (const diagramName of flowDiagramNames) {
+    test(`${diagramName} committed flow output keeps markers clear and responsibilities in fallback`, async () => {
+        const sourcePath = new URL(`../docs/diagrams/source/${diagramName}.json`, import.meta.url);
+        const outputPath = new URL(`../docs/diagrams/${diagramName}.html`, import.meta.url);
+        const [sourceText, html] = await Promise.all([
+            readFile(sourcePath, 'utf8'),
+            readFile(outputPath, 'utf8')
+        ]);
+        const diagram = JSON.parse(sourceText);
+        const svg = html.match(/<svg[\s\S]*?<\/svg>/)?.[0] ?? '';
+        const fallback = html.match(/<section class="text-fallback"[\s\S]*?<\/section>/)?.[0] ?? '';
+        const svgText = normalizeMarkupText(svg);
+        const fallbackText = normalizeMarkupText(fallback);
+        const markers = extractGroupRectangles(svg, 'connection-marker');
+        const nodes = extractGroupRectangles(svg, 'node');
 
-    const html = renderDiagram(diagram);
-    const markers = [...html.matchAll(/<g class="connection-marker"[\s\S]*?<rect x="([^"]+)" y="([^"]+)" width="([^"]+)" height="([^"]+)"/g)]
-        .map((match) => ({
-            x: Number(match[1]),
-            y: Number(match[2]),
-            width: Number(match[3]),
-            height: Number(match[4])
-        }));
-
-    for (let leftIndex = 0; leftIndex < markers.length; leftIndex += 1) {
-        for (let rightIndex = leftIndex + 1; rightIndex < markers.length; rightIndex += 1) {
-            const left = markers[leftIndex];
-            const right = markers[rightIndex];
-            const overlaps = left.x < right.x + right.width
-                && left.x + left.width > right.x
-                && left.y < right.y + right.height
-                && left.y + left.height > right.y;
-            assert.equal(overlaps, false, `flow markers ${leftIndex + 1} and ${rightIndex + 1} overlap`);
+        assert.equal(markers.length, diagram.edges.length);
+        assert.equal(nodes.length, diagram.nodes.length);
+        for (const edge of diagram.edges) {
+            assert.equal(svgText.includes(edge.label), false, `${diagramName} exposes a full responsibility in SVG`);
+            assert.equal(fallbackText.includes(edge.label), true, `${diagramName} omits a responsibility from fallback`);
         }
-    }
-});
+        for (let markerIndex = 0; markerIndex < markers.length; markerIndex += 1) {
+            for (let otherIndex = markerIndex + 1; otherIndex < markers.length; otherIndex += 1) {
+                assert.equal(
+                    rectanglesOverlap(markers[markerIndex], markers[otherIndex]),
+                    false,
+                    `${diagramName} markers ${markerIndex + 1} and ${otherIndex + 1} overlap`
+                );
+            }
+            for (let nodeIndex = 0; nodeIndex < nodes.length; nodeIndex += 1) {
+                assert.equal(
+                    rectanglesOverlap(markers[markerIndex], nodes[nodeIndex]),
+                    false,
+                    `${diagramName} marker ${markerIndex + 1} overlaps node ${nodeIndex + 1}`
+                );
+            }
+        }
+    });
+}
 
 test('does not render network URLs or external scripts and stylesheets', () => {
     const html = renderDiagram(createSequenceDiagram());
