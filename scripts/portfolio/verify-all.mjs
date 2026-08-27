@@ -185,8 +185,25 @@ function privacySensitiveSnapshotPattern(content) {
     return [
         /[A-Z]:[\\/]Users[\\/]/iu,
         /AppData|[\\/]Temp[\\/]|\.worktrees|siwon/iu,
-        /"(?:generatedAt|timestamp|createdAt)"\s*:/iu
+        /"(?:generatedAt|timestamp|createdAt)"\s*:/iu,
+        /(?:^|\\n|\n)\s*(?:SITE|COMPUTERNAME|HOSTNAME|HOST)(?:(?::[^=\\\r\n]*)?=|:\s*)/iu,
+        /"(?:site|computerName|hostName|hostname|host)"\s*:/iu,
+        /(?:\/D|-D)(?:SITE|COMPUTERNAME|HOSTNAME|HOST)=/iu
     ].find((pattern) => pattern.test(content));
+}
+
+function parseSnapshotCompileCommand(command) {
+    if (typeof command !== 'string') {
+        return undefined;
+    }
+    const match = /^(\S+)(?=\s|$)/u.exec(command);
+    if (!match) {
+        return undefined;
+    }
+    return {
+        executable: match[1],
+        arguments: command.slice(match[0].length)
+    };
 }
 
 function parseCmakeCacheSnapshot(content) {
@@ -377,7 +394,9 @@ function validateCompileCommandsSnapshot(snapshot, manifest, field) {
         if (entry?.directory !== '${BUILD_ROOT}') {
             errors.push(`${entryField}.directory: must be the normalized build root`);
         }
-        if (typeof entry?.command !== 'string' || !entry.command.startsWith('${MSVC_COMPILER} ')) {
+        const parsedCommand = parseSnapshotCompileCommand(entry?.command);
+        if (parsedCommand?.executable !== '${MSVC_COMPILER}'
+            || !/^\s+\S/u.test(parsedCommand.arguments)) {
             errors.push(`${entryField}.command: compiler token must be the exact first executable`);
         }
         if (typeof entry?.command !== 'string'
@@ -410,7 +429,8 @@ function validateCmakeCacheSnapshot(snapshot, manifest, field) {
         || !snapshotNormalizationMatches(document.normalization, {
             encoding: 'UTF-8',
             lineEndings: 'LF',
-            pathSeparator: '/'
+            pathSeparator: '/',
+            hostIdentifiers: 'omitted'
         })
         || typeof document.content !== 'string') {
         errors.push(`${snapshotField}: unexpected schema or normalization contract`);
@@ -419,6 +439,12 @@ function validateCmakeCacheSnapshot(snapshot, manifest, field) {
     const { entries, duplicates } = parseCmakeCacheSnapshot(document.content);
     if (duplicates.size > 0) {
         errors.push(`${snapshotField}: required cache keys must be unique`);
+    }
+    const hostSpecificKeys = [...entries.keys()].filter((name) => (
+        /^(?:SITE|COMPUTERNAME|HOSTNAME|HOST)(?:-ADVANCED)?$/iu.test(name)
+    ));
+    if (hostSpecificKeys.length > 0) {
+        errors.push(`${snapshotField}: host-specific cache entries must be omitted`);
     }
     const vcpkgRoot = typeof manifest.compilation?.cmakeCache?.toolchain === 'string'
         ? manifest.compilation.cmakeCache.toolchain.replace(/\/scripts\/buildsystems\/vcpkg\.cmake$/iu, '')

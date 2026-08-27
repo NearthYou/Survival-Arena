@@ -134,6 +134,20 @@ function runPowerShell(command) {
     );
 }
 
+function normalizeCmakeCacheSnapshot(cacheText) {
+    const encoded = Buffer.from(cacheText, 'utf8').toString('base64');
+    const result = runPowerShell([
+        "$ErrorActionPreference = 'Stop'",
+        `. ${quotePowerShell(generatorScriptPath)}`,
+        `$cacheText = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String(${quotePowerShell(encoded)}))`,
+        '$normalized = Convert-CMakeCacheToSnapshotText -Value $cacheText -RootReplacements @()',
+        '$bytes = [System.Text.UTF8Encoding]::new($false).GetBytes($normalized)',
+        '[Console]::Out.Write([Convert]::ToBase64String($bytes))'
+    ].join('; '));
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    return Buffer.from(result.stdout.trim(), 'base64').toString('utf8');
+}
+
 function runFixtureGit(root, argumentsList) {
     const result = spawnSync('git', argumentsList, { cwd: root, encoding: 'utf8' });
     assert.equal(result.status, 0, result.stderr || result.stdout);
@@ -253,6 +267,29 @@ test('generator can be imported for fail-closed provenance contract tests withou
 
     assert.equal(result.status, 0, result.stderr || result.stdout);
     assert.match(result.stdout, /PROVENANCE_FUNCTIONS_IMPORTED/u);
+});
+
+test('generation snapshot omits machine host CMake cache entries before hashing', () => {
+    const cacheText = [
+        '//Name of the computer/site where compile is being run',
+        'SITE:STRING=LEAKED_HOST_VALUE',
+        '//ADVANCED property for variable: SITE',
+        'SITE-ADVANCED:INTERNAL=1',
+        'COMPUTERNAME:INTERNAL=LEAKED_HOST_VALUE',
+        'HOSTNAME:INTERNAL=LEAKED_HOST_VALUE',
+        'CMAKE_GENERATOR:INTERNAL=Ninja',
+        ''
+    ].join('\r\n');
+
+    const normalized = normalizeCmakeCacheSnapshot(cacheText);
+
+    assert.equal(normalized.includes('\r'), false);
+    assert.match(normalized, /^CMAKE_GENERATOR:INTERNAL=Ninja$/mu);
+    assert.doesNotMatch(
+        normalized,
+        /^(?:SITE|COMPUTERNAME|HOSTNAME|HOST)(?:-ADVANCED)?:/imu
+    );
+    assert.doesNotMatch(normalized, /LEAKED_HOST_VALUE/iu);
 });
 
 test('basis provenance rejects an untracked source inside a consumed scope', async () => {
@@ -568,14 +605,27 @@ test('committed generation evidence snapshot is complete, enumerated and privacy
         assert.doesNotMatch(text, /C:[/\\]Users[/\\]/iu, snapshot.path);
         assert.doesNotMatch(text, /AppData|[/\\]Temp[/\\]|\.worktrees|siwon/iu, snapshot.path);
         assert.doesNotMatch(text, /"(?:generatedAt|timestamp|createdAt)"\s*:/iu, snapshot.path);
+        assert.doesNotMatch(
+            text,
+            /(?:^|\\n|\n)\s*(?:SITE|COMPUTERNAME|HOSTNAME|HOST)(?:(?::[^=\\\r\n]*)?=|:\s*)|"(?:site|computerName|hostName|hostname|host)"\s*:|(?:\/D|-D)(?:SITE|COMPUTERNAME|HOSTNAME|HOST)=/iu,
+            snapshot.path
+        );
     }
 
-    const [compileSnapshot, toolSnapshot, metadataSnapshot, statusSnapshot] = await Promise.all([
+    const [cacheSnapshot, compileSnapshot, toolSnapshot, metadataSnapshot, statusSnapshot] = await Promise.all([
+        readFile(path.join(evidenceDirectory, 'cmake-cache.json'), 'utf8').then(JSON.parse),
         readFile(path.join(evidenceDirectory, 'compile-commands.json'), 'utf8').then(JSON.parse),
         readFile(path.join(evidenceDirectory, 'tool-identities.json'), 'utf8').then(JSON.parse),
         readFile(path.join(evidenceDirectory, 'vcpkg-metadata.json'), 'utf8').then(JSON.parse),
         readFile(path.join(evidenceDirectory, 'vcpkg-status.json'), 'utf8').then(JSON.parse)
     ]);
+    assert.equal(cacheSnapshot.normalization.hostIdentifiers, 'omitted');
+    assert.equal(
+        cacheSnapshot.content.split('\n').some((line) => (
+            /^(?:SITE|COMPUTERNAME|HOSTNAME|HOST)(?:-ADVANCED)?:/iu.test(line)
+        )),
+        false
+    );
     assert.equal(compileSnapshot.entries.length, manifest.compilation.compileCommands.totalTranslationUnits);
     assert.deepEqual(
         compileSnapshot.entries

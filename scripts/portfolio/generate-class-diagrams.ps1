@@ -880,6 +880,40 @@ function Convert-ToSnapshotText(
     return $normalized
 }
 
+function Remove-HostSpecificCMakeCacheEntries([string]$Value)
+{
+    $lines = [regex]::Split($Value, "`n")
+    $filtered = @($lines | Where-Object {
+            $_ -notmatch '^(?i:(?:SITE|COMPUTERNAME|HOSTNAME|HOST)(?:-ADVANCED)?):[^=]*='
+        })
+    return $filtered -join "`n"
+}
+
+function Convert-CMakeCacheToSnapshotText(
+    [string]$Value,
+    [object[]]$RootReplacements)
+{
+    $normalized = Convert-ToSnapshotText $Value $RootReplacements
+    return Remove-HostSpecificCMakeCacheEntries $normalized
+}
+
+function Convert-CompileCommandToSnapshotText(
+    [string]$Command,
+    [object[]]$RootReplacements)
+{
+    $compilerMatch = [regex]::Match(
+        $Command,
+        '^\s*(?:"[^"]+"|\S+)(?=\s|$)')
+    if (-not $compilerMatch.Success)
+    {
+        throw "Compilation command does not have a parseable first executable: $Command"
+    }
+
+    $arguments = $Command.Substring($compilerMatch.Length)
+    $normalizedArguments = Convert-ToSnapshotText $arguments $RootReplacements
+    return '${MSVC_COMPILER}' + $normalizedArguments
+}
+
 function Assert-PrivacySafeSnapshotText(
     [string]$Value,
     [string]$Label)
@@ -887,7 +921,10 @@ function Assert-PrivacySafeSnapshotText(
     foreach ($pattern in @(
             '(?i)[A-Z]:/Users/',
             '(?i)AppData|/Temp/|\.worktrees|siwon',
-            '(?i)"(?:generatedAt|timestamp|createdAt)"\s*:'))
+            '(?i)"(?:generatedAt|timestamp|createdAt)"\s*:',
+            '(?i)(?:^|[\r\n]|\\n)\s*(?:SITE|COMPUTERNAME|HOSTNAME|HOST)(?:(?::[^=\\\r\n]*)?=|:\s*)',
+            '(?i)"(?:site|computerName|hostName|hostname|host)"\s*:',
+            '(?i)(?:/D|-D)(?:SITE|COMPUTERNAME|HOSTNAME|HOST)='))
     {
         if ($Value -match $pattern)
         {
@@ -948,21 +985,9 @@ function New-GenerationEvidenceSnapshots(
             $sourcePath = Get-FullPath ([string]$entry.file) ([string]$entry.directory)
             $relativeSource = Get-RepositoryRelativePath $sourcePath $RootPath
             $command = [string]$entry.command
-            $compilerMatch = [regex]::Match($command, '^\s*(?:"([^"]+)"|(\S+))')
-            $compilerValue = if ($compilerMatch.Groups[1].Success)
-            {
-                $compilerMatch.Groups[1].Value
-            }
-            else
-            {
-                $compilerMatch.Groups[2].Value
-            }
-            $normalizedCommand = Convert-ToSnapshotText $command $rootReplacements
-            $normalizedCompiler = $compilerValue.Replace('\', '/')
-            $normalizedCommand = Replace-OrdinalIgnoreCase `
-                $normalizedCommand `
-                $normalizedCompiler `
-                '${MSVC_COMPILER}'
+            $normalizedCommand = Convert-CompileCommandToSnapshotText `
+                -Command $command `
+                -RootReplacements $rootReplacements
             $snapshotEntriesByFile[$relativeSource] = [pscustomobject][ordered]@{
                 file = $relativeSource
                 directory = '${BUILD_ROOT}'
@@ -985,7 +1010,7 @@ function New-GenerationEvidenceSnapshots(
     $compileSnapshotPath = Join-Path $evidenceDirectory 'compile-commands.json'
     Write-DeterministicJson $compileSnapshot $compileSnapshotPath
 
-    $normalizedCache = Convert-ToSnapshotText $cacheText $rootReplacements
+    $normalizedCache = Convert-CMakeCacheToSnapshotText $cacheText $rootReplacements
     Assert-PrivacySafeSnapshotText $normalizedCache 'cmake-cache.json'
     $cacheSnapshot = [pscustomobject][ordered]@{
         schemaVersion = 1
@@ -993,6 +1018,7 @@ function New-GenerationEvidenceSnapshots(
             encoding = 'UTF-8'
             lineEndings = 'LF'
             pathSeparator = '/'
+            hostIdentifiers = 'omitted'
         }
         format = 'cmake-cache'
         content = $normalizedCache

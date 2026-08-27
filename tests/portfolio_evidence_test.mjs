@@ -16,6 +16,11 @@ import {
 
 const basisCommitSha = '884e5e70d68d9fcf9dfe5638d97e06623da154c2';
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const generatorScriptPath = path.join(repositoryRoot, 'scripts/portfolio/generate-class-diagrams.ps1');
+const powershellExecutable = path.join(
+    process.env.SystemRoot ?? 'C:\\Windows',
+    'System32/WindowsPowerShell/v1.0/powershell.exe'
+);
 const classEvidenceSnapshotPaths = [
     'docs/diagrams/class/evidence/cmake-cache.json',
     'docs/diagrams/class/evidence/compile-commands.json',
@@ -112,6 +117,29 @@ function sha256(content) {
 
 function normalizedTextSha256(content) {
     return sha256(String(content).replaceAll('\r\n', '\n'));
+}
+
+function quotePowerShell(value) {
+    return `'${String(value).replaceAll("'", "''")}'`;
+}
+
+function canonicalizeCompileCommandThroughGenerator(command) {
+    const encoded = Buffer.from(command, 'utf8').toString('base64');
+    const script = [
+        "$ErrorActionPreference = 'Stop'",
+        `. ${quotePowerShell(generatorScriptPath)}`,
+        `$command = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String(${quotePowerShell(encoded)}))`,
+        '$normalized = Convert-CompileCommandToSnapshotText -Command $command -RootReplacements @()',
+        '$bytes = [System.Text.UTF8Encoding]::new($false).GetBytes($normalized)',
+        '[Console]::Out.Write([Convert]::ToBase64String($bytes))'
+    ].join('; ');
+    const result = spawnSync(
+        powershellExecutable,
+        ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', script],
+        { cwd: repositoryRoot, encoding: 'utf8' }
+    );
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    return Buffer.from(result.stdout.trim(), 'base64').toString('utf8');
 }
 
 function setVerifiedClassProof(document, inputs, manifestProof) {
@@ -721,6 +749,44 @@ test('verified class manifest validates without ignored generation build artifac
     });
 });
 
+test('quoted long-path compiler canonicalizes through generation and the public verifier', async () => {
+    await withReleaseFixture(async (document, root) => {
+        const { item } = await createValidClassProofFixture(document, root);
+        const snapshotPath = 'docs/diagrams/class/evidence/compile-commands.json';
+        const generator = await readFile(generatorScriptPath, 'utf8');
+
+        await updateClassSnapshotFixture(
+            root,
+            item,
+            snapshotPath,
+            (original) => {
+                const snapshot = JSON.parse(original);
+                const canonicalCommand = snapshot.entries[0].command;
+                const suffix = canonicalCommand.slice('${MSVC_COMPILER}'.length);
+                const quotedCommand = '"C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/bin/Hostx64/x64/cl.exe"'
+                    + suffix;
+                const generatedCommand = canonicalizeCompileCommandThroughGenerator(quotedCommand);
+
+                assert.equal(generatedCommand, canonicalCommand);
+                assert.equal(generatedCommand.slice('${MSVC_COMPILER}'.length), suffix);
+                snapshot.entries[0].command = generatedCommand;
+                return `${JSON.stringify(snapshot, null, 2)}\n`;
+            },
+            (manifest) => {
+                manifest.tooling.generator.sha256 = normalizedTextSha256(generator);
+            }
+        );
+
+        const errors = await validateReleaseStatus(document, {
+            root,
+            verifyClassBasisCommit: false
+        });
+        const compileErrors = errors.filter((error) => error.includes('compile-commands.json'));
+
+        assert.deepEqual(compileErrors, [], errors.join('\n'));
+    });
+});
+
 test('verified class diagrams reject a hand-edited manifest even when its proof hash is updated', async () => {
     await withReleaseFixture(async (document, root) => {
         const { item } = await createValidClassProofFixture(document, root);
@@ -891,6 +957,97 @@ test('verified class diagrams reject privacy-sensitive generation snapshot bytes
         );
     });
 });
+
+const machineHostSnapshotScenarios = [
+    {
+        label: 'CMake SITE cache entry',
+        snapshotPath: 'docs/diagrams/class/evidence/cmake-cache.json',
+        mutate(snapshot) {
+            snapshot.content += '\nSITE:STRING=LEAKED_HOST_VALUE\n';
+        }
+    },
+    {
+        label: 'compile command COMPUTERNAME define',
+        snapshotPath: 'docs/diagrams/class/evidence/compile-commands.json',
+        mutate(snapshot) {
+            snapshot.entries[0].command += ' /DCOMPUTERNAME=LEAKED_HOST_VALUE';
+        }
+    },
+    {
+        label: 'tool identity hostName field',
+        snapshotPath: 'docs/diagrams/class/evidence/tool-identities.json',
+        mutate(snapshot) {
+            snapshot.hostName = 'LEAKED_HOST_VALUE';
+        }
+    },
+    {
+        label: 'vcpkg metadata HOSTNAME value',
+        snapshotPath: 'docs/diagrams/class/evidence/vcpkg-metadata.json',
+        mutate(snapshot) {
+            snapshot.files[0].content += 'HOSTNAME=LEAKED_HOST_VALUE\n';
+            snapshot.files[0].sha256 = sha256(snapshot.files[0].content);
+        },
+        updateManifest(manifest, updated) {
+            synchronizeInstalledMetadataManifest(manifest, JSON.parse(updated));
+        }
+    },
+    {
+        label: 'vcpkg status Host field',
+        snapshotPath: 'docs/diagrams/class/evidence/vcpkg-status.json',
+        mutate(snapshot) {
+            snapshot.content = snapshot.content.replace(
+                '\n\n',
+                '\nHost: LEAKED_HOST_VALUE\n\n'
+            );
+        },
+        async updateManifest(manifest, updated, root) {
+            const status = JSON.parse(updated);
+            const statusSha256 = sha256(status.content);
+            manifest.dependencies.installed.status.sha256 = statusSha256;
+
+            const toolPath = 'docs/diagrams/class/evidence/tool-identities.json';
+            const absoluteToolPath = path.join(root, toolPath);
+            const tools = JSON.parse(await readFile(absoluteToolPath, 'utf8'));
+            tools.sourceDigests.vcpkgStatusRawSha256 = statusSha256;
+            const updatedTools = `${JSON.stringify(tools, null, 2)}\n`;
+            await writeFile(absoluteToolPath, updatedTools, 'utf8');
+            manifest.snapshots.find((entry) => entry.path === toolPath).sha256 = sha256(updatedTools);
+        }
+    }
+];
+
+for (const scenario of machineHostSnapshotScenarios) {
+    test(`verified class diagrams scan ${scenario.label} for machine identifiers`, async () => {
+        await withReleaseFixture(async (document, root) => {
+            const { item } = await createValidClassProofFixture(document, root);
+            await updateClassSnapshotFixture(
+                root,
+                item,
+                scenario.snapshotPath,
+                (original) => {
+                    const snapshot = JSON.parse(original);
+                    scenario.mutate(snapshot);
+                    return `${JSON.stringify(snapshot, null, 2)}\n`;
+                },
+                scenario.updateManifest
+                    ? (manifest, updated) => scenario.updateManifest(manifest, updated, root)
+                    : undefined
+            );
+
+            const errors = await validateReleaseStatus(document, {
+                root,
+                verifyClassBasisCommit: false
+            });
+
+            assert.ok(
+                errors.some((error) => (
+                    error.includes(scenario.snapshotPath) && error.includes('privacy-safe')
+                )),
+                errors.join('\n')
+            );
+        });
+    });
+}
 
 test('verified class diagrams bind compiler volume identity as well as file ID', async () => {
     await withReleaseFixture(async (document, root) => {

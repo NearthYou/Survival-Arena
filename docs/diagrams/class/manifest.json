@@ -16,7 +16,7 @@
                                },
                     "generator":  {
                                       "path":  "scripts/portfolio/generate-class-diagrams.ps1",
-                                      "sha256":  "57dcb72288f921ca05b27ac2208dae123ddc427befe2da06343f0df54d758b78"
+                                      "sha256":  "e48b01252c6ca53c6a6033c979b2d55c47525f73e1c818967ffe5f5c3a093d3a"
                                   },
                     "cmakeVersion":  "cmake version 3.31.6-msvc6",
                     "ninjaVersion":  "1.12.1",
@@ -681,7 +681,7 @@
     "snapshots":  [
                       {
                           "path":  "docs/diagrams/class/evidence/cmake-cache.json",
-                          "sha256":  "20a39f759b4c40c0446fc0019032c020ba310f516277ba4fef9e4dff9867d149"
+                          "sha256":  "4bd5b1d4c3daa5feb004c173fa73902c2215f9214ede9d303ec59e1059293d69"
                       },
                       {
                           "path":  "docs/diagrams/class/evidence/compile-commands.json",
