@@ -429,6 +429,32 @@ async function withFixture(callback) {
             await mkdir(path.dirname(filePath), { recursive: true });
             await writeFile(filePath, 'sample result: 600/600\n', 'utf8');
         }
+        const caseDocumentPath = path.join(root, document.cases[0].caseDocument);
+        await mkdir(path.dirname(caseDocumentPath), { recursive: true });
+        await writeFile(caseDocumentPath, [
+            '# Sample case',
+            '',
+            '## 상황',
+            '',
+            '## 재현',
+            '',
+            '## 관찰',
+            '',
+            '## 가설과 비교한 대안',
+            '',
+            '## 선택',
+            '',
+            '## 구현',
+            '',
+            '## 검증',
+            '',
+            '[devlog](../../devlog/sample.md)',
+            '[ADR](../../adr/sample.md)',
+            '[evidence](../../benchmarks/sample/RESULT.md)',
+            '',
+            '## 남은 한계',
+            ''
+        ].join('\n'), 'utf8');
 
         await callback(document, root);
     } finally {
@@ -456,6 +482,18 @@ test('rejects a basis SHA that is not 40 lowercase hexadecimal characters', asyn
     });
 });
 
+test('rejects a well-formed SHA that is not the canonical portfolio basis', async () => {
+    await withFixture(async (document, root) => {
+        document.basisCommitSha = '5599de19687c3ed446f7242c72711bc9b34b3364';
+
+        const errors = await validateEvidence(document, { root, verifyBasisCommit: false });
+
+        assert.ok(errors.some((error) => (
+            error.includes('basisCommitSha') && error.includes('canonical')
+        )), errors.join('\n'));
+    });
+});
+
 test('rejects source paths that escape the root', async () => {
     await withFixture(async (document, root) => {
         document.cases[0].devlog = '../outside.md';
@@ -473,6 +511,75 @@ test('rejects missing source files', async () => {
         const errors = await validateEvidence(document, { root, verifyBasisCommit: false });
 
         assert.ok(errors.some((error) => error.includes('source file is missing')));
+    });
+});
+
+test('rejects a missing case document', async () => {
+    await withFixture(async (document, root) => {
+        document.cases[0].caseDocument = 'docs/portfolio/cases/missing.md';
+
+        const errors = await validateEvidence(document, { root, verifyBasisCommit: false });
+
+        assert.ok(errors.some((error) => (
+            error.includes('case sample caseDocument') && error.includes('missing')
+        )), errors.join('\n'));
+    });
+});
+
+test('rejects case documents that escape by junction or resolve to a directory', async () => {
+    const outsideRoot = await mkdtemp(path.join(tmpdir(), 'dxa-portfolio-case-outside-'));
+    try {
+        await withFixture(async (document, root) => {
+            await writeFile(path.join(outsideRoot, 'case.md'), '# outside\n', 'utf8');
+            await symlink(outsideRoot, path.join(root, 'case-escape'), 'junction');
+            document.cases[0].caseDocument = 'case-escape/case.md';
+
+            let errors = await validateEvidence(document, { root, verifyBasisCommit: false });
+            assert.ok(errors.some((error) => (
+                error.includes('case sample caseDocument') && error.includes('outside')
+            )), errors.join('\n'));
+
+            document.cases[0].caseDocument = 'docs/portfolio/cases';
+            errors = await validateEvidence(document, { root, verifyBasisCommit: false });
+            assert.ok(errors.some((error) => (
+                error.includes('case sample caseDocument') && error.includes('regular file')
+            )), errors.join('\n'));
+        });
+    } finally {
+        await rm(outsideRoot, { recursive: true, force: true });
+    }
+});
+
+test('rejects a case document with a required heading mismatch', async () => {
+    await withFixture(async (document, root) => {
+        const caseDocumentPath = path.join(root, document.cases[0].caseDocument);
+        const content = await readFile(caseDocumentPath, 'utf8');
+        await writeFile(caseDocumentPath, content.replace('## 검증', '## 검증 결과'), 'utf8');
+
+        const errors = await validateEvidence(document, { root, verifyBasisCommit: false });
+
+        assert.ok(errors.some((error) => (
+            error.includes('case sample caseDocument') && error.includes('## 검증')
+        )), errors.join('\n'));
+    });
+});
+
+test('rejects a case document missing a required source link', async () => {
+    await withFixture(async (document, root) => {
+        const caseDocumentPath = path.join(root, document.cases[0].caseDocument);
+        const content = await readFile(caseDocumentPath, 'utf8');
+        await writeFile(
+            caseDocumentPath,
+            content.replace('[evidence](../../benchmarks/sample/RESULT.md)\n', ''),
+            'utf8'
+        );
+
+        const errors = await validateEvidence(document, { root, verifyBasisCommit: false });
+
+        assert.ok(errors.some((error) => (
+            error.includes('case sample caseDocument')
+            && error.includes('docs/benchmarks/sample/RESULT.md')
+        )), errors.join('\n'));
     });
 });
 
@@ -564,6 +671,114 @@ test('release status requires the exact canonical code basis SHA', async () => {
         const errors = await validateReleaseStatus(document, { root });
 
         assert.ok(errors.some((error) => error.includes('release-status.json.codeBasisCommitSha')));
+    });
+});
+
+test('current HEAD and visual gates reject state-only verified mutations', async () => {
+    await withReleaseFixture(async (document, root) => {
+        for (const id of ['current-head-builds', 'warp-rtx-visual-artifacts']) {
+            document.items.find((item) => item.id === id).status = 'verified';
+        }
+
+        const errors = await validateReleaseStatus(document, { root });
+
+        for (const id of ['current-head-builds', 'warp-rtx-visual-artifacts']) {
+            assert.ok(errors.some((error) => (
+                error.includes(`${id}.status`) && error.includes('proof')
+            )), `${id}:\n${errors.join('\n')}`);
+        }
+    });
+});
+
+test('current HEAD proof requires Windows, Linux server, and hosted CI on one HEAD', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'dxa-current-head-proof-'));
+    try {
+        await writeFile(path.join(root, 'evidence.md'), '# evidence\n', 'utf8');
+        runFixtureGit(root, ['init']);
+        runFixtureGit(root, ['config', 'user.email', 'fixture@example.com']);
+        runFixtureGit(root, ['config', 'user.name', 'Fixture']);
+        runFixtureGit(root, ['add', 'evidence.md']);
+        runFixtureGit(root, ['commit', '-m', 'fixture']);
+        const headSha = runFixtureGit(root, ['rev-parse', 'HEAD']).stdout.trim();
+        const document = createReleaseDocument();
+        const item = document.items.find((candidate) => candidate.id === 'current-head-builds');
+        item.status = 'verified';
+        item.proof = {
+            releaseCandidateCommitSha: headSha,
+            windows: {
+                commitSha: headSha,
+                buildPassed: true,
+                testsPassed: true,
+                checkedAt: '2026-08-28T12:00:00+09:00'
+            },
+            linuxServer: {
+                commitSha: '5599de19687c3ed446f7242c72711bc9b34b3364',
+                buildPassed: true,
+                testsPassed: true,
+                checkedAt: '2026-08-28T12:00:00+09:00'
+            },
+            hostedCi: {
+                commitSha: headSha,
+                status: 'success',
+                runUrl: 'https://example.com/actions/runs/1',
+                checkedAt: '2026-08-28T12:00:00+09:00'
+            }
+        };
+
+        const errors = await validateReleaseStatus(document, { root });
+
+        assert.ok(errors.some((error) => (
+            error.includes('current-head-builds.proof.linuxServer.commitSha')
+            && error.includes('release candidate')
+        )), errors.join('\n'));
+        for (const environment of ['windows', 'linuxServer']) {
+            assert.ok(errors.some((error) => (
+                error.includes(`current-head-builds.proof.${environment}.evidencePath`)
+                && error.includes('evidence path')
+            )), `${environment}:\n${errors.join('\n')}`);
+        }
+    } finally {
+        await rm(root, { recursive: true, force: true });
+    }
+});
+
+test('WARP and RTX proof requires contained files and explicit visual review data', async () => {
+    await withReleaseFixture(async (document, root) => {
+        const item = document.items.find((candidate) => candidate.id === 'warp-rtx-visual-artifacts');
+        item.status = 'verified';
+        item.proof = {
+            warp: {
+                resultPath: 'docs/visual/warp-result.json',
+                offscreen: true,
+                status: 'passed',
+                checkedAt: '2026-08-28T12:00:00+09:00'
+            },
+            rtx: {
+                artifactPaths: ['docs/visual/rtx-frame.png'],
+                review: {
+                    checkedAt: '',
+                    reviewer: '',
+                    verdict: 'pending',
+                    notes: ''
+                }
+            }
+        };
+
+        const errors = await validateReleaseStatus(document, { root });
+
+        assert.ok(errors.some((error) => (
+            error.includes('warp-rtx-visual-artifacts.proof.warp.resultPath')
+            && error.includes('evidence path')
+        )), errors.join('\n'));
+        assert.ok(errors.some((error) => (
+            error.includes('warp-rtx-visual-artifacts.proof.rtx.artifactPaths[0]')
+            && error.includes('evidence path')
+        )), errors.join('\n'));
+        for (const field of ['checkedAt', 'reviewer', 'verdict', 'notes']) {
+            assert.ok(errors.some((error) => (
+                error.includes(`warp-rtx-visual-artifacts.proof.rtx.review.${field}`)
+            )), `${field}:\n${errors.join('\n')}`);
+        }
     });
 });
 
@@ -1039,7 +1254,43 @@ test('verified class diagrams reject schema-valid forged opaque generation diges
     });
 });
 
-test('verified class diagrams reject privacy-sensitive generation snapshot bytes', async () => {
+const privateHomePathScenarios = [
+    ['Windows user alice', 'C:/Users/alice/AppData/Local/Temp/build'],
+    ['Windows user bob', 'D:\\Users\\bob\\source\\project'],
+    ['Unix user carol', '/home/carol/source/project'],
+    ['macOS user dana', '/Users/dana/source/project']
+];
+
+for (const [label, privatePath] of privateHomePathScenarios) {
+    test(`verified class diagrams reject ${label} home paths`, async () => {
+        await withReleaseFixture(async (document, root) => {
+            const { item } = await createValidClassProofFixture(document, root);
+            const snapshotPath = 'docs/diagrams/class/evidence/cmake-cache.json';
+            await updateClassSnapshotFixture(
+                root,
+                item,
+                snapshotPath,
+                (original) => {
+                    const snapshot = JSON.parse(original);
+                    snapshot.content += `\nPRIVATE_PATH:INTERNAL=${privatePath}\n`;
+                    return `${JSON.stringify(snapshot, null, 2)}\n`;
+                }
+            );
+
+            const errors = await validateReleaseStatus(document, {
+                root,
+                verifyClassBasisCommit: false
+            });
+
+            assert.ok(
+                errors.some((error) => error.includes('cmake-cache.json') && error.includes('privacy-safe')),
+                errors.join('\n')
+            );
+        });
+    });
+}
+
+test('privacy scan accepts repository-relative documentation paths containing home', async () => {
     await withReleaseFixture(async (document, root) => {
         const { item } = await createValidClassProofFixture(document, root);
         const snapshotPath = 'docs/diagrams/class/evidence/cmake-cache.json';
@@ -1049,7 +1300,7 @@ test('verified class diagrams reject privacy-sensitive generation snapshot bytes
             snapshotPath,
             (original) => {
                 const snapshot = JSON.parse(original);
-                snapshot.content += '\nPRIVATE_PATH:INTERNAL=C:/Users/alice/AppData/Local/Temp/build\n';
+                snapshot.content += '\nPROJECT_GUIDE:INTERNAL=docs/home/carol/README.md\n';
                 return `${JSON.stringify(snapshot, null, 2)}\n`;
             }
         );
@@ -1059,8 +1310,9 @@ test('verified class diagrams reject privacy-sensitive generation snapshot bytes
             verifyClassBasisCommit: false
         });
 
-        assert.ok(
-            errors.some((error) => error.includes('cmake-cache.json') && error.includes('privacy-safe')),
+        assert.equal(
+            errors.some((error) => error.includes(snapshotPath) && error.includes('privacy-safe')),
+            false,
             errors.join('\n')
         );
     });
@@ -1491,6 +1743,64 @@ test('v0.1.0 requires an actual local tag and every publication prerequisite', a
         assert.ok(errors.some((error) => error.includes('v0.1.0.proof.tag') && error.includes('local tag')));
         assert.ok(errors.some((error) => error.includes('v0.1.0.status') && error.includes('prerequisites')));
     });
+});
+
+test('v0.1.0 target must equal the verified release-candidate HEAD', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'dxa-tag-target-proof-'));
+    try {
+        await writeFile(path.join(root, 'evidence.md'), '# first\n', 'utf8');
+        runFixtureGit(root, ['init']);
+        runFixtureGit(root, ['config', 'user.email', 'fixture@example.com']);
+        runFixtureGit(root, ['config', 'user.name', 'Fixture']);
+        runFixtureGit(root, ['add', 'evidence.md']);
+        runFixtureGit(root, ['commit', '-m', 'first']);
+        const tagTargetSha = runFixtureGit(root, ['rev-parse', 'HEAD']).stdout.trim();
+        runFixtureGit(root, ['tag', 'v0.1.0', tagTargetSha]);
+
+        await writeFile(path.join(root, 'evidence.md'), '# release candidate\n', 'utf8');
+        runFixtureGit(root, ['add', 'evidence.md']);
+        runFixtureGit(root, ['commit', '-m', 'release candidate']);
+        const releaseCandidateCommitSha = runFixtureGit(root, ['rev-parse', 'HEAD']).stdout.trim();
+
+        const document = createReleaseDocument();
+        for (const item of document.items) {
+            item.status = 'verified';
+            item.evidence = ['evidence.md'];
+        }
+        const currentHead = document.items.find((item) => item.id === 'current-head-builds');
+        currentHead.proof = {
+            releaseCandidateCommitSha,
+            windows: {
+                commitSha: releaseCandidateCommitSha,
+                buildPassed: true,
+                testsPassed: true,
+                checkedAt: '2026-08-28T12:00:00+09:00'
+            },
+            linuxServer: {
+                commitSha: releaseCandidateCommitSha,
+                buildPassed: true,
+                testsPassed: true,
+                checkedAt: '2026-08-28T12:00:00+09:00'
+            },
+            hostedCi: {
+                commitSha: releaseCandidateCommitSha,
+                status: 'success',
+                runUrl: 'https://example.com/actions/runs/1',
+                checkedAt: '2026-08-28T12:00:00+09:00'
+            }
+        };
+        const tag = document.items.find((item) => item.id === 'v0.1.0');
+        tag.proof = { tag: 'v0.1.0', targetCommitSha: tagTargetSha };
+
+        const errors = await validateReleaseStatus(document, { root });
+
+        assert.ok(errors.some((error) => (
+            error.includes('v0.1.0.proof.targetCommitSha')
+            && error.includes('release-candidate commit')
+        )), errors.join('\n'));
+    } finally {
+        await rm(root, { recursive: true, force: true });
+    }
 });
 
 test('missing release artifacts and external approval cannot be marked verified', async () => {

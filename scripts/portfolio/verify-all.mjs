@@ -183,8 +183,9 @@ function equalJson(left, right) {
 
 function privacySensitiveSnapshotPattern(content) {
     return [
-        /[A-Z]:[\\/]Users[\\/]/iu,
-        /AppData|[\\/]Temp[\\/]|\.worktrees|siwon/iu,
+        /[A-Z]:[\\/]{1,2}(?:Users|Documents and Settings)[\\/]{1,2}[^\\/\s"'<>:]+/iu,
+        /(?:^|[\s"'=:(])\/(?:home|Users)\/[^/\s"'<>]+(?:\/|$)/iu,
+        /AppData|[\\/]Temp[\\/]|\.worktrees/iu,
         /"(?:generatedAt|timestamp|createdAt)"\s*:/iu,
         /(?:^|\\n|\n)\s*(?:SITE|COMPUTERNAME|HOSTNAME|HOST)(?:(?::[^=\\\r\n]*)?=|:\s*)/iu,
         /"(?:site|computerName|hostName|hostname|host)"\s*:/iu,
@@ -1225,11 +1226,181 @@ async function validateLfsProof(item, evidencePaths, options) {
     return errors;
 }
 
+function validateReleaseCandidateSha(value, field, expectedSha) {
+    if (!/^[0-9a-f]{40}$/u.test(value ?? '')) {
+        return [`${field}: must be a 40-character lowercase commit SHA`];
+    }
+    if (expectedSha && value !== expectedSha) {
+        return [`${field}: must match the release candidate commit ${expectedSha}`];
+    }
+    return [];
+}
+
+function validateBuildEnvironmentProof(environment, field, releaseCandidateCommitSha) {
+    const errors = [];
+    errors.push(...validateReleaseCandidateSha(
+        environment?.commitSha,
+        `${field}.commitSha`,
+        releaseCandidateCommitSha
+    ));
+    if (environment?.buildPassed !== true) {
+        errors.push(`${field}.buildPassed: must be true`);
+    }
+    if (environment?.testsPassed !== true) {
+        errors.push(`${field}.testsPassed: must be true`);
+    }
+    if (!hasDatedCheck(environment?.checkedAt)) {
+        errors.push(`${field}.checkedAt: must be a nonempty parseable date`);
+    }
+    return errors;
+}
+
+async function validateCurrentHeadBuildProof(item, evidencePaths, options) {
+    const errors = [];
+    const proof = item.proof;
+    const releaseCandidateCommitSha = proof?.releaseCandidateCommitSha;
+    errors.push(...validateReleaseCandidateSha(
+        releaseCandidateCommitSha,
+        `${item.id}.proof.releaseCandidateCommitSha`
+    ));
+
+    const headResult = runReadOnlyGit(options.root, ['rev-parse', '--verify', 'HEAD^{commit}']);
+    const currentHeadSha = String(headResult.stdout ?? '').trim();
+    if (headResult.status !== 0 || !/^[0-9a-f]{40}$/u.test(currentHeadSha)) {
+        errors.push(`${item.id}.proof.releaseCandidateCommitSha: current Git HEAD cannot be resolved`);
+    } else if (releaseCandidateCommitSha !== currentHeadSha) {
+        errors.push(`${item.id}.proof.releaseCandidateCommitSha: must equal current Git HEAD ${currentHeadSha}`);
+    }
+
+    errors.push(...validateBuildEnvironmentProof(
+        proof?.windows,
+        `${item.id}.proof.windows`,
+        releaseCandidateCommitSha
+    ));
+    errors.push(...await validateProofEvidenceFile(
+        item,
+        proof?.windows?.evidencePath,
+        `${item.id}.proof.windows.evidencePath`,
+        evidencePaths,
+        options
+    ));
+    errors.push(...validateBuildEnvironmentProof(
+        proof?.linuxServer,
+        `${item.id}.proof.linuxServer`,
+        releaseCandidateCommitSha
+    ));
+    errors.push(...await validateProofEvidenceFile(
+        item,
+        proof?.linuxServer?.evidencePath,
+        `${item.id}.proof.linuxServer.evidencePath`,
+        evidencePaths,
+        options
+    ));
+    errors.push(...validateReleaseCandidateSha(
+        proof?.hostedCi?.commitSha,
+        `${item.id}.proof.hostedCi.commitSha`,
+        releaseCandidateCommitSha
+    ));
+    if (proof?.hostedCi?.status !== 'success') {
+        errors.push(`${item.id}.proof.hostedCi.status: must be success`);
+    }
+    if (!/^https:\/\//iu.test(proof?.hostedCi?.runUrl ?? '')) {
+        errors.push(`${item.id}.proof.hostedCi.runUrl: must be an HTTPS run URL`);
+    }
+    if (!hasDatedCheck(proof?.hostedCi?.checkedAt)) {
+        errors.push(`${item.id}.proof.hostedCi.checkedAt: must be a nonempty parseable date`);
+    }
+    return errors;
+}
+
+async function validateProofEvidenceFile(item, relativePath, field, evidencePaths, options) {
+    if (typeof relativePath !== 'string' || !evidencePaths.includes(relativePath)) {
+        return [`${field}: must name a listed evidence path`];
+    }
+    const inspection = await inspectRepositoryPath(options.root, options.realRoot, relativePath);
+    if (inspection.status === 'invalid') {
+        return [`${field}: ${inspection.error}`];
+    }
+    if (inspection.status === 'outside-real') {
+        return [`${field}: real target resolves outside repository root`];
+    }
+    if (inspection.status === 'missing') {
+        return [`${field}: evidence file is missing`];
+    }
+    if (inspection.status === 'unreadable') {
+        return [`${field}: evidence file cannot be resolved (${inspection.error.message})`];
+    }
+    if (!inspection.stats.isFile() || inspection.stats.size === 0) {
+        return [`${field}: must resolve to a nonempty regular file`];
+    }
+    return [];
+}
+
+async function validateVisualArtifactProof(item, evidencePaths, options) {
+    const errors = [];
+    const proof = item.proof;
+    errors.push(...await validateProofEvidenceFile(
+        item,
+        proof?.warp?.resultPath,
+        `${item.id}.proof.warp.resultPath`,
+        evidencePaths,
+        options
+    ));
+    if (proof?.warp?.offscreen !== true) {
+        errors.push(`${item.id}.proof.warp.offscreen: must be true`);
+    }
+    if (proof?.warp?.status !== 'passed') {
+        errors.push(`${item.id}.proof.warp.status: must be passed`);
+    }
+    if (!hasDatedCheck(proof?.warp?.checkedAt)) {
+        errors.push(`${item.id}.proof.warp.checkedAt: must be a nonempty parseable date`);
+    }
+
+    const artifactPaths = proof?.rtx?.artifactPaths;
+    if (!Array.isArray(artifactPaths) || artifactPaths.length === 0) {
+        errors.push(`${item.id}.proof.rtx.artifactPaths: must be a nonempty array`);
+    } else {
+        if (new Set(artifactPaths).size !== artifactPaths.length) {
+            errors.push(`${item.id}.proof.rtx.artifactPaths: paths must be unique`);
+        }
+        for (const [index, artifactPath] of artifactPaths.entries()) {
+            errors.push(...await validateProofEvidenceFile(
+                item,
+                artifactPath,
+                `${item.id}.proof.rtx.artifactPaths[${index}]`,
+                evidencePaths,
+                options
+            ));
+        }
+    }
+
+    const review = proof?.rtx?.review;
+    if (!hasDatedCheck(review?.checkedAt)) {
+        errors.push(`${item.id}.proof.rtx.review.checkedAt: must be a nonempty parseable date`);
+    }
+    if (typeof review?.reviewer !== 'string' || review.reviewer.trim().length === 0) {
+        errors.push(`${item.id}.proof.rtx.review.reviewer: must be a nonempty reviewer label`);
+    }
+    if (review?.verdict !== 'approved') {
+        errors.push(`${item.id}.proof.rtx.review.verdict: must be approved`);
+    }
+    if (typeof review?.notes !== 'string' || review.notes.trim().length === 0) {
+        errors.push(`${item.id}.proof.rtx.review.notes: must be nonempty`);
+    }
+    return errors;
+}
+
 async function validateVerifiedProof(item, evidencePaths, options) {
     if (item.status !== 'verified') {
         return [];
     }
 
+    if (item.id === 'current-head-builds') {
+        return validateCurrentHeadBuildProof(item, evidencePaths, options);
+    }
+    if (item.id === 'warp-rtx-visual-artifacts') {
+        return validateVisualArtifactProof(item, evidencePaths, options);
+    }
     if (item.id === 'class-diagrams') {
         return validateClassDiagramProof(item, evidencePaths, options);
     }
@@ -1274,13 +1445,28 @@ async function validateVerifiedProof(item, evidencePaths, options) {
         if (item.proof?.tag !== 'v0.1.0') {
             errors.push(`${item.id}.proof.tag: must be v0.1.0`);
         }
-        const tagResult = spawnSync(
-            'git',
-            ['show-ref', '--verify', '--quiet', 'refs/tags/v0.1.0'],
-            { cwd: options.root, encoding: 'utf8' }
+        errors.push(...validateReleaseCandidateSha(
+            item.proof?.targetCommitSha,
+            `${item.id}.proof.targetCommitSha`
+        ));
+        const tagResult = runReadOnlyGit(
+            options.root,
+            ['rev-parse', '--verify', 'refs/tags/v0.1.0^{commit}']
         );
-        if (tagResult.status !== 0) {
+        const tagTargetSha = String(tagResult.stdout ?? '').trim();
+        if (tagResult.status !== 0 || !/^[0-9a-f]{40}$/u.test(tagTargetSha)) {
             errors.push(`${item.id}.proof.tag: local tag v0.1.0 does not exist`);
+        } else {
+            if (item.proof?.targetCommitSha !== tagTargetSha) {
+                errors.push(`${item.id}.proof.targetCommitSha: must equal actual v0.1.0 target ${tagTargetSha}`);
+            }
+            const currentHeadItem = options.items.find((candidate) => candidate.id === 'current-head-builds');
+            const releaseCandidateCommitSha = currentHeadItem?.proof?.releaseCandidateCommitSha;
+            if (currentHeadItem?.status !== 'verified' || !/^[0-9a-f]{40}$/u.test(releaseCandidateCommitSha ?? '')) {
+                errors.push(`${item.id}.proof.targetCommitSha: verified current-head-builds release candidate is missing`);
+            } else if (tagTargetSha !== releaseCandidateCommitSha) {
+                errors.push(`${item.id}.proof.targetCommitSha: actual tag target must equal release-candidate commit ${releaseCandidateCommitSha}`);
+            }
         }
         const openPrerequisites = options.items
             .filter((candidate) => candidate.id !== 'v0.1.0' && candidate.status !== 'verified')

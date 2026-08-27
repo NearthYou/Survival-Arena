@@ -1,9 +1,20 @@
-import { access, readFile } from 'node:fs/promises';
+import { access, readFile, realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 
 const SHA_PATTERN = /^[0-9a-f]{40}$/;
+const CANONICAL_BASIS_COMMIT_SHA = '884e5e70d68d9fcf9dfe5638d97e06623da154c2';
+const REQUIRED_CASE_HEADINGS = [
+    '## 상황',
+    '## 재현',
+    '## 관찰',
+    '## 가설과 비교한 대안',
+    '## 선택',
+    '## 구현',
+    '## 검증',
+    '## 남은 한계'
+];
 
 export async function loadEvidence(evidencePath) {
     return JSON.parse(await readFile(evidencePath, 'utf8'));
@@ -22,6 +33,80 @@ function resolveSourcePath(root, relativePath) {
     }
 
     return { resolvedPath };
+}
+
+function isWithinRealRoot(realRoot, realTarget) {
+    const relative = path.relative(realRoot, realTarget);
+    return relative === ''
+        || (relative !== '..'
+            && !relative.startsWith(`..${path.sep}`)
+            && !path.isAbsolute(relative));
+}
+
+function extractLocalMarkdownLinkPaths(caseDocumentPath, content) {
+    const linkPaths = [];
+    for (const match of content.matchAll(/\]\(([^)\s]+)\)/gu)) {
+        const target = match[1].split('#', 1)[0].split('?', 1)[0];
+        if (!target || /^[a-z][a-z0-9+.-]*:/iu.test(target) || target.startsWith('//')) {
+            continue;
+        }
+        try {
+            linkPaths.push(path.resolve(path.dirname(caseDocumentPath), decodeURIComponent(target)));
+        } catch {
+            continue;
+        }
+    }
+    return linkPaths;
+}
+
+async function validateCaseDocument({ root, realRoot, caseRecord }) {
+    const label = `case ${caseRecord.id} caseDocument`;
+    const pathResult = resolveSourcePath(root, caseRecord.caseDocument);
+    if (pathResult.error) {
+        return [`${label}: ${pathResult.error}`];
+    }
+
+    let realTarget;
+    let targetStats;
+    try {
+        realTarget = await realpath(pathResult.resolvedPath);
+        if (!isWithinRealRoot(realRoot, realTarget)) {
+            return [`${label}: real target resolves outside repository root: ${caseRecord.caseDocument}`];
+        }
+        targetStats = await stat(realTarget);
+    } catch (error) {
+        if (error.code === 'ENOENT') {
+            return [`${label}: file is missing: ${caseRecord.caseDocument}`];
+        }
+        return [`${label}: cannot resolve file: ${caseRecord.caseDocument} (${error.message})`];
+    }
+    if (!targetStats.isFile()) {
+        return [`${label}: must resolve to a regular file: ${caseRecord.caseDocument}`];
+    }
+
+    const errors = [];
+    const content = await readFile(realTarget, 'utf8');
+    const lines = content.split(/\r?\n/u);
+    for (const heading of REQUIRED_CASE_HEADINGS) {
+        const count = lines.filter((line) => line === heading).length;
+        if (count !== 1) {
+            errors.push(`${label}: ${heading} must appear exactly once, found ${count}`);
+        }
+    }
+
+    const linkedPaths = extractLocalMarkdownLinkPaths(pathResult.resolvedPath, content);
+    const requiredSources = [
+        caseRecord.devlog,
+        ...(caseRecord.adr === undefined ? [] : [caseRecord.adr]),
+        ...(Array.isArray(caseRecord.evidence) ? caseRecord.evidence : [])
+    ];
+    for (const sourcePath of requiredSources) {
+        const sourceResult = resolveSourcePath(root, sourcePath);
+        if (!sourceResult.error && !linkedPaths.includes(sourceResult.resolvedPath)) {
+            errors.push(`${label}: missing required Markdown link to ${sourcePath}`);
+        }
+    }
+    return errors;
 }
 
 async function validateSourcePath({ root, basisCommitSha, relativePath, label, verifyBasisCommit }) {
@@ -69,6 +154,7 @@ function collectExcludedPaths(caseRecord) {
 async function validateEvidenceUnchecked(document, options = {}) {
     const errors = [];
     const root = path.resolve(options.root ?? process.cwd());
+    const realRoot = await realpath(root);
     const verifyBasisCommit = options.verifyBasisCommit ?? true;
 
     if (!document || typeof document !== 'object' || Array.isArray(document)) {
@@ -81,6 +167,8 @@ async function validateEvidenceUnchecked(document, options = {}) {
 
     if (!SHA_PATTERN.test(document.basisCommitSha ?? '')) {
         errors.push('basisCommitSha must be a 40-character lowercase hexadecimal SHA');
+    } else if (document.basisCommitSha !== CANONICAL_BASIS_COMMIT_SHA) {
+        errors.push(`basisCommitSha must match the canonical portfolio basis: ${CANONICAL_BASIS_COMMIT_SHA}`);
     }
 
     if (!Array.isArray(document.cases)) {
@@ -129,10 +217,7 @@ async function validateEvidenceUnchecked(document, options = {}) {
             }));
         }
 
-        const caseDocumentPath = resolveSourcePath(root, caseRecord.caseDocument);
-        if (caseDocumentPath.error) {
-            errors.push(`case ${caseRecord.id} caseDocument: ${caseDocumentPath.error}`);
-        }
+        errors.push(...await validateCaseDocument({ root, realRoot, caseRecord }));
 
         if (!Array.isArray(caseRecord.metrics)) {
             errors.push(`case ${caseRecord.id} metrics must be an array`);
