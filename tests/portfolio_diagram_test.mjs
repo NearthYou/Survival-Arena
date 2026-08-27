@@ -99,7 +99,7 @@ test('rejects duplicate node IDs', async () => {
     const diagram = createFlowDiagram();
     diagram.nodes.push({ ...diagram.nodes[0] });
 
-    const errors = await validateDiagram(diagram, { root: process.cwd(), verifyBasisCommit: false });
+    const errors = await validateDiagram(diagram, { root: repositoryRoot, verifyBasisCommit: false });
 
     assert.ok(errors.some((error) => error.includes('duplicate node id')));
 });
@@ -108,7 +108,7 @@ test('rejects edges with unknown endpoints', async () => {
     const diagram = createFlowDiagram();
     diagram.edges[0].to = 'missing';
 
-    const errors = await validateDiagram(diagram, { root: process.cwd(), verifyBasisCommit: false });
+    const errors = await validateDiagram(diagram, { root: repositoryRoot, verifyBasisCommit: false });
 
     assert.ok(errors.some((error) => error.includes('unknown edge endpoint')));
 });
@@ -117,7 +117,7 @@ test('rejects an empty source list', async () => {
     const diagram = createFlowDiagram();
     diagram.sources = [];
 
-    const errors = await validateDiagram(diagram, { root: process.cwd(), verifyBasisCommit: false });
+    const errors = await validateDiagram(diagram, { root: repositoryRoot, verifyBasisCommit: false });
 
     assert.ok(errors.some((error) => error.includes('sources must not be empty')));
 });
@@ -126,7 +126,7 @@ test('rejects a source absent from the basis commit', async () => {
     const diagram = createFlowDiagram();
     diagram.sources = [{ label: 'New test', path: 'tests/portfolio_diagram_test.mjs' }];
 
-    const errors = await validateDiagram(diagram, { root: process.cwd() });
+    const errors = await validateDiagram(diagram, { root: repositoryRoot });
 
     assert.ok(errors.some((error) => error.includes('missing from basis commit')));
 });
@@ -135,7 +135,7 @@ test('rejects a valid commit SHA that is not the canonical basis commit', async 
     const diagram = createFlowDiagram();
     diagram.basisCommitSha = '911bc87d1d38611e4cba44e09713060361e0e800';
 
-    const errors = await validateDiagram(diagram, { root: process.cwd(), verifyBasisCommit: false });
+    const errors = await validateDiagram(diagram, { root: repositoryRoot, verifyBasisCommit: false });
 
     assert.ok(errors.some((error) => error.includes('canonical basis commit')));
 });
