@@ -109,7 +109,7 @@
         "basisCommitSha": "884e5e70d68d9fcf9dfe5638d97e06623da154c2",
         "manifest": {
           "path": "docs/diagrams/class/manifest.json",
-          "sha256": "b6713e5cdf7ad010886e98a5b5d0a30bef9d010f3828264f8a4aeb38cca083e4"
+          "sha256": "5edf7df62cff1f6de73bb070818917f3266bd40a0f4a81a5777107570395299e"
         },
         "inputs": {
           "config": {
@@ -118,7 +118,7 @@
           },
           "generator": {
             "path": "scripts/portfolio/generate-class-diagrams.ps1",
-            "sha256": "e48b01252c6ca53c6a6033c979b2d55c47525f73e1c818967ffe5f5c3a093d3a"
+            "sha256": "6622a6b7b7a55aecb90ab0711983f2c249333c133addbd3989e77d0068549ba5"
           }
         },
         "outputs": {

@@ -123,21 +123,56 @@ function quotePowerShell(value) {
     return `'${String(value).replaceAll("'", "''")}'`;
 }
 
-function canonicalizeCompileCommandThroughGenerator(command) {
+const compileReplacementFixture = Object.freeze({
+    repository: 'C:/fixture/repository',
+    build: 'C:/fixture/repository/out/build/portfolio-clang-uml',
+    vcpkg: 'C:/fixture/repository/out/build/portfolio-clang-uml/vcpkg_installed',
+    compiler: 'C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/bin/Hostx64/x64/cl.exe'
+});
+
+function runCompileCommandThroughGenerator(command, options = {}) {
+    const compilerPath = options.compilerPath ?? compileReplacementFixture.compiler;
+    const replacementDefinitions = [
+        {
+            source: compileReplacementFixture.vcpkg,
+            token: '${VCPKG_INSTALLED_ROOT}'
+        },
+        {
+            source: compileReplacementFixture.build,
+            token: '${BUILD_ROOT}'
+        },
+        {
+            source: compileReplacementFixture.repository,
+            token: '${REPOSITORY_ROOT}'
+        },
+        { source: compilerPath, token: '${MSVC_COMPILER}' },
+        ...(options.additionalReplacements ?? [])
+    ];
     const encoded = Buffer.from(command, 'utf8').toString('base64');
+    const encodedReplacements = Buffer.from(
+        JSON.stringify(replacementDefinitions),
+        'utf8'
+    ).toString('base64');
     const script = [
         "$ErrorActionPreference = 'Stop'",
         `. ${quotePowerShell(generatorScriptPath)}`,
         `$command = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String(${quotePowerShell(encoded)}))`,
-        '$normalized = Convert-CompileCommandToSnapshotText -Command $command -RootReplacements @()',
+        `$replacementJson = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String(${quotePowerShell(encodedReplacements)}))`,
+        '$replacementDefinitions = $replacementJson | ConvertFrom-Json',
+        '$rootReplacements = @($replacementDefinitions | ForEach-Object { [pscustomobject]@{ source = [string]$_.source; token = [string]$_.token } })',
+        '$normalized = Convert-CompileCommandToSnapshotText -Command $command -RootReplacements $rootReplacements',
         '$bytes = [System.Text.UTF8Encoding]::new($false).GetBytes($normalized)',
         '[Console]::Out.Write([Convert]::ToBase64String($bytes))'
     ].join('; ');
-    const result = spawnSync(
+    return spawnSync(
         powershellExecutable,
         ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', script],
         { cwd: repositoryRoot, encoding: 'utf8' }
     );
+}
+
+function canonicalizeCompileCommandThroughGenerator(command, options = {}) {
+    const result = runCompileCommandThroughGenerator(command, options);
     assert.equal(result.status, 0, result.stderr || result.stdout);
     return Buffer.from(result.stdout.trim(), 'base64').toString('utf8');
 }
@@ -785,6 +820,79 @@ test('quoted long-path compiler canonicalizes through generation and the public 
 
         assert.deepEqual(compileErrors, [], errors.join('\n'));
     });
+});
+
+test('compiler first-token canonicalization does not mutate quoted or unquoted arguments', () => {
+    const cases = [
+        {
+            label: 'quoted long path with leading and mixed argument whitespace',
+            compilerPath: compileReplacementFixture.compiler,
+            commandPrefix: `   "${compileReplacementFixture.compiler}"`,
+            suffix: `  /nologo\t/DWRAPPED="${compileReplacementFixture.compiler}" /DQUOTED=""value with spaces""`
+        },
+        {
+            label: 'unquoted path with caret-escaped argument quotes',
+            compilerPath: 'C:/MSVC/bin/cl.exe',
+            commandPrefix: 'C:/MSVC/bin/cl.exe',
+            suffix: '\t/nologo  /DWRAPPED="C:/MSVC/bin/cl.exe" /DQUOTED=^"value with spaces^"'
+        }
+    ];
+
+    for (const scenario of cases) {
+        const generated = canonicalizeCompileCommandThroughGenerator(
+            scenario.commandPrefix + scenario.suffix,
+            { compilerPath: scenario.compilerPath }
+        );
+
+        assert.equal(
+            generated,
+            '${MSVC_COMPILER}' + scenario.suffix,
+            scenario.label
+        );
+        assert.equal(
+            generated.slice('${MSVC_COMPILER}'.length),
+            scenario.suffix,
+            `${scenario.label}: argument suffix changed`
+        );
+    }
+});
+
+test('compiler exclusion retains repository, build and vcpkg privacy replacements', () => {
+    const suffix = [
+        `  /DWRAPPED="${compileReplacementFixture.compiler}"`,
+        ` /I"${compileReplacementFixture.vcpkg}/include"`,
+        ` /Fo"${compileReplacementFixture.build}/obj/example.obj"`,
+        ` /c "${compileReplacementFixture.repository}/apps/example.cpp"`
+    ].join('');
+    const generated = canonicalizeCompileCommandThroughGenerator(
+        `"${compileReplacementFixture.compiler}"${suffix}`
+    );
+
+    assert.equal(
+        generated,
+        '${MSVC_COMPILER}'
+            + `  /DWRAPPED="${compileReplacementFixture.compiler}"`
+            + ' /I"${VCPKG_INSTALLED_ROOT}/include"'
+            + ' /Fo"${BUILD_ROOT}/obj/example.obj"'
+            + ' /c "${REPOSITORY_ROOT}/apps/example.cpp"'
+    );
+});
+
+test('compiler replacement ambiguity fails closed without excluding a same-token rule by value', () => {
+    const result = runCompileCommandThroughGenerator(
+        `"${compileReplacementFixture.compiler}" /nologo`,
+        {
+            additionalReplacements: [
+                { source: 'C:/unrelated/tool.exe', token: '${MSVC_COMPILER}' }
+            ]
+        }
+    );
+
+    assert.notEqual(result.status, 0, result.stdout);
+    assert.match(
+        result.stderr + result.stdout,
+        /exactly one compiler replacement/iu
+    );
 });
 
 test('verified class diagrams reject a hand-edited manifest even when its proof hash is updated', async () => {

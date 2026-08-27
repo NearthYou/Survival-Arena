@@ -909,8 +909,19 @@ function Convert-CompileCommandToSnapshotText(
         throw "Compilation command does not have a parseable first executable: $Command"
     }
 
+    $compilerReplacements = @($RootReplacements | Where-Object {
+            ([string]$_.token) -ceq '${MSVC_COMPILER}'
+        })
+    if ($compilerReplacements.Count -ne 1)
+    {
+        throw 'Compile snapshot normalization requires exactly one compiler replacement.'
+    }
+    $compilerReplacement = $compilerReplacements[0]
+    $argumentReplacements = @($RootReplacements | Where-Object {
+            -not [object]::ReferenceEquals($_, $compilerReplacement)
+        })
     $arguments = $Command.Substring($compilerMatch.Length)
-    $normalizedArguments = Convert-ToSnapshotText $arguments $RootReplacements
+    $normalizedArguments = Convert-ToSnapshotText $arguments $argumentReplacements
     return '${MSVC_COMPILER}' + $normalizedArguments
 }
 
