@@ -38,7 +38,6 @@
     { "from": "lobby-server", "to": "protocol", "label": "방과 워커 상태를 프로토콜 타입으로 노출한다." },
     { "from": "worker-control", "to": "game-server", "label": "예약과 취소를 게임 서버에 전달한다." },
     { "from": "game-server", "to": "protocol", "label": "게임 세션과 UDP 스냅샷을 직렬화한다." },
-    { "from": "game-server", "to": "simulation", "label": "권위 매치의 tick을 시뮬레이션에 실행한다." },
-    { "from": "protocol", "to": "simulation", "label": "네트워크 상태를 시뮬레이션 값으로 연결한다." }
+    { "from": "game-server", "to": "simulation", "label": "게임 서버가 protocol input을 권위 tick의 simulation state로 연결한다." }
   ]
 }

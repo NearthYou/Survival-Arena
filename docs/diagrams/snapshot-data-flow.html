@@ -21,6 +21,8 @@
     .connection line { stroke: var(--line); stroke-width: 2.5; }
     .arrow-head { fill: var(--line); }
     .connection-label { fill: var(--ink); stroke: var(--panel); stroke-width: 5px; paint-order: stroke; text-anchor: middle; font-size: 14px; font-weight: 600; }
+    .connection-marker rect { fill: var(--panel); stroke: var(--line); stroke-width: 2; }
+    .connection-marker text { fill: var(--ink); text-anchor: middle; font-size: 13px; font-weight: 800; }
     .lifeline { stroke: var(--muted); stroke-width: 1.5; stroke-dasharray: 7 7; }
     li { margin: 8px 0; }
     li:focus { outline: 3px solid var(--focus); outline-offset: 3px; }
@@ -37,7 +39,7 @@
     <div class="diagram-frame">
       <svg viewBox="0 0 1100 602" role="img" aria-labelledby="diagram-svg-title diagram-svg-description">
       <title id="diagram-svg-title">스냅샷 데이터 흐름</title>
-      <desc id="diagram-svg-description">코드 경계와 책임을 화살표로 연결한 흐름도</desc>
+      <desc id="diagram-svg-description">코드 경계를 번호 화살표로 연결하며 번호별 전체 책임은 아래 텍스트 목록에 있다.</desc>
       <defs>
         <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
           <path d="M 0 0 L 10 5 L 0 10 z" class="arrow-head" />
@@ -45,31 +47,52 @@
       </defs>
       <g class="connection">
         <line x1="250" y1="101" x2="310" y2="101" marker-end="url(#arrow)" />
-        <text class="connection-label"><tspan x="280" y="82.5">권위 tick이 네트워크 world</tspan><tspan x="280" y="99.5">snapshot을 만든다.</tspan></text>
+        <g class="connection-marker" aria-hidden="true">
+          <rect x="260" y="79" width="28" height="24" rx="8" />
+          <text class="connection-marker-label"><tspan x="274" y="96">1</tspan></text>
+        </g>
       </g>
       <g class="connection">
         <line x1="520" y1="101" x2="580" y2="101" marker-end="url(#arrow)" />
-        <text class="connection-label"><tspan x="550" y="82.5">수신자 interest와 ack</tspan><tspan x="550" y="99.5">baseline으로 payload를 만든다.</tspan></text>
+        <g class="connection-marker" aria-hidden="true">
+          <rect x="530" y="79" width="28" height="24" rx="8" />
+          <text class="connection-marker-label"><tspan x="544" y="96">2</tspan></text>
+        </g>
       </g>
       <g class="connection">
         <line x1="790" y1="101" x2="850" y2="101" marker-end="url(#arrow)" />
-        <text class="connection-label"><tspan x="820" y="82.5">payload를 인코딩하고 크기에 맞춰</tspan><tspan x="820" y="99.5">fragment로 나눈다.</tspan></text>
+        <g class="connection-marker" aria-hidden="true">
+          <rect x="800" y="79" width="28" height="24" rx="8" />
+          <text class="connection-marker-label"><tspan x="814" y="96">3</tspan></text>
+        </g>
       </g>
       <g class="connection">
         <line x1="955" y1="142" x2="955" y2="310" marker-end="url(#arrow)" />
-        <text class="connection-label"><tspan x="955" y="207.5">UDP datagram이 순서와 CRC</tspan><tspan x="955" y="224.5">정보를 포함해 전달된다.</tspan></text>
+        <g class="connection-marker" aria-hidden="true">
+          <rect x="941" y="187.2" width="28" height="24" rx="8" />
+          <text class="connection-marker-label"><tspan x="955" y="204.2">4</tspan></text>
+        </g>
       </g>
       <g class="connection">
         <line x1="850" y1="351" x2="790" y2="351" marker-end="url(#arrow)" />
-        <text class="connection-label"><tspan x="820" y="324">완성된 payload를 검증하고</tspan><tspan x="820" y="341">keyframe 또는 delta로</tspan><tspan x="820" y="358">디코딩한다.</tspan></text>
+        <g class="connection-marker" aria-hidden="true">
+          <rect x="812" y="329" width="28" height="24" rx="8" />
+          <text class="connection-marker-label"><tspan x="826" y="346">5</tspan></text>
+        </g>
       </g>
       <g class="connection">
         <line x1="580" y1="328.5" x2="510" y2="313.5" marker-end="url(#arrow)" />
-        <text class="connection-label"><tspan x="545" y="302.5">권위 위치와 ack 입력으로 로컬 예측을</tspan><tspan x="545" y="319.5">보정한다.</tspan></text>
+        <g class="connection-marker" aria-hidden="true">
+          <rect x="538" y="300.5" width="28" height="24" rx="8" />
+          <text class="connection-marker-label"><tspan x="552" y="317.5">6</tspan></text>
+        </g>
       </g>
       <g class="connection">
         <line x1="603" y1="392" x2="487" y2="450" marker-end="url(#arrow)" />
-        <text class="connection-label"><tspan x="545" y="402.5">적용된 스냅샷을 원격 actor 보간 버퍼에</tspan><tspan x="545" y="419.5">넣는다.</tspan></text>
+        <g class="connection-marker" aria-hidden="true">
+          <rect x="542.6" y="393.2" width="28" height="24" rx="8" />
+          <text class="connection-marker-label"><tspan x="556.6" y="410.2">7</tspan></text>
+        </g>
       </g>
       <g class="node">
         <rect x="40" y="60" width="210" height="82" rx="14" />

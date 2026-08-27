@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 
 const SHA_PATTERN = /^[0-9a-f]{40}$/;
+const CANONICAL_BASIS_COMMIT_SHA = '884e5e70d68d9fcf9dfe5638d97e06623da154c2';
 const EXPECTED_SOURCE_FILES = [
     'game-start-sequence.json',
     'room-lifecycle.json',
@@ -65,6 +66,13 @@ function renderMultilineText(value, x, y, className, maximumCharacters = 20) {
     return `<text class="${className}">${spans}</text>`;
 }
 
+function renderConnectionMarker(number, x, y) {
+    return `<g class="connection-marker" aria-hidden="true">
+          <rect x="${x - 14}" y="${y - 12}" width="28" height="24" rx="8" />
+          ${renderMultilineText(number, x, y + 5, 'connection-marker-label', 3)}
+        </g>`;
+}
+
 function rectangleConnection(from, to) {
     const fromCenter = { x: from.x + from.width / 2, y: from.y + from.height / 2 };
     const toCenter = { x: to.x + to.width / 2, y: to.y + to.height / 2 };
@@ -100,7 +108,7 @@ function renderFlowSvg(diagram) {
     const selfEdgeBottom = diagram.nodes.map((node) => node.y + node.height + (selfEdgeCounts.get(node.id) ?? 0) * 55 + 70);
     const height = Math.max(320, ...diagram.nodes.map((node) => node.y + node.height + 64), ...selfEdgeBottom);
     const selfEdgeOrdinals = new Map();
-    const edges = diagram.edges.map((edge) => {
+    const edges = diagram.edges.map((edge, index) => {
         const fromNode = nodesById.get(edge.from);
         if (edge.from === edge.to) {
             const ordinal = selfEdgeOrdinals.get(edge.from) ?? 0;
@@ -115,15 +123,16 @@ function renderFlowSvg(diagram) {
         <line x1="${right + offset}" y1="${centerY}" x2="${right + offset}" y2="${bottom + offset}" />
         <line x1="${right + offset}" y1="${bottom + offset}" x2="${centerX}" y2="${bottom + offset}" />
         <line x1="${centerX}" y1="${bottom + offset}" x2="${centerX}" y2="${bottom}" marker-end="url(#arrow)" />
-        ${renderMultilineText(edge.label, centerX, bottom + offset + 22, 'connection-label', 24)}
+        ${renderConnectionMarker(index + 1, right + offset, bottom + offset)}
       </g>`;
         }
         const points = rectangleConnection(fromNode, nodesById.get(edge.to));
-        const labelX = (points.x1 + points.x2) / 2;
-        const labelY = (points.y1 + points.y2) / 2 - 10;
+        const markerFractionFromSource = 0.4;
+        const markerX = points.x1 + (points.x2 - points.x1) * markerFractionFromSource;
+        const markerY = points.y1 + (points.y2 - points.y1) * markerFractionFromSource - 10;
         return `      <g class="connection">
         <line x1="${points.x1}" y1="${points.y1}" x2="${points.x2}" y2="${points.y2}" marker-end="url(#arrow)" />
-        ${renderMultilineText(edge.label, labelX, labelY, 'connection-label', 24)}
+        ${renderConnectionMarker(index + 1, markerX, markerY)}
       </g>`;
     }).join('\n');
     const nodes = diagram.nodes.map((node) => `      <g class="node">
@@ -133,7 +142,7 @@ function renderFlowSvg(diagram) {
 
     return `<svg viewBox="0 0 ${width} ${height}" role="img" aria-labelledby="diagram-svg-title diagram-svg-description">
       <title id="diagram-svg-title">${escapeHtml(diagram.title)}</title>
-      <desc id="diagram-svg-description">코드 경계와 책임을 화살표로 연결한 흐름도</desc>
+      <desc id="diagram-svg-description">코드 경계를 번호 화살표로 연결하며 번호별 전체 책임은 아래 텍스트 목록에 있다.</desc>
       ${renderArrowMarker()}
 ${edges}
 ${nodes}
@@ -222,6 +231,8 @@ export function renderDiagram(diagram) {
     .connection line { stroke: var(--line); stroke-width: 2.5; }
     .arrow-head { fill: var(--line); }
     .connection-label { fill: var(--ink); stroke: var(--panel); stroke-width: 5px; paint-order: stroke; text-anchor: middle; font-size: 14px; font-weight: 600; }
+    .connection-marker rect { fill: var(--panel); stroke: var(--line); stroke-width: 2; }
+    .connection-marker text { fill: var(--ink); text-anchor: middle; font-size: 13px; font-weight: 800; }
     .lifeline { stroke: var(--muted); stroke-width: 1.5; stroke-dasharray: 7 7; }
     li { margin: 8px 0; }
     li:focus { outline: 3px solid var(--focus); outline-offset: 3px; }
@@ -265,6 +276,8 @@ export async function validateDiagram(diagram, options = {}) {
     }
     if (!SHA_PATTERN.test(diagram.basisCommitSha ?? '')) {
         errors.push('basisCommitSha must be a 40-character lowercase hexadecimal SHA');
+    } else if (diagram.basisCommitSha !== CANONICAL_BASIS_COMMIT_SHA) {
+        errors.push(`basisCommitSha must match canonical basis commit: ${CANONICAL_BASIS_COMMIT_SHA}`);
     }
     if (typeof diagram.title !== 'string' || diagram.title.length === 0) {
         errors.push('title must be a non-empty string');
