@@ -6,6 +6,11 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import { validateEvidence } from '../scripts/portfolio/evidence.mjs';
+import {
+    loadReleaseStatus,
+    validateMarkdownLinks,
+    validateReleaseStatus
+} from '../scripts/portfolio/verify-all.mjs';
 
 const basisCommitSha = '884e5e70d68d9fcf9dfe5638d97e06623da154c2';
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -39,6 +44,42 @@ function createDocument() {
             caseDocument: 'docs/portfolio/cases/sample.md'
         }]
     };
+}
+
+function createReleaseDocument() {
+    return {
+        schemaVersion: 1,
+        items: [
+            { id: 'historical-24-player-metrics', label: '24-player metrics', status: 'verified', evidence: ['evidence.md'] },
+            { id: 'historical-30-minute-soak', label: '30-minute soak', status: 'verified', evidence: ['evidence.md'] },
+            { id: 'licenses-assets-manifest', label: 'licenses and assets', status: 'verified', evidence: ['evidence.md'] },
+            { id: 'current-head-builds', label: 'current HEAD builds', status: 'partial', evidence: ['evidence.md'] },
+            { id: 'warp-rtx-visual-artifacts', label: 'WARP and RTX visuals', status: 'partial', evidence: ['evidence.md'] },
+            { id: 'architecture-diagrams', label: 'architecture diagrams', status: 'verified', evidence: ['evidence.md'] },
+            { id: 'class-diagrams', label: 'class diagrams', status: 'missing', evidence: [] },
+            { id: 'portfolio-pdf', label: 'portfolio PDF', status: 'missing', evidence: [] },
+            { id: 'demo-video', label: 'demo video', status: 'missing', evidence: [] },
+            {
+                id: 'aws-external-test',
+                label: 'AWS external test',
+                status: 'blocked',
+                evidence: ['evidence.md'],
+                resourceState: { created: false, cleanupVerified: false }
+            },
+            { id: 'repository-visibility', label: 'repository visibility', status: 'blocked', evidence: [] },
+            { id: 'v0.1.0', label: 'v0.1.0', status: 'missing', evidence: [] }
+        ]
+    };
+}
+
+async function withReleaseFixture(callback) {
+    const root = await mkdtemp(path.join(tmpdir(), 'dxa-portfolio-release-'));
+    try {
+        await writeFile(path.join(root, 'evidence.md'), '# evidence\n', 'utf8');
+        await callback(createReleaseDocument(), root);
+    } finally {
+        await rm(root, { recursive: true, force: true });
+    }
 }
 
 async function withFixture(callback) {
@@ -161,4 +202,79 @@ test('all evidence cases have structured case documents linked to their sources'
 
     assert.deepEqual(missingDocuments, [], `missing case documents:\n${missingDocuments.join('\n')}`);
     assert.deepEqual(documentErrors, []);
+});
+
+test('release status rejects values outside the public status vocabulary', async () => {
+    await withReleaseFixture(async (document, root) => {
+        document.items[0].status = 'complete';
+
+        const errors = await validateReleaseStatus(document, { root });
+
+        assert.ok(errors.some((error) => error.includes('historical-24-player-metrics.status')));
+    });
+});
+
+test('verified release items require at least one evidence path', async () => {
+    await withReleaseFixture(async (document, root) => {
+        document.items[0].evidence = [];
+
+        const errors = await validateReleaseStatus(document, { root });
+
+        assert.ok(errors.some((error) => error.includes('historical-24-player-metrics.evidence')));
+    });
+});
+
+test('missing release artifacts and external approval cannot be marked verified', async () => {
+    await withReleaseFixture(async (document, root) => {
+        for (const id of ['class-diagrams', 'portfolio-pdf', 'demo-video', 'repository-visibility']) {
+            const item = document.items.find((candidate) => candidate.id === id);
+            item.status = 'verified';
+            item.evidence = ['evidence.md'];
+        }
+
+        const errors = await validateReleaseStatus(document, { root });
+
+        for (const id of ['class-diagrams', 'portfolio-pdf', 'demo-video', 'repository-visibility']) {
+            assert.ok(errors.some((error) => error.includes(`${id}.status`)), id);
+        }
+    });
+});
+
+test('AWS resources that were never created are not described as cleaned up', async () => {
+    await withReleaseFixture(async (document, root) => {
+        const awsItem = document.items.find((item) => item.id === 'aws-external-test');
+        awsItem.resourceState.cleanupVerified = true;
+
+        const errors = await validateReleaseStatus(document, { root });
+
+        assert.ok(errors.some((error) => error.includes('aws-external-test.resourceState.cleanupVerified')));
+    });
+});
+
+test('Markdown link validation reports missing local targets with file context', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'dxa-portfolio-links-'));
+    try {
+        await mkdir(path.join(root, 'docs'), { recursive: true });
+        await writeFile(path.join(root, 'docs', 'exists.md'), '# exists\n', 'utf8');
+        await writeFile(
+            path.join(root, 'README.md'),
+            '[exists](docs/exists.md)\n[missing](docs/missing.md)\n[external](https://example.com)\n',
+            'utf8'
+        );
+
+        const errors = await validateMarkdownLinks({ root, files: ['README.md'] });
+
+        assert.deepEqual(errors, ['README.md: local link target is missing: docs/missing.md']);
+    } finally {
+        await rm(root, { recursive: true, force: true });
+    }
+});
+
+test('committed release status and README local links satisfy the release contract', async () => {
+    const releaseStatus = await loadReleaseStatus(path.join(repositoryRoot, 'docs/portfolio/release-status.json'));
+    const statusErrors = await validateReleaseStatus(releaseStatus, { root: repositoryRoot });
+    const linkErrors = await validateMarkdownLinks({ root: repositoryRoot, files: ['README.md'] });
+
+    assert.deepEqual(statusErrors, []);
+    assert.deepEqual(linkErrors, []);
 });

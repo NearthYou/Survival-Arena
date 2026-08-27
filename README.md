@@ -8,6 +8,16 @@ Windows WARP 수직 테스트에서는 DX11 client와 bot 23개가 60 tick에 �
 
 100ms RTT, 2% loss와 10ms jitter를 적용한 production 경기에서는 datagram 12,579개가 drop되고 keyframe 요청 3,875회가 발생했지만 protocol error와 queue overflow 없이 끝났다. Windows soak는 네 경기와 실제 match 시간 2,324.07초, Linux ASan과 UBSan은 24인 headless 경기 1,817회를 기록했다. 진행 상태와 검증 결과는 [프로젝트 계획](docs/PROJECT_PLAN.md)과 [24인 network 기록](docs/devlog/2026-08-25-24-player-network-load.md)에 남긴다.
 
+## 포트폴리오 문서
+
+- [코드 근거 구조 다이어그램](docs/diagrams/index.html)
+- [사례와 수치의 근거 매트릭스](docs/portfolio/EVIDENCE_MATRIX.md)
+- [다섯 문제 해결 사례](docs/portfolio/cases/)
+- [현재 구현과 검증의 한계](docs/portfolio/LIMITATIONS.md)
+- [공개 준비 체크리스트](docs/portfolio/RELEASE_CHECKLIST.md)
+
+공개 준비 상태는 역사적 검증, 현재 문서 HEAD, 누락 산출물과 외부 승인을 분리해 기록한다. PDF, 실제 데모 영상, AWS 외부 접속, 저장소 공개와 `v0.1.0`은 아직 완료하지 않았다.
+
 ## 원칙
 
 - 다른 프로젝트의 코드와 리소스를 복사하지 않는다.
@@ -196,7 +206,7 @@ NavMesh 이동 수직 기능은 별도 데모에서 확인한다. 창을 띄운 
 
 ## CI 상태
 
-local Windows 전체 CTest, WARP와 shader 배포 검사, Ubuntu 24.04 Docker GCC build와 sanitizer 검증을 완료했다. 11주차에는 GCC 13 Release server image와 세 container Compose smoke를 추가했다. 이 branch의 GitHub hosted CI는 PR을 올린 뒤 별도로 확인한다. runner allocation이 billing 문제로 시작되지 않으면 같은 실패를 반복 실행하지 않고 local 및 Docker evidence와 hosted CI 미실행 상태를 분리해 기록한다.
+local Windows 전체 CTest, WARP와 shader 배포 검사, Ubuntu 24.04 Docker GCC build와 sanitizer 검증을 완료했다. 11주차에는 GCC 13 Release server image와 세 container Compose smoke를 추가했다. PR #11의 head `e2aba12c670b288b596169b8115b1fef77d54068`은 GitHub Actions run `32935640972`에서 Windows와 Ubuntu job이 성공한 뒤 `884e5e70d68d9fcf9dfe5638d97e06623da154c2`로 main에 병합됐다. 이후 문서 커밋을 포함한 현재 branch HEAD는 hosted CI를 아직 실행하지 않았으므로 같은 상태로 표현하지 않는다. 과거 runner billing 문제는 당시 미실행 원인을 분리해 기록하기 위한 경계였으며 현재 확인된 성공 run과 구분한다.
 
 ## 라이선스
 
