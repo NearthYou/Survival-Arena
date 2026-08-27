@@ -7,6 +7,11 @@ if(DXA_NODE_EXECUTABLE)
         COMMAND ${DXA_NODE_EXECUTABLE} --test
                 "${PROJECT_SOURCE_DIR}/tests/portfolio_evidence_test.mjs"
     )
+    add_test(
+        NAME PortfolioDiagrams.RendersDeterministically
+        COMMAND ${DXA_NODE_EXECUTABLE} --test
+                "${PROJECT_SOURCE_DIR}/tests/portfolio_diagram_test.mjs"
+    )
 endif()
 
 add_executable(

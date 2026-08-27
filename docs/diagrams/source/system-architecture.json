@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "basisCommitSha": "884e5e70d68d9fcf9dfe5638d97e06623da154c2",
+  "title": "시스템 구조와 코드 경계",
+  "kind": "flow",
+  "sources": [
+    { "label": "클라이언트 빌드 경계", "path": "apps/client/CMakeLists.txt" },
+    { "label": "클라이언트 공개 네트워크 경계", "path": "apps/client/include/dxa/client/NetworkClientController.hpp" },
+    { "label": "엔진 빌드 경계", "path": "engine/CMakeLists.txt" },
+    { "label": "로비 클라이언트 빌드 경계", "path": "apps/lobby_client/CMakeLists.txt" },
+    { "label": "로비 클라이언트 공개 경계", "path": "apps/lobby_client/include/dxa/lobby_client/LobbyClient.hpp" },
+    { "label": "로비 서버 빌드 경계", "path": "apps/lobby_server/CMakeLists.txt" },
+    { "label": "로비 서비스 공개 경계", "path": "apps/lobby_server/include/dxa/lobby/LobbyService.hpp" },
+    { "label": "워커 제어 공개 경계", "path": "apps/lobby_server/include/dxa/lobby/WorkerControlServer.hpp" },
+    { "label": "게임 서버 빌드 경계", "path": "apps/game_server/CMakeLists.txt" },
+    { "label": "게임 서버 공개 경계", "path": "apps/game_server/include/dxa/game_server/GameServer.hpp" },
+    { "label": "프로토콜 빌드 경계", "path": "protocol/CMakeLists.txt" },
+    { "label": "프로토콜 메시지 경계", "path": "protocol/include/dxa/protocol/WorkerControlMessages.hpp" },
+    { "label": "시뮬레이션 빌드 경계", "path": "simulation/CMakeLists.txt" },
+    { "label": "시뮬레이션 공개 경계", "path": "simulation/include/dxa/simulation/OfflineMatch.hpp" }
+  ],
+  "nodes": [
+    { "id": "client", "label": "Client", "x": 40, "y": 70, "width": 190, "height": 76 },
+    { "id": "engine", "label": "Engine", "x": 40, "y": 350, "width": 190, "height": 76 },
+    { "id": "lobby-client", "label": "Lobby Client", "x": 300, "y": 70, "width": 190, "height": 76 },
+    { "id": "lobby-server", "label": "Lobby Server", "x": 560, "y": 70, "width": 190, "height": 76 },
+    { "id": "worker-control", "label": "Worker Control", "x": 820, "y": 70, "width": 190, "height": 76 },
+    { "id": "game-server", "label": "Game Server", "x": 820, "y": 350, "width": 190, "height": 76 },
+    { "id": "protocol", "label": "Protocol", "x": 430, "y": 350, "width": 190, "height": 76 },
+    { "id": "simulation", "label": "Simulation", "x": 625, "y": 590, "width": 190, "height": 76 }
+  ],
+  "edges": [
+    { "from": "client", "to": "engine", "label": "입력과 렌더링 루프를 엔진에 위임한다." },
+    { "from": "client", "to": "lobby-client", "label": "호스트 흐름이 로비 요청을 시작한다." },
+    { "from": "lobby-client", "to": "lobby-server", "label": "로비 메시지를 TCP로 교환한다." },
+    { "from": "lobby-client", "to": "protocol", "label": "공유 메시지 형식으로 요청을 인코딩한다." },
+    { "from": "lobby-server", "to": "worker-control", "label": "매치 예약을 유휴 워커에 배정한다." },
+    { "from": "lobby-server", "to": "protocol", "label": "방과 워커 상태를 프로토콜 타입으로 노출한다." },
+    { "from": "worker-control", "to": "game-server", "label": "예약과 취소를 게임 서버에 전달한다." },
+    { "from": "game-server", "to": "protocol", "label": "게임 세션과 UDP 스냅샷을 직렬화한다." },
+    { "from": "game-server", "to": "simulation", "label": "권위 매치의 tick을 시뮬레이션에 실행한다." },
+    { "from": "protocol", "to": "simulation", "label": "네트워크 상태를 시뮬레이션 값으로 연결한다." }
+  ]
+}

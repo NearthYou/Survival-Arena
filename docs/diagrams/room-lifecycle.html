@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>방 생명주기</title>
+  <style>
+    :root { color-scheme: light dark; --page: #f6f8fb; --panel: #ffffff; --ink: #172033; --muted: #53627a; --line: #335eea; --node: #e9efff; --node-stroke: #2449bd; --focus: #d33a7c; }
+    @media (prefers-color-scheme: dark) { :root { --page: #111827; --panel: #192235; --ink: #f5f7ff; --muted: #b9c5d8; --line: #8eabff; --node: #26375d; --node-stroke: #a9bdff; --focus: #ff80b6; } }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--page); color: var(--ink); font-family: system-ui, sans-serif; line-height: 1.55; }
+    main { width: min(1180px, calc(100% - 32px)); margin: 0 auto; padding: 40px 0 64px; }
+    h1 { margin: 0 0 8px; font-size: clamp(1.7rem, 4vw, 2.5rem); }
+    h2 { margin-top: 0; }
+    .basis { color: var(--muted); overflow-wrap: anywhere; }
+    .diagram-frame, .text-fallback, .sources { margin-top: 24px; padding: clamp(16px, 3vw, 28px); border: 1px solid color-mix(in srgb, var(--muted) 35%, transparent); border-radius: 18px; background: var(--panel); }
+    .diagram-frame { overflow-x: auto; }
+    svg { display: block; width: 100%; min-width: 900px; height: auto; color: var(--ink); }
+    .node rect, .participant rect { fill: var(--node); stroke: var(--node-stroke); stroke-width: 2; }
+    .node text, .participant text { fill: var(--ink); text-anchor: middle; font-size: 17px; font-weight: 700; }
+    .connection line { stroke: var(--line); stroke-width: 2.5; }
+    .arrow-head { fill: var(--line); }
+    .connection-label { fill: var(--ink); stroke: var(--panel); stroke-width: 5px; paint-order: stroke; text-anchor: middle; font-size: 14px; font-weight: 600; }
+    .lifeline { stroke: var(--muted); stroke-width: 1.5; stroke-dasharray: 7 7; }
+    li { margin: 8px 0; }
+    li:focus { outline: 3px solid var(--focus); outline-offset: 3px; }
+    code { overflow-wrap: anywhere; }
+    .sources ul { padding-left: 20px; }
+    .sources li { display: grid; gap: 2px; }
+    @media (max-width: 800px) { main { width: min(100% - 20px, 1180px); padding-top: 24px; } .diagram-frame, .text-fallback, .sources { padding: 16px; } }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>방 생명주기</h1>
+    <p class="basis">코드 기준 commit: <code>884e5e70d68d9fcf9dfe5638d97e06623da154c2</code></p>
+    <div class="diagram-frame">
+      <svg viewBox="0 0 1120 387" role="img" aria-labelledby="diagram-svg-title diagram-svg-description">
+      <title id="diagram-svg-title">방 생명주기</title>
+      <desc id="diagram-svg-description">코드 경계와 책임을 화살표로 연결한 흐름도</desc>
+      <defs>
+        <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z" class="arrow-head" />
+        </marker>
+      </defs>
+      <g class="connection">
+        <line x1="280" y1="111" x2="310" y2="111" />
+        <line x1="310" y1="111" x2="310" y2="182" />
+        <line x1="310" y1="182" x2="170" y2="182" />
+        <line x1="170" y1="182" x2="170" y2="152" marker-end="url(#arrow)" />
+        <text class="connection-label"><tspan x="170" y="195.5">create가 호스트를 포함한 Waiting</tspan><tspan x="170" y="212.5">방을 만든다.</tspan></text>
+      </g>
+      <g class="connection">
+        <line x1="280" y1="111" x2="365" y2="111" />
+        <line x1="365" y1="111" x2="365" y2="237" />
+        <line x1="365" y1="237" x2="170" y2="237" />
+        <line x1="170" y1="237" x2="170" y2="152" marker-end="url(#arrow)" />
+        <text class="connection-label"><tspan x="170" y="250.5">join이 Waiting 방에만 플레이어를</tspan><tspan x="170" y="267.5">추가한다.</tspan></text>
+      </g>
+      <g class="connection">
+        <line x1="280" y1="111" x2="420" y2="111" />
+        <line x1="420" y1="111" x2="420" y2="292" />
+        <line x1="420" y1="292" x2="170" y2="292" />
+        <line x1="170" y1="292" x2="170" y2="152" marker-end="url(#arrow)" />
+        <text class="connection-label"><tspan x="170" y="305.5">ready가 Waiting 멤버의 준비</tspan><tspan x="170" y="322.5">상태를 갱신한다.</tspan></text>
+      </g>
+      <g class="connection">
+        <line x1="280" y1="111" x2="460" y2="111" marker-end="url(#arrow)" />
+        <text class="connection-label"><tspan x="370" y="92.5">start가 호스트와 전원 준비를 검증한 뒤</tspan><tspan x="370" y="109.5">예약을 시작한다.</tspan></text>
+      </g>
+      <g class="connection">
+        <line x1="680" y1="111" x2="860" y2="111" marker-end="url(#arrow)" />
+        <text class="connection-label"><tspan x="770" y="92.5">worker ready가 endpoint를</tspan><tspan x="770" y="109.5">확정하고 InMatch로 전이한다.</tspan></text>
+      </g>
+      <g class="connection">
+        <line x1="460" y1="111" x2="280" y2="111" marker-end="url(#arrow)" />
+        <text class="connection-label"><tspan x="370" y="92.5">disconnect가 예약을 취소하고</tspan><tspan x="370" y="109.5">Waiting으로 되돌린다.</tspan></text>
+      </g>
+      <g class="node">
+        <rect x="60" y="70" width="220" height="82" rx="14" />
+        <text class="node-label"><tspan x="170" y="116">Waiting</tspan></text>
+      </g>
+      <g class="node">
+        <rect x="460" y="70" width="220" height="82" rx="14" />
+        <text class="node-label"><tspan x="570" y="116">Starting</tspan></text>
+      </g>
+      <g class="node">
+        <rect x="860" y="70" width="220" height="82" rx="14" />
+        <text class="node-label"><tspan x="970" y="116">InMatch</tspan></text>
+      </g>
+    </svg>
+    </div>
+    <section class="text-fallback" aria-labelledby="text-fallback-title">
+      <h2 id="text-fallback-title">텍스트 설명</h2>
+      <h3>구성 요소</h3>
+      <ul>
+          <li tabindex="0"><strong>Waiting</strong> <code>waiting</code></li>
+          <li tabindex="0"><strong>Starting</strong> <code>starting</code></li>
+          <li tabindex="0"><strong>InMatch</strong> <code>in-match</code></li>
+      </ul>
+      <h3>연결 책임</h3>
+      <ol>
+          <li tabindex="0"><code>waiting</code> → <code>waiting</code>: create가 호스트를 포함한 Waiting 방을 만든다.</li>
+          <li tabindex="0"><code>waiting</code> → <code>waiting</code>: join이 Waiting 방에만 플레이어를 추가한다.</li>
+          <li tabindex="0"><code>waiting</code> → <code>waiting</code>: ready가 Waiting 멤버의 준비 상태를 갱신한다.</li>
+          <li tabindex="0"><code>waiting</code> → <code>starting</code>: start가 호스트와 전원 준비를 검증한 뒤 예약을 시작한다.</li>
+          <li tabindex="0"><code>starting</code> → <code>in-match</code>: worker ready가 endpoint를 확정하고 InMatch로 전이한다.</li>
+          <li tabindex="0"><code>starting</code> → <code>waiting</code>: disconnect가 예약을 취소하고 Waiting으로 되돌린다.</li>
+      </ol>
+    </section>
+    <section class="sources" aria-labelledby="sources-title">
+      <h2 id="sources-title">코드 근거</h2>
+      <ul>
+          <li><span>방 상태 계약</span><code>apps/lobby_server/include/dxa/lobby/Room.hpp</code></li>
+          <li><span>방 전이 구현</span><code>apps/lobby_server/src/Room.cpp</code></li>
+          <li><span>로비 요청과 워커 이벤트 조정</span><code>apps/lobby_server/src/LobbyService.cpp</code></li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>

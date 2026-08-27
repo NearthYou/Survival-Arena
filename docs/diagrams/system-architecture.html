@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>시스템 구조와 코드 경계</title>
+  <style>
+    :root { color-scheme: light dark; --page: #f6f8fb; --panel: #ffffff; --ink: #172033; --muted: #53627a; --line: #335eea; --node: #e9efff; --node-stroke: #2449bd; --focus: #d33a7c; }
+    @media (prefers-color-scheme: dark) { :root { --page: #111827; --panel: #192235; --ink: #f5f7ff; --muted: #b9c5d8; --line: #8eabff; --node: #26375d; --node-stroke: #a9bdff; --focus: #ff80b6; } }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--page); color: var(--ink); font-family: system-ui, sans-serif; line-height: 1.55; }
+    main { width: min(1180px, calc(100% - 32px)); margin: 0 auto; padding: 40px 0 64px; }
+    h1 { margin: 0 0 8px; font-size: clamp(1.7rem, 4vw, 2.5rem); }
+    h2 { margin-top: 0; }
+    .basis { color: var(--muted); overflow-wrap: anywhere; }
+    .diagram-frame, .text-fallback, .sources { margin-top: 24px; padding: clamp(16px, 3vw, 28px); border: 1px solid color-mix(in srgb, var(--muted) 35%, transparent); border-radius: 18px; background: var(--panel); }
+    .diagram-frame { overflow-x: auto; }
+    svg { display: block; width: 100%; min-width: 900px; height: auto; color: var(--ink); }
+    .node rect, .participant rect { fill: var(--node); stroke: var(--node-stroke); stroke-width: 2; }
+    .node text, .participant text { fill: var(--ink); text-anchor: middle; font-size: 17px; font-weight: 700; }
+    .connection line { stroke: var(--line); stroke-width: 2.5; }
+    .arrow-head { fill: var(--line); }
+    .connection-label { fill: var(--ink); stroke: var(--panel); stroke-width: 5px; paint-order: stroke; text-anchor: middle; font-size: 14px; font-weight: 600; }
+    .lifeline { stroke: var(--muted); stroke-width: 1.5; stroke-dasharray: 7 7; }
+    li { margin: 8px 0; }
+    li:focus { outline: 3px solid var(--focus); outline-offset: 3px; }
+    code { overflow-wrap: anywhere; }
+    .sources ul { padding-left: 20px; }
+    .sources li { display: grid; gap: 2px; }
+    @media (max-width: 800px) { main { width: min(100% - 20px, 1180px); padding-top: 24px; } .diagram-frame, .text-fallback, .sources { padding: 16px; } }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>시스템 구조와 코드 경계</h1>
+    <p class="basis">코드 기준 commit: <code>884e5e70d68d9fcf9dfe5638d97e06623da154c2</code></p>
+    <div class="diagram-frame">
+      <svg viewBox="0 0 1050 736" role="img" aria-labelledby="diagram-svg-title diagram-svg-description">
+      <title id="diagram-svg-title">시스템 구조와 코드 경계</title>
+      <desc id="diagram-svg-description">코드 경계와 책임을 화살표로 연결한 흐름도</desc>
+      <defs>
+        <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z" class="arrow-head" />
+        </marker>
+      </defs>
+      <g class="connection">
+        <line x1="135" y1="146" x2="135" y2="350" marker-end="url(#arrow)" />
+        <text class="connection-label"><tspan x="135" y="238">입력과 렌더링 루프를 엔진에 위임한다.</tspan></text>
+      </g>
+      <g class="connection">
+        <line x1="230" y1="108" x2="300" y2="108" marker-end="url(#arrow)" />
+        <text class="connection-label"><tspan x="265" y="98">호스트 흐름이 로비 요청을 시작한다.</tspan></text>
+      </g>
+      <g class="connection">
+        <line x1="490" y1="108" x2="560" y2="108" marker-end="url(#arrow)" />
+        <text class="connection-label"><tspan x="525" y="98">로비 메시지를 TCP로 교환한다.</tspan></text>
+      </g>
+      <g class="connection">
+        <line x1="412.64285714285717" y1="146" x2="507.35714285714283" y2="350" marker-end="url(#arrow)" />
+        <text class="connection-label"><tspan x="460" y="238">공유 메시지 형식으로 요청을 인코딩한다.</tspan></text>
+      </g>
+      <g class="connection">
+        <line x1="750" y1="108" x2="820" y2="108" marker-end="url(#arrow)" />
+        <text class="connection-label"><tspan x="785" y="98">매치 예약을 유휴 워커에 배정한다.</tspan></text>
+      </g>
+      <g class="connection">
+        <line x1="637.3571428571429" y1="146" x2="542.6428571428571" y2="350" marker-end="url(#arrow)" />
+        <text class="connection-label"><tspan x="590" y="229.5">방과 워커 상태를 프로토콜 타입으로</tspan><tspan x="590" y="246.5">노출한다.</tspan></text>
+      </g>
+      <g class="connection">
+        <line x1="915" y1="146" x2="915" y2="350" marker-end="url(#arrow)" />
+        <text class="connection-label"><tspan x="915" y="238">예약과 취소를 게임 서버에 전달한다.</tspan></text>
+      </g>
+      <g class="connection">
+        <line x1="820" y1="388" x2="620" y2="388" marker-end="url(#arrow)" />
+        <text class="connection-label"><tspan x="720" y="378">게임 세션과 UDP 스냅샷을 직렬화한다.</tspan></text>
+      </g>
+      <g class="connection">
+        <line x1="884.125" y1="426" x2="750.875" y2="590" marker-end="url(#arrow)" />
+        <text class="connection-label"><tspan x="817.5" y="489.5">권위 매치의 tick을 시뮬레이션에</tspan><tspan x="817.5" y="506.5">실행한다.</tspan></text>
+      </g>
+      <g class="connection">
+        <line x1="555.875" y1="426" x2="689.125" y2="590" marker-end="url(#arrow)" />
+        <text class="connection-label"><tspan x="622.5" y="498">네트워크 상태를 시뮬레이션 값으로 연결한다.</tspan></text>
+      </g>
+      <g class="node">
+        <rect x="40" y="70" width="190" height="76" rx="14" />
+        <text class="node-label"><tspan x="135" y="113">Client</tspan></text>
+      </g>
+      <g class="node">
+        <rect x="40" y="350" width="190" height="76" rx="14" />
+        <text class="node-label"><tspan x="135" y="393">Engine</tspan></text>
+      </g>
+      <g class="node">
+        <rect x="300" y="70" width="190" height="76" rx="14" />
+        <text class="node-label"><tspan x="395" y="113">Lobby Client</tspan></text>
+      </g>
+      <g class="node">
+        <rect x="560" y="70" width="190" height="76" rx="14" />
+        <text class="node-label"><tspan x="655" y="113">Lobby Server</tspan></text>
+      </g>
+      <g class="node">
+        <rect x="820" y="70" width="190" height="76" rx="14" />
+        <text class="node-label"><tspan x="915" y="113">Worker Control</tspan></text>
+      </g>
+      <g class="node">
+        <rect x="820" y="350" width="190" height="76" rx="14" />
+        <text class="node-label"><tspan x="915" y="393">Game Server</tspan></text>
+      </g>
+      <g class="node">
+        <rect x="430" y="350" width="190" height="76" rx="14" />
+        <text class="node-label"><tspan x="525" y="393">Protocol</tspan></text>
+      </g>
+      <g class="node">
+        <rect x="625" y="590" width="190" height="76" rx="14" />
+        <text class="node-label"><tspan x="720" y="633">Simulation</tspan></text>
+      </g>
+    </svg>
+    </div>
+    <section class="text-fallback" aria-labelledby="text-fallback-title">
+      <h2 id="text-fallback-title">텍스트 설명</h2>
+      <h3>구성 요소</h3>
+      <ul>
+          <li tabindex="0"><strong>Client</strong> <code>client</code></li>
+          <li tabindex="0"><strong>Engine</strong> <code>engine</code></li>
+          <li tabindex="0"><strong>Lobby Client</strong> <code>lobby-client</code></li>
+          <li tabindex="0"><strong>Lobby Server</strong> <code>lobby-server</code></li>
+          <li tabindex="0"><strong>Worker Control</strong> <code>worker-control</code></li>
+          <li tabindex="0"><strong>Game Server</strong> <code>game-server</code></li>
+          <li tabindex="0"><strong>Protocol</strong> <code>protocol</code></li>
+          <li tabindex="0"><strong>Simulation</strong> <code>simulation</code></li>
+      </ul>
+      <h3>연결 책임</h3>
+      <ol>
+          <li tabindex="0"><code>client</code> → <code>engine</code>: 입력과 렌더링 루프를 엔진에 위임한다.</li>
+          <li tabindex="0"><code>client</code> → <code>lobby-client</code>: 호스트 흐름이 로비 요청을 시작한다.</li>
+          <li tabindex="0"><code>lobby-client</code> → <code>lobby-server</code>: 로비 메시지를 TCP로 교환한다.</li>
+          <li tabindex="0"><code>lobby-client</code> → <code>protocol</code>: 공유 메시지 형식으로 요청을 인코딩한다.</li>
+          <li tabindex="0"><code>lobby-server</code> → <code>worker-control</code>: 매치 예약을 유휴 워커에 배정한다.</li>
+          <li tabindex="0"><code>lobby-server</code> → <code>protocol</code>: 방과 워커 상태를 프로토콜 타입으로 노출한다.</li>
+          <li tabindex="0"><code>worker-control</code> → <code>game-server</code>: 예약과 취소를 게임 서버에 전달한다.</li>
+          <li tabindex="0"><code>game-server</code> → <code>protocol</code>: 게임 세션과 UDP 스냅샷을 직렬화한다.</li>
+          <li tabindex="0"><code>game-server</code> → <code>simulation</code>: 권위 매치의 tick을 시뮬레이션에 실행한다.</li>
+          <li tabindex="0"><code>protocol</code> → <code>simulation</code>: 네트워크 상태를 시뮬레이션 값으로 연결한다.</li>
+      </ol>
+    </section>
+    <section class="sources" aria-labelledby="sources-title">
+      <h2 id="sources-title">코드 근거</h2>
+      <ul>
+          <li><span>클라이언트 빌드 경계</span><code>apps/client/CMakeLists.txt</code></li>
+          <li><span>클라이언트 공개 네트워크 경계</span><code>apps/client/include/dxa/client/NetworkClientController.hpp</code></li>
+          <li><span>엔진 빌드 경계</span><code>engine/CMakeLists.txt</code></li>
+          <li><span>로비 클라이언트 빌드 경계</span><code>apps/lobby_client/CMakeLists.txt</code></li>
+          <li><span>로비 클라이언트 공개 경계</span><code>apps/lobby_client/include/dxa/lobby_client/LobbyClient.hpp</code></li>
+          <li><span>로비 서버 빌드 경계</span><code>apps/lobby_server/CMakeLists.txt</code></li>
+          <li><span>로비 서비스 공개 경계</span><code>apps/lobby_server/include/dxa/lobby/LobbyService.hpp</code></li>
+          <li><span>워커 제어 공개 경계</span><code>apps/lobby_server/include/dxa/lobby/WorkerControlServer.hpp</code></li>
+          <li><span>게임 서버 빌드 경계</span><code>apps/game_server/CMakeLists.txt</code></li>
+          <li><span>게임 서버 공개 경계</span><code>apps/game_server/include/dxa/game_server/GameServer.hpp</code></li>
+          <li><span>프로토콜 빌드 경계</span><code>protocol/CMakeLists.txt</code></li>
+          <li><span>프로토콜 메시지 경계</span><code>protocol/include/dxa/protocol/WorkerControlMessages.hpp</code></li>
+          <li><span>시뮬레이션 빌드 경계</span><code>simulation/CMakeLists.txt</code></li>
+          <li><span>시뮬레이션 공개 경계</span><code>simulation/include/dxa/simulation/OfflineMatch.hpp</code></li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>
