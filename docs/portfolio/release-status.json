@@ -106,6 +106,16 @@
         "tool": "clang-uml",
         "toolVersion": "0.6.3",
         "basisCommitSha": "884e5e70d68d9fcf9dfe5638d97e06623da154c2",
+        "inputs": {
+          "config": {
+            "path": ".clang-uml",
+            "sha256": "5808ccd8bcd03d89be982f8351e2efc4ebc65f0d77c2dbb6226e0a5028cc12bf"
+          },
+          "generator": {
+            "path": "scripts/portfolio/generate-class-diagrams.ps1",
+            "sha256": "fb935a83c3f453648d25b3617329de1d4ccfbce70985cb7feab4898d207e3b06"
+          }
+        },
         "outputs": {
           "engine": {
             "json": "docs/diagrams/class/engine.json",

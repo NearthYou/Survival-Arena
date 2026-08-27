@@ -12,6 +12,18 @@ $BasisCommitSha = '884e5e70d68d9fcf9dfe5638d97e06623da154c2'
 $BasisTreeSha = 'a3d167d7ddb3fadfe5ce9a2dfea6f5a58b170890'
 $RequiredToolVersion = '0.6.3'
 $DiagramNames = @('engine', 'network')
+$BasisInputPaths = @(
+    'CMakeLists.txt',
+    'CMakePresets.json',
+    'vcpkg.json',
+    'cmake',
+    'engine',
+    'apps',
+    'protocol',
+    'simulation',
+    'tests/CMakeLists.txt',
+    'tests/engine_resource_pool_test.cpp'
+)
 $RequiredClassNames = @{
     engine = @('EngineApp')
     network = @(
@@ -27,11 +39,18 @@ $RequiredClassNames = @{
 
 function Get-FullPath([string]$PathValue, [string]$BasePath)
 {
-    if ([System.IO.Path]::IsPathRooted($PathValue))
+    try
     {
-        return [System.IO.Path]::GetFullPath($PathValue)
+        if ([System.IO.Path]::IsPathRooted($PathValue))
+        {
+            return [System.IO.Path]::GetFullPath($PathValue)
+        }
+        return [System.IO.Path]::GetFullPath((Join-Path $BasePath $PathValue))
     }
-    return [System.IO.Path]::GetFullPath((Join-Path $BasePath $PathValue))
+    catch
+    {
+        throw "Invalid path '$PathValue' relative to '$BasePath': $($_.Exception.Message)"
+    }
 }
 
 function Test-PathWithin([string]$CandidatePath, [string]$ParentPath)
@@ -77,6 +96,28 @@ function Invoke-Git([string[]]$Arguments, [switch]$Capture)
     }
 }
 
+function Invoke-GitAt(
+    [string]$RootPath,
+    [string[]]$Arguments,
+    [switch]$Capture)
+{
+    if ($Capture)
+    {
+        $output = @(& git -C $RootPath @Arguments 2>&1) -join "`n"
+        if ($LASTEXITCODE -ne 0)
+        {
+            throw "git $($Arguments -join ' ') failed:`n$output"
+        }
+        return $output.Trim()
+    }
+
+    & git -C $RootPath @Arguments
+    if ($LASTEXITCODE -ne 0)
+    {
+        throw "git $($Arguments -join ' ') failed with exit code $LASTEXITCODE"
+    }
+}
+
 function Get-FlattenedElements([object[]]$Elements)
 {
     $result = [System.Collections.Generic.List[object]]::new()
@@ -97,10 +138,43 @@ function Get-FlattenedElements([object[]]$Elements)
     return @($result)
 }
 
-function Assert-CompileDatabase([string]$DatabaseDirectory)
+function Get-CMakeCacheValue(
+    [string]$CacheText,
+    [string]$Name)
 {
-    $databasePath = Join-Path $DatabaseDirectory 'compile_commands.json'
-    $cachePath = Join-Path $DatabaseDirectory 'CMakeCache.txt'
+    $match = [regex]::Match(
+        $CacheText,
+        "(?m)^$([regex]::Escape($Name)):[^=]+=(.+?)\r?$")
+    if (-not $match.Success)
+    {
+        throw "CMake cache does not declare $Name"
+    }
+    return $match.Groups[1].Value.Trim()
+}
+
+function Test-DiagramTranslationUnit([string]$RelativePath)
+{
+    $normalized = $RelativePath.Replace('\', '/')
+    return $normalized -match '^engine/src/.+\.cpp$' -or
+        $normalized -match '^apps/(game_client|game_server|lobby_server)/src/.+\.cpp$' -or
+        $normalized -eq 'tests/engine_resource_pool_test.cpp'
+}
+
+function Assert-CompileDatabase(
+    [string]$DatabaseDirectory,
+    [string]$RootPath,
+    [string]$BasisSha)
+{
+    $resolvedRoot = (Resolve-Path -LiteralPath $RootPath).Path
+    $resolvedDatabaseDirectory = (Resolve-Path -LiteralPath $DatabaseDirectory).Path
+    if (-not (Test-PathWithin $resolvedDatabaseDirectory $resolvedRoot))
+    {
+        throw "Compile database directory must stay inside the repository: $resolvedDatabaseDirectory"
+    }
+
+    $databasePath = Join-Path $resolvedDatabaseDirectory 'compile_commands.json'
+    $cachePath = Join-Path $resolvedDatabaseDirectory 'CMakeCache.txt'
+    $ninjaPath = Join-Path $resolvedDatabaseDirectory 'build.ninja'
     if (-not (Test-Path -LiteralPath $databasePath -PathType Leaf))
     {
         throw "Compilation database is missing: $databasePath"
@@ -109,28 +183,85 @@ function Assert-CompileDatabase([string]$DatabaseDirectory)
     {
         throw "CMake cache is missing beside compilation database: $cachePath"
     }
+    if (-not (Test-Path -LiteralPath $ninjaPath -PathType Leaf))
+    {
+        throw "Ninja build graph is missing beside compilation database: $ninjaPath"
+    }
 
     $cacheText = Get-Content -LiteralPath $cachePath -Raw
-    $homeMatch = [regex]::Match($cacheText, '(?m)^CMAKE_HOME_DIRECTORY:INTERNAL=(.+)$')
-    if (-not $homeMatch.Success)
-    {
-        throw 'CMake cache does not declare CMAKE_HOME_DIRECTORY'
-    }
-    $cacheSourceRoot = Get-FullPath $homeMatch.Groups[1].Value.Trim() $DatabaseDirectory
+    $cacheSourceRoot = Get-FullPath (Get-CMakeCacheValue $cacheText 'CMAKE_HOME_DIRECTORY') $resolvedDatabaseDirectory
     if (-not $cacheSourceRoot.Equals(
-            $script:ResolvedRepositoryRoot,
+            $resolvedRoot,
             [System.StringComparison]::OrdinalIgnoreCase))
     {
         throw "Compilation database source root mismatch: $cacheSourceRoot"
     }
+    $generator = Get-CMakeCacheValue $cacheText 'CMAKE_GENERATOR'
+    if ($generator -ne 'Ninja')
+    {
+        throw "CMake generator must be Ninja, found: $generator"
+    }
+    $compilerPath = Get-FullPath (Get-CMakeCacheValue $cacheText 'CMAKE_CXX_COMPILER') $resolvedDatabaseDirectory
+    if ([System.IO.Path]::GetFileName($compilerPath) -ne 'cl.exe' -or
+        -not (Test-Path -LiteralPath $compilerPath -PathType Leaf))
+    {
+        throw "CMake CXX compiler must be an existing MSVC cl.exe: $compilerPath"
+    }
+    $makeProgram = Get-FullPath (Get-CMakeCacheValue $cacheText 'CMAKE_MAKE_PROGRAM') $resolvedDatabaseDirectory
+    if ([System.IO.Path]::GetFileName($makeProgram) -ne 'ninja.exe' -or
+        -not (Test-Path -LiteralPath $makeProgram -PathType Leaf))
+    {
+        throw "CMake make program must be an existing ninja.exe: $makeProgram"
+    }
+    $vcpkgInstalled = Get-FullPath (Get-CMakeCacheValue $cacheText 'VCPKG_INSTALLED_DIR') $resolvedDatabaseDirectory
+    if (-not (Test-PathWithin $vcpkgInstalled $resolvedDatabaseDirectory) -or
+        -not (Test-Path -LiteralPath $vcpkgInstalled -PathType Container))
+    {
+        throw "VCPKG_INSTALLED_DIR must be an owned directory inside the build root: $vcpkgInstalled"
+    }
 
-    $entries = @(Get-Content -LiteralPath $databasePath -Raw | ConvertFrom-Json)
+    $inputFiles = [System.Collections.Generic.List[System.IO.FileInfo]]::new()
+    foreach ($relativePath in $BasisInputPaths)
+    {
+        $inputPath = Join-Path $resolvedRoot $relativePath
+        if (Test-Path -LiteralPath $inputPath -PathType Leaf)
+        {
+            $inputFiles.Add((Get-Item -LiteralPath $inputPath))
+        }
+        elseif (Test-Path -LiteralPath $inputPath -PathType Container)
+        {
+            foreach ($file in @(Get-ChildItem -LiteralPath $inputPath -File -Recurse))
+            {
+                $inputFiles.Add($file)
+            }
+        }
+    }
+    $latestInputWrite = ($inputFiles | Measure-Object -Property LastWriteTimeUtc -Maximum).Maximum
+    if ($null -eq $latestInputWrite -or
+        (Get-Item -LiteralPath $cachePath).LastWriteTimeUtc -lt $latestInputWrite -or
+        (Get-Item -LiteralPath $databasePath).LastWriteTimeUtc -lt $latestInputWrite)
+    {
+        throw 'CMake cache or compile_commands.json is stale relative to consumed build inputs'
+    }
+
+    $parsedDatabase = Get-Content -LiteralPath $databasePath -Raw | ConvertFrom-Json
+    if ($parsedDatabase -is [System.Array])
+    {
+        [object[]]$entries = $parsedDatabase
+    }
+    else
+    {
+        [object[]]$entries = @($parsedDatabase)
+    }
     if ($entries.Count -eq 0)
     {
         throw 'Compilation database must contain at least one translation unit'
     }
 
     $projectEntryCount = 0
+    $usedSources = [System.Collections.Generic.HashSet[string]]::new(
+        [System.StringComparer]::OrdinalIgnoreCase)
+    $normalizedVcpkgRoot = $vcpkgInstalled.Replace('\', '/').ToLowerInvariant().TrimEnd('/')
     foreach ($entry in $entries)
     {
         if ([string]::IsNullOrWhiteSpace([string]$entry.directory) -or
@@ -139,14 +270,16 @@ function Assert-CompileDatabase([string]$DatabaseDirectory)
             throw 'Compilation database entries require directory and file'
         }
 
-        $entryDirectory = Get-FullPath ([string]$entry.directory) $DatabaseDirectory
-        if (-not (Test-PathWithin $entryDirectory $DatabaseDirectory))
+        $entryDirectory = Get-FullPath ([string]$entry.directory) $resolvedDatabaseDirectory
+        if (-not $entryDirectory.Equals(
+                $resolvedDatabaseDirectory,
+                [System.StringComparison]::OrdinalIgnoreCase))
         {
-            throw "Compilation command directory escapes the requested build directory: $entryDirectory"
+            throw "Compilation command directory must equal the owned build directory: $entryDirectory"
         }
 
         $sourcePath = Get-FullPath ([string]$entry.file) $entryDirectory
-        if (-not (Test-PathWithin $sourcePath $script:ResolvedRepositoryRoot))
+        if (-not (Test-PathWithin $sourcePath $resolvedRoot))
         {
             throw "Compilation database points outside this source root: $sourcePath"
         }
@@ -155,9 +288,62 @@ function Assert-CompileDatabase([string]$DatabaseDirectory)
             throw "Compilation database source file is missing: $sourcePath"
         }
         $projectEntryCount += 1
+
+        $relativeSource = Get-RepositoryRelativePath $sourcePath $resolvedRoot
+        if (-not (Test-DiagramTranslationUnit $relativeSource))
+        {
+            continue
+        }
+        if (-not $usedSources.Add($relativeSource))
+        {
+            throw "Compilation database contains a duplicate selected translation unit: $relativeSource"
+        }
+        $null = Invoke-GitAt $resolvedRoot @('ls-files', '--error-unmatch', '--', $relativeSource)
+        Invoke-GitAt $resolvedRoot @('cat-file', '-e', "${BasisSha}:$relativeSource")
+
+        $command = [string]$entry.command
+        if ([string]::IsNullOrWhiteSpace($command) -or
+            $command -notmatch '(?i)^(?:"[^"]*[\\/]cl\.exe"|[^\s"]*[\\/]cl\.exe)\s' -or
+            $command -notmatch '(?i)(?:^|\s)/TP(?:\s|$)' -or
+            $command.Replace('\', '/').ToLowerInvariant() -notlike "*$($relativeSource.ToLowerInvariant())*")
+        {
+            throw "Selected translation unit does not have a recognizable MSVC C++ command: $relativeSource"
+        }
+        foreach ($dependencyMatch in [regex]::Matches(
+                $command.Replace('\', '/'),
+                '(?i)[A-Z]:/[^\s"]*vcpkg_installed[^\s"]*'))
+        {
+            $dependencyPath = $dependencyMatch.Value.ToLowerInvariant()
+            if (-not $dependencyPath.StartsWith($normalizedVcpkgRoot))
+            {
+                throw "Compilation command uses a mixed dependency root for ${relativeSource}: $($dependencyMatch.Value)"
+            }
+        }
     }
 
-    Write-Host "validated compile database: $projectEntryCount translation units"
+    $expectedOutput = Invoke-GitAt $resolvedRoot @(
+        'ls-tree',
+        '-r',
+        '--name-only',
+        $BasisSha,
+        '--',
+        'engine/src',
+        'apps/game_client/src',
+        'apps/game_server/src',
+        'apps/lobby_server/src',
+        'tests/engine_resource_pool_test.cpp'
+    ) -Capture
+    $expectedSources = @($expectedOutput -split "`r?`n" | Where-Object {
+            -not [string]::IsNullOrWhiteSpace($_) -and (Test-DiagramTranslationUnit $_)
+        })
+    $missingSources = @($expectedSources | Where-Object { -not $usedSources.Contains($_) })
+    $unexpectedSources = @($usedSources | Where-Object { $expectedSources -notcontains $_ })
+    if ($missingSources.Count -gt 0 -or $unexpectedSources.Count -gt 0)
+    {
+        throw "Compilation database selected source set does not match basis. Missing: $($missingSources -join ', '); unexpected: $($unexpectedSources -join ', ')"
+    }
+
+    Write-Host "validated compile database: $projectEntryCount translation units, $($usedSources.Count) selected"
 }
 
 function Assert-RawClassDiagram([string]$DiagramName, [string]$JsonPath)
@@ -254,6 +440,53 @@ function Assert-RawClassDiagram([string]$DiagramName, [string]$JsonPath)
     }
 }
 
+function Assert-RepositoryBasisInputs(
+    [string]$RootPath,
+    [string]$BasisSha)
+{
+    $resolvedRoot = (Resolve-Path -LiteralPath $RootPath).Path
+    foreach ($relativePath in $BasisInputPaths)
+    {
+        $currentPath = Join-Path $resolvedRoot $relativePath
+        if (-not (Test-Path -LiteralPath $currentPath))
+        {
+            throw "Required basis input is missing from current checkout: $relativePath"
+        }
+        Invoke-GitAt $resolvedRoot @('cat-file', '-e', "${BasisSha}:$relativePath")
+        $tracked = Invoke-GitAt $resolvedRoot @('ls-files', '--', $relativePath) -Capture
+        if ([string]::IsNullOrWhiteSpace($tracked))
+        {
+            throw "Required basis input is not tracked: $relativePath"
+        }
+    }
+
+    $changedArguments = @(
+        'diff',
+        '--name-only',
+        $BasisSha,
+        '--'
+    ) + $BasisInputPaths
+    $changed = Invoke-GitAt $resolvedRoot $changedArguments -Capture
+    if (-not [string]::IsNullOrWhiteSpace($changed))
+    {
+        throw "Consumed repository input differs from basis ${BasisSha}:`n$changed"
+    }
+
+    $untrackedArguments = @(
+        'ls-files',
+        '--others',
+        '--exclude-standard',
+        '--'
+    ) + $BasisInputPaths
+    $untracked = Invoke-GitAt $resolvedRoot $untrackedArguments -Capture
+    if (-not [string]::IsNullOrWhiteSpace($untracked))
+    {
+        throw "Untracked file exists inside a consumed source scope:`n$untracked"
+    }
+}
+
+function Invoke-ClassDiagramGeneration
+{
 if ([string]::IsNullOrWhiteSpace($RepositoryRoot))
 {
     $RepositoryRoot = Join-Path $PSScriptRoot '..\..'
@@ -280,7 +513,7 @@ if ($basisTree -ne $BasisTreeSha)
     throw "Canonical basis tree mismatch: $basisTree"
 }
 Invoke-Git @('merge-base', '--is-ancestor', $BasisCommitSha, 'HEAD')
-Invoke-Git @('diff', '--quiet', $BasisCommitSha, '--', 'engine', 'apps', 'protocol', 'simulation')
+Assert-RepositoryBasisInputs $script:ResolvedRepositoryRoot $BasisCommitSha
 
 if (-not (Test-Path -LiteralPath $ClangUmlExecutable -PathType Leaf))
 {
@@ -306,7 +539,7 @@ if (-not (Test-PathWithin $resolvedCompileDatabaseDirectory $script:ResolvedRepo
 {
     throw "Compile database directory must stay inside the repository: $resolvedCompileDatabaseDirectory"
 }
-Assert-CompileDatabase $resolvedCompileDatabaseDirectory
+Assert-CompileDatabase $resolvedCompileDatabaseDirectory $script:ResolvedRepositoryRoot $BasisCommitSha
 
 $configPath = Join-Path $script:ResolvedRepositoryRoot '.clang-uml'
 if (-not (Test-Path -LiteralPath $configPath -PathType Leaf))
@@ -372,4 +605,10 @@ finally
 foreach ($result in $results)
 {
     Write-Host "generated $($result.Name): $($result.ClassCount) classes, $($result.RelationshipCount) relationships"
+}
+}
+
+if ($MyInvocation.InvocationName -ne '.')
+{
+    Invoke-ClassDiagramGeneration
 }

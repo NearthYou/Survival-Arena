@@ -103,6 +103,77 @@ function sha256(content) {
     return createHash('sha256').update(content).digest('hex');
 }
 
+function normalizedTextSha256(content) {
+    return sha256(String(content).replaceAll('\r\n', '\n'));
+}
+
+function setVerifiedClassProof(document, inputs) {
+    const paths = [
+        'docs/diagrams/class/engine.json',
+        'docs/diagrams/class/network.json',
+        'docs/diagrams/class/engine.html',
+        'docs/diagrams/class/network.html'
+    ];
+    const item = document.items.find((candidate) => candidate.id === 'class-diagrams');
+    item.status = 'verified';
+    item.evidence = paths;
+    item.proof = {
+        tool: 'clang-uml',
+        toolVersion: '0.6.3',
+        basisCommitSha,
+        inputs,
+        outputs: {
+            engine: { json: paths[0], html: paths[2] },
+            network: { json: paths[1], html: paths[3] }
+        }
+    };
+    return { item, paths };
+}
+
+async function createValidClassProofFixture(document, root) {
+    const configPath = '.clang-uml';
+    const generatorPath = 'scripts/portfolio/generate-class-diagrams.ps1';
+    const [config, generator] = await Promise.all([
+        readFile(path.join(repositoryRoot, configPath), 'utf8'),
+        readFile(path.join(repositoryRoot, generatorPath), 'utf8')
+    ]);
+    for (const [relativePath, content] of [[configPath, config], [generatorPath, generator]]) {
+        const target = path.join(root, relativePath);
+        await mkdir(path.dirname(target), { recursive: true });
+        await writeFile(target, content, 'utf8');
+    }
+
+    for (const diagramName of ['engine', 'network']) {
+        const jsonPath = `docs/diagrams/class/${diagramName}.json`;
+        const htmlPath = `docs/diagrams/class/${diagramName}.html`;
+        const [jsonText, html] = await Promise.all([
+            readFile(path.join(repositoryRoot, jsonPath), 'utf8'),
+            readFile(path.join(repositoryRoot, htmlPath), 'utf8')
+        ]);
+        const raw = JSON.parse(jsonText);
+        for (const element of raw.elements) {
+            for (const relativeSource of [
+                element.source_location.file,
+                element.source_location.translation_unit.replaceAll('\\', '/')
+            ]) {
+                const sourcePath = path.join(root, relativeSource);
+                await mkdir(path.dirname(sourcePath), { recursive: true });
+                await writeFile(sourcePath, `fixture source: ${relativeSource}\n`, 'utf8');
+            }
+        }
+        for (const [relativePath, content] of [[jsonPath, jsonText], [htmlPath, html]]) {
+            const target = path.join(root, relativePath);
+            await mkdir(path.dirname(target), { recursive: true });
+            await writeFile(target, content, 'utf8');
+        }
+    }
+
+    return setVerifiedClassProof(document, {
+        config: { path: configPath, sha256: normalizedTextSha256(config) },
+        generator: { path: generatorPath, sha256: normalizedTextSha256(generator) }
+    });
+}
+
 async function listFixtureFiles(root, directory = root) {
     let entries;
     try {
@@ -488,6 +559,75 @@ test('verified class diagrams require clang-uml 0.6.3 metadata at the canonical 
         assert.ok(errors.some((error) => error.includes('class-diagrams.proof.tool')));
         assert.ok(errors.some((error) => error.includes('class-diagrams.proof.toolVersion')));
         assert.ok(errors.some((error) => error.includes('class-diagrams.proof.basisCommitSha')));
+    });
+});
+
+test('verified class diagrams reject four nonempty hand-authored junk files', async () => {
+    await withReleaseFixture(async (document, root) => {
+        const config = 'diagrams: {}\n';
+        const generator = 'Write-Output manual\n';
+        await writeFile(path.join(root, '.clang-uml'), config, 'utf8');
+        await mkdir(path.join(root, 'scripts/portfolio'), { recursive: true });
+        await writeFile(path.join(root, 'scripts/portfolio/generate-class-diagrams.ps1'), generator, 'utf8');
+        const proof = setVerifiedClassProof(document, {
+            config: { path: '.clang-uml', sha256: normalizedTextSha256(config) },
+            generator: {
+                path: 'scripts/portfolio/generate-class-diagrams.ps1',
+                sha256: normalizedTextSha256(generator)
+            }
+        });
+        for (const relativePath of proof.paths) {
+            const filePath = path.join(root, relativePath);
+            await mkdir(path.dirname(filePath), { recursive: true });
+            await writeFile(filePath, 'nonempty manual junk\n', 'utf8');
+        }
+
+        const errors = await validateReleaseStatus(document, {
+            root,
+            verifyClassBasisCommit: false
+        });
+
+        assert.ok(errors.some((error) => error.includes('engine.json') && error.includes('raw clang-uml')));
+        assert.ok(errors.some((error) => error.includes('network.json') && error.includes('raw clang-uml')));
+    });
+});
+
+test('verified class diagrams reject HTML that does not match the production renderer', async () => {
+    await withReleaseFixture(async (document, root) => {
+        await createValidClassProofFixture(document, root);
+        const htmlPath = path.join(root, 'docs/diagrams/class/engine.html');
+        const html = await readFile(htmlPath, 'utf8');
+        await writeFile(htmlPath, `${html}\n<!-- tampered -->\n`, 'utf8');
+
+        const errors = await validateReleaseStatus(document, {
+            root,
+            verifyClassBasisCommit: false
+        });
+
+        assert.ok(
+            errors.some((error) => error.includes('engine.html') && error.includes('renderer')),
+            errors.join('\n')
+        );
+    });
+});
+
+test('verified class diagrams reject changed config and generator provenance', async () => {
+    await withReleaseFixture(async (document, root) => {
+        await createValidClassProofFixture(document, root);
+        await writeFile(path.join(root, '.clang-uml'), 'tampered config\n', 'utf8');
+        await writeFile(
+            path.join(root, 'scripts/portfolio/generate-class-diagrams.ps1'),
+            'tampered generator\n',
+            'utf8'
+        );
+
+        const errors = await validateReleaseStatus(document, {
+            root,
+            verifyClassBasisCommit: false
+        });
+
+        assert.ok(errors.some((error) => error.includes('proof.inputs.config.sha256')));
+        assert.ok(errors.some((error) => error.includes('proof.inputs.generator.sha256')));
     });
 });
 

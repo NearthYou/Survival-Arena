@@ -1,10 +1,17 @@
 import assert from 'node:assert/strict';
-import { access, readFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { access, mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import test from 'node:test';
 
 const repositoryRoot = path.resolve(import.meta.dirname, '..');
+const generatorScriptPath = path.join(repositoryRoot, 'scripts/portfolio/generate-class-diagrams.ps1');
+const powershellExecutable = path.join(
+    process.env.SystemRoot ?? 'C:\\Windows',
+    'System32/WindowsPowerShell/v1.0/powershell.exe'
+);
 const basisCommitSha = '884e5e70d68d9fcf9dfe5638d97e06623da154c2';
 const clangUmlVersion = '0.6.3';
 const diagramNames = ['engine', 'network'];
@@ -40,6 +47,19 @@ function flattenElements(elements) {
 
 function normalizeRepositoryPath(filePath) {
     return String(filePath).replaceAll('\\', '/').replace(/^\.\//u, '');
+}
+
+function escapeHtmlForExpectation(value) {
+    return String(value)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+}
+
+function normalizedTextSha256(content) {
+    return createHash('sha256').update(String(content).replaceAll('\r\n', '\n')).digest('hex');
 }
 
 function relationshipMidpoint(html, source, destination) {
@@ -79,6 +99,286 @@ async function loadRawClassDiagram(diagramName) {
     return JSON.parse(await readFile(path.join(repositoryRoot, relativePath), 'utf8'));
 }
 
+async function validateClassFixture(document) {
+    const renderer = await import('../scripts/portfolio/render-diagrams.mjs');
+    return renderer.validateClassDiagram(document, {
+        root: repositoryRoot,
+        verifyBasisCommit: false
+    });
+}
+
+function quotePowerShell(value) {
+    return `'${String(value).replaceAll("'", "''")}'`;
+}
+
+function runPowerShell(command) {
+    return spawnSync(
+        powershellExecutable,
+        ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', command],
+        { cwd: repositoryRoot, encoding: 'utf8' }
+    );
+}
+
+function runFixtureGit(root, argumentsList) {
+    const result = spawnSync('git', argumentsList, { cwd: root, encoding: 'utf8' });
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    return result.stdout.trim();
+}
+
+async function createBasisInputFixture() {
+    const root = await mkdtemp(path.join(tmpdir(), 'dxa-class-basis-'));
+    const files = [
+        'CMakeLists.txt',
+        'CMakePresets.json',
+        'vcpkg.json',
+        'cmake/CompilerWarnings.cmake',
+        'engine/CMakeLists.txt',
+        'engine/src/windows/EngineApp.cpp',
+        'apps/game_common/CMakeLists.txt',
+        'apps/game_client/CMakeLists.txt',
+        'apps/game_client/src/GameSession.cpp',
+        'apps/game_server/CMakeLists.txt',
+        'apps/game_server/src/GameServer.cpp',
+        'apps/lobby_server/CMakeLists.txt',
+        'apps/lobby_server/src/LobbyService.cpp',
+        'protocol/CMakeLists.txt',
+        'protocol/src/Protocol.cpp',
+        'simulation/CMakeLists.txt',
+        'simulation/src/Simulation.cpp',
+        'tests/CMakeLists.txt',
+        'tests/engine_resource_pool_test.cpp'
+    ];
+    for (const relativePath of files) {
+        const filePath = path.join(root, relativePath);
+        await mkdir(path.dirname(filePath), { recursive: true });
+        await writeFile(filePath, `fixture input: ${relativePath}\n`, 'utf8');
+    }
+    runFixtureGit(root, ['init']);
+    runFixtureGit(root, ['config', 'user.email', 'fixture@example.com']);
+    runFixtureGit(root, ['config', 'user.name', 'Fixture']);
+    runFixtureGit(root, ['config', 'core.autocrlf', 'false']);
+    runFixtureGit(root, ['add', '--', ...files]);
+    runFixtureGit(root, ['commit', '-m', 'basis fixture']);
+    return { root, basisSha: runFixtureGit(root, ['rev-parse', 'HEAD']) };
+}
+
+async function addCompileDatabaseFixture(fixture) {
+    const buildDirectory = path.join(fixture.root, 'out/build/portfolio-clang-uml');
+    const vcpkgDirectory = path.join(buildDirectory, 'vcpkg_installed');
+    const compiler = 'C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/bin/Hostx64/x64/cl.exe';
+    const ninja = 'C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/Ninja/ninja.exe';
+    const selectedSources = [
+        'engine/src/windows/EngineApp.cpp',
+        'apps/game_client/src/GameSession.cpp',
+        'apps/game_server/src/GameServer.cpp',
+        'apps/lobby_server/src/LobbyService.cpp',
+        'tests/engine_resource_pool_test.cpp'
+    ];
+    await mkdir(path.join(vcpkgDirectory, 'x64-windows/include'), { recursive: true });
+    await writeFile(path.join(buildDirectory, 'build.ninja'), '# generated by fixture\n', 'utf8');
+    await writeFile(
+        path.join(buildDirectory, 'CMakeCache.txt'),
+        [
+            `CMAKE_CXX_COMPILER:FILEPATH=${compiler}`,
+            `CMAKE_MAKE_PROGRAM:FILEPATH=${ninja}`,
+            `VCPKG_INSTALLED_DIR:PATH=${vcpkgDirectory.replaceAll('\\', '/')}`,
+            'CMAKE_GENERATOR:INTERNAL=Ninja',
+            `CMAKE_HOME_DIRECTORY:INTERNAL=${fixture.root.replaceAll('\\', '/')}`,
+            ''
+        ].join('\n'),
+        'utf8'
+    );
+    const entries = selectedSources.map((relativePath) => {
+        const sourcePath = path.join(fixture.root, relativePath);
+        return {
+            directory: buildDirectory.replaceAll('\\', '/'),
+            file: sourcePath.replaceAll('\\', '/'),
+            command: `"${compiler}" /nologo /TP -external:I"${vcpkgDirectory.replaceAll('\\', '/')}/x64-windows/include" /c "${sourcePath.replaceAll('\\', '/')}"`
+        };
+    });
+    await writeFile(
+        path.join(buildDirectory, 'compile_commands.json'),
+        `${JSON.stringify(entries, null, 2)}\n`,
+        'utf8'
+    );
+    fixture.buildDirectory = buildDirectory;
+    fixture.compileEntries = entries;
+    return fixture;
+}
+
+function validateFixtureBasisInputs(fixture) {
+    return runPowerShell([
+        "$ErrorActionPreference = 'Stop'",
+        `. ${quotePowerShell(generatorScriptPath)}`,
+        `Assert-RepositoryBasisInputs -RootPath ${quotePowerShell(fixture.root)} -BasisSha ${quotePowerShell(fixture.basisSha)}`,
+        "Write-Output 'BASIS_INPUTS_VALID'"
+    ].join('; '));
+}
+
+function validateFixtureCompileDatabase(fixture) {
+    return runPowerShell([
+        "$ErrorActionPreference = 'Stop'",
+        `. ${quotePowerShell(generatorScriptPath)}`,
+        `Assert-CompileDatabase -DatabaseDirectory ${quotePowerShell(fixture.buildDirectory)} -RootPath ${quotePowerShell(fixture.root)} -BasisSha ${quotePowerShell(fixture.basisSha)}`,
+        "Write-Output 'COMPILE_DATABASE_VALID'"
+    ].join('; '));
+}
+
+test('generator can be imported for fail-closed provenance contract tests without running generation', () => {
+    const missingRoot = path.join(repositoryRoot, 'out', 'missing-provenance-fixture');
+    const result = runPowerShell([
+        `. ${quotePowerShell(generatorScriptPath)} -RepositoryRoot ${quotePowerShell(missingRoot)}`,
+        "if (-not (Get-Command Assert-RepositoryBasisInputs -ErrorAction SilentlyContinue)) { exit 23 }",
+        "Write-Output 'PROVENANCE_FUNCTIONS_IMPORTED'"
+    ].join('; '));
+
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.match(result.stdout, /PROVENANCE_FUNCTIONS_IMPORTED/u);
+});
+
+test('basis provenance rejects an untracked source inside a consumed scope', async () => {
+    const fixture = await createBasisInputFixture();
+    try {
+        await writeFile(path.join(fixture.root, 'engine/src/untracked.cpp'), 'int untracked;\n', 'utf8');
+
+        const result = validateFixtureBasisInputs(fixture);
+
+        assert.notEqual(result.status, 0, 'untracked consumed source was accepted');
+        assert.match(result.stderr, /untracked/iu);
+    } finally {
+        await rm(fixture.root, { recursive: true, force: true });
+    }
+});
+
+for (const relativePath of [
+    'tests/engine_resource_pool_test.cpp',
+    'CMakeLists.txt',
+    'engine/CMakeLists.txt'
+]) {
+    test(`basis provenance rejects changed consumed input ${relativePath}`, async () => {
+        const fixture = await createBasisInputFixture();
+        try {
+            const filePath = path.join(fixture.root, relativePath);
+            const original = await readFile(filePath, 'utf8');
+            await writeFile(filePath, `${original}changed after basis\n`, 'utf8');
+
+            const result = validateFixtureBasisInputs(fixture);
+
+            assert.notEqual(result.status, 0, `${relativePath} change was accepted`);
+            assert.match(result.stderr, /basis/iu);
+        } finally {
+            await rm(fixture.root, { recursive: true, force: true });
+        }
+    });
+}
+
+test('compile database provenance accepts a fresh owned Ninja and MSVC fixture', async () => {
+    const fixture = await addCompileDatabaseFixture(await createBasisInputFixture());
+    try {
+        const result = validateFixtureCompileDatabase(fixture);
+
+        assert.equal(result.status, 0, result.stderr || result.stdout);
+        assert.match(result.stdout, /COMPILE_DATABASE_VALID/u);
+    } finally {
+        await rm(fixture.root, { recursive: true, force: true });
+    }
+});
+
+test('compile database provenance rejects a tampered compiler command', async () => {
+    const fixture = await addCompileDatabaseFixture(await createBasisInputFixture());
+    try {
+        fixture.compileEntries[0].command = fixture.compileEntries[0].command.replace('cl.exe', 'clang++.exe');
+        await writeFile(
+            path.join(fixture.buildDirectory, 'compile_commands.json'),
+            `${JSON.stringify(fixture.compileEntries, null, 2)}\n`,
+            'utf8'
+        );
+        const cachePath = path.join(fixture.buildDirectory, 'CMakeCache.txt');
+        const cache = await readFile(cachePath, 'utf8');
+        await writeFile(cachePath, cache, 'utf8');
+
+        const result = validateFixtureCompileDatabase(fixture);
+
+        assert.notEqual(result.status, 0, 'tampered compiler command was accepted');
+        assert.match(result.stderr, /MSVC/iu);
+    } finally {
+        await rm(fixture.root, { recursive: true, force: true });
+    }
+});
+
+test('compile database provenance rejects a non-Ninja CMake cache', async () => {
+    const fixture = await addCompileDatabaseFixture(await createBasisInputFixture());
+    try {
+        const cachePath = path.join(fixture.buildDirectory, 'CMakeCache.txt');
+        const cache = await readFile(cachePath, 'utf8');
+        await writeFile(
+            cachePath,
+            cache.replace('CMAKE_GENERATOR:INTERNAL=Ninja', 'CMAKE_GENERATOR:INTERNAL=Visual Studio 17 2022'),
+            'utf8'
+        );
+
+        const result = validateFixtureCompileDatabase(fixture);
+
+        assert.notEqual(result.status, 0, 'non-Ninja cache was accepted');
+        assert.match(result.stderr, /Ninja/iu);
+    } finally {
+        await rm(fixture.root, { recursive: true, force: true });
+    }
+});
+
+test('compile database provenance rejects a mixed vcpkg dependency root', async () => {
+    const fixture = await addCompileDatabaseFixture(await createBasisInputFixture());
+    try {
+        fixture.compileEntries[0].command = fixture.compileEntries[0].command.replace(
+            fixture.buildDirectory.replaceAll('\\', '/'),
+            'C:/foreign-checkout/out/build'
+        );
+        await writeFile(
+            path.join(fixture.buildDirectory, 'compile_commands.json'),
+            `${JSON.stringify(fixture.compileEntries, null, 2)}\n`,
+            'utf8'
+        );
+
+        const result = validateFixtureCompileDatabase(fixture);
+
+        assert.notEqual(result.status, 0, 'mixed dependency root was accepted');
+        assert.match(result.stderr, /mixed dependency root/iu);
+    } finally {
+        await rm(fixture.root, { recursive: true, force: true });
+    }
+});
+
+test('compile database provenance rejects an untracked selected translation unit', async () => {
+    const fixture = await addCompileDatabaseFixture(await createBasisInputFixture());
+    try {
+        const injectedPath = path.join(fixture.root, 'engine/src/Injected.cpp');
+        await writeFile(injectedPath, 'int injected;\n', 'utf8');
+        fixture.compileEntries.push({
+            ...fixture.compileEntries[0],
+            file: injectedPath.replaceAll('\\', '/'),
+            command: fixture.compileEntries[0].command.replace(
+                fixture.compileEntries[0].file,
+                injectedPath.replaceAll('\\', '/')
+            )
+        });
+        await writeFile(
+            path.join(fixture.buildDirectory, 'compile_commands.json'),
+            `${JSON.stringify(fixture.compileEntries, null, 2)}\n`,
+            'utf8'
+        );
+        const cachePath = path.join(fixture.buildDirectory, 'CMakeCache.txt');
+        const cache = await readFile(cachePath, 'utf8');
+        await writeFile(cachePath, cache, 'utf8');
+
+        const result = validateFixtureCompileDatabase(fixture);
+
+        assert.notEqual(result.status, 0, 'untracked selected translation unit was accepted');
+        assert.match(result.stderr, /ls-files|tracked|basis/iu);
+    } finally {
+        await rm(fixture.root, { recursive: true, force: true });
+    }
+});
+
 test('.clang-uml defines the engine and network AST scopes with metadata', async () => {
     const config = await readFile(path.join(repositoryRoot, '.clang-uml'), 'utf8');
 
@@ -89,6 +389,85 @@ test('.clang-uml defines the engine and network AST scopes with metadata', async
     assert.match(config, /^generate_metadata:\s*true\s*$/mu);
     assert.match(config, /^remove_compile_flags:\s*\r?\n\s+- ['"]?\/WX['"]?\s*$/mu);
     assert.doesNotMatch(config, /(?:^|[/\\])(?:tests?|third_party)(?:[/\\]|$)/imu);
+});
+
+test('class validator rejects hand-authored JSON that only imitates a clang-uml envelope', async () => {
+    const document = {
+        name: 'engine',
+        diagram_type: 'class',
+        title: `Engine AST class diagram | code basis ${basisCommitSha}`,
+        metadata: {
+            clang_uml_version: clangUmlVersion,
+            llvm_version: 'not real clang metadata'
+        },
+        elements: [
+            {
+                id: '1',
+                name: 'FakeEngineA',
+                type: 'class',
+                members: [],
+                methods: [],
+                source_location: { file: 'engine/include/dxa/engine/EngineApp.hpp' }
+            },
+            {
+                id: '2',
+                name: 'FakeEngineB',
+                type: 'class',
+                members: [],
+                methods: [],
+                source_location: { file: 'engine/include/dxa/engine/EngineApp.hpp' }
+            }
+        ],
+        relationships: [{ source: '1', destination: '2', type: 'dependency' }]
+    };
+
+    const errors = await validateClassFixture(document);
+
+    assert.ok(errors.some((error) => error.includes('metadata.schema_version')));
+    assert.ok(errors.some((error) => error.includes('package_type')));
+    assert.ok(errors.some((error) => error.includes('minimum 9')));
+    assert.ok(errors.some((error) => error.includes('missing required class: EngineApp')));
+});
+
+test('class validator rejects a self relationship before geometry can produce NaN', async () => {
+    const document = structuredClone(await loadRawClassDiagram('engine'));
+    document.relationships[0].destination = document.relationships[0].source;
+
+    const errors = await validateClassFixture(document);
+
+    assert.ok(errors.some((error) => error.includes('self relationship')));
+});
+
+test('class validator rejects a class source outside the diagram-specific prefix', async () => {
+    const document = structuredClone(await loadRawClassDiagram('engine'));
+    document.elements[0].source_location.file = 'apps/game_server/include/dxa/game_server/GameServer.hpp';
+
+    const errors = await validateClassFixture(document);
+
+    assert.ok(errors.some((error) => error.includes('allowed source prefix')));
+});
+
+test('class validator rejects a missing selected translation unit', async () => {
+    const document = structuredClone(await loadRawClassDiagram('engine'));
+    document.elements[0].source_location.translation_unit = 'engine/src/windows/Missing.cpp';
+
+    const errors = await validateClassFixture(document);
+
+    assert.ok(errors.some((error) => error.includes('translation unit is missing from current checkout')));
+});
+
+test('class validator rejects a diagram missing a required class', async () => {
+    const document = structuredClone(await loadRawClassDiagram('engine'));
+    const removed = document.elements.find((element) => element.name === 'EngineApp');
+    document.elements = document.elements.filter((element) => element.id !== removed.id);
+    document.relationships = document.relationships.filter((relationship) => (
+        relationship.source !== removed.id && relationship.destination !== removed.id
+    ));
+
+    const errors = await validateClassFixture(document);
+
+    assert.ok(errors.some((error) => error.includes('minimum 9')));
+    assert.ok(errors.some((error) => error.includes('missing required class: EngineApp')));
 });
 
 for (const diagramName of diagramNames) {
@@ -140,10 +519,12 @@ for (const diagramName of diagramNames) {
 }
 
 test('class diagrams move to verified only with the four generated outputs and pinned proof', async () => {
-    const releaseStatus = JSON.parse(await readFile(
-        path.join(repositoryRoot, 'docs/portfolio/release-status.json'),
-        'utf8'
-    ));
+    const [releaseStatusText, config, generator] = await Promise.all([
+        readFile(path.join(repositoryRoot, 'docs/portfolio/release-status.json'), 'utf8'),
+        readFile(path.join(repositoryRoot, '.clang-uml'), 'utf8'),
+        readFile(generatorScriptPath, 'utf8')
+    ]);
+    const releaseStatus = JSON.parse(releaseStatusText);
     const item = releaseStatus.items.find((candidate) => candidate.id === 'class-diagrams');
     const expectedEvidence = [
         'docs/diagrams/class/engine.json',
@@ -157,6 +538,16 @@ test('class diagrams move to verified only with the four generated outputs and p
     assert.equal(item?.proof?.tool, 'clang-uml');
     assert.equal(item?.proof?.toolVersion, clangUmlVersion);
     assert.equal(item?.proof?.basisCommitSha, basisCommitSha);
+    assert.deepEqual(item?.proof?.inputs, {
+        config: {
+            path: '.clang-uml',
+            sha256: normalizedTextSha256(config)
+        },
+        generator: {
+            path: 'scripts/portfolio/generate-class-diagrams.ps1',
+            sha256: normalizedTextSha256(generator)
+        }
+    });
     assert.deepEqual(item?.proof?.outputs, {
         engine: {
             json: expectedEvidence[0],
@@ -180,6 +571,7 @@ test('Task 2 renderer validates raw AST and renders deterministic self-contained
         const errors = await renderer.validateClassDiagram(document, { root: repositoryRoot });
         const firstRender = renderer.renderClassDiagram(document);
         const secondRender = renderer.renderClassDiagram(document);
+        const svg = firstRender.match(/<svg[\s\S]*?<\/svg>/u)?.[0] ?? '';
         const elements = flattenElements(document.elements).filter((element) => element?.type === 'class');
         const nodeRectangles = extractGroupRectangles(firstRender, 'class-node');
         const relationshipRectangles = extractGroupRectangles(firstRender, 'class-relationship');
@@ -193,8 +585,16 @@ test('Task 2 renderer validates raw AST and renders deterministic self-contained
         assert.doesNotMatch(firstRender, /https?:\/\//iu);
         assert.doesNotMatch(firstRender, /<script\b/iu);
         assert.doesNotMatch(firstRender, /<link\b[^>]*rel=["']stylesheet["']/iu);
+        assert.doesNotMatch(firstRender, /NaN/u);
+        if (diagramName === 'engine') {
+            assert.match(svg, />ResourceHandle&lt;T&gt;</u);
+            assert.match(svg, />ResourcePool&lt;T&gt;</u);
+            assert.match(svg, />ResourcePool::Slot</u);
+            assert.doesNotMatch(svg, /##/u);
+        }
         for (const element of elements) {
-            assert.match(firstRender, new RegExp(element.name.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')));
+            const displayName = escapeHtmlForExpectation(element.display_name);
+            assert.match(firstRender, new RegExp(displayName.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')));
         }
         for (const relationship of document.relationships) {
             assert.match(

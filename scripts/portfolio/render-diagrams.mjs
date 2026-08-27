@@ -12,6 +12,54 @@ const EXPECTED_SOURCE_FILES = [
     'system-architecture.json'
 ];
 const EXPECTED_CLASS_SOURCE_FILES = ['engine.json', 'network.json'];
+const CLASS_DIAGRAM_CONTRACTS = {
+    engine: {
+        title: `Engine AST class diagram | code basis ${CANONICAL_BASIS_COMMIT_SHA}`,
+        minimumClasses: 9,
+        minimumRelationships: 5,
+        requiredClasses: [
+            'AssetSceneRenderer',
+            'EngineApp',
+            'ForwardRenderer',
+            'RuntimeSceneFrame',
+            'IRuntimeSceneController',
+            'HybridDeferredRenderer',
+            'ResourceHandle',
+            'ResourcePool',
+            'ResourcePool##Slot'
+        ],
+        sourcePrefixes: ['engine/'],
+        translationUnitPrefixes: ['engine/src/'],
+        translationUnitFiles: ['tests/engine_resource_pool_test.cpp']
+    },
+    network: {
+        title: `Network AST class diagram | code basis ${CANONICAL_BASIS_COMMIT_SHA}`,
+        minimumClasses: 9,
+        minimumRelationships: 1,
+        requiredClasses: [
+            'LobbyService',
+            'WorkerRegistry',
+            'WorkerControlServer',
+            'LobbyTcpServer',
+            'SnapshotReplicator',
+            'AuthoritativeMatch',
+            'GameServer',
+            'GameSession',
+            'SnapshotReassembler'
+        ],
+        sourcePrefixes: [
+            'apps/lobby_server/',
+            'apps/game_server/',
+            'apps/game_client/'
+        ],
+        translationUnitPrefixes: [
+            'apps/lobby_server/src/',
+            'apps/game_server/src/',
+            'apps/game_client/src/'
+        ],
+        translationUnitFiles: []
+    }
+};
 const CLASS_INDEX_ENTRIES = [
     {
         title: 'Engine AST 클래스 구조',
@@ -397,6 +445,16 @@ function displayLlvmVersion(value) {
     return String(value).replace(/\s+\(https?:\/\/[^)]+\)/gu, '');
 }
 
+function classNodeDisplayName(element) {
+    const displayName = typeof element.display_name === 'string' && element.display_name.length > 0
+        ? element.display_name
+        : element.name;
+    const namespacePrefix = element.namespace ? `${element.namespace}::` : '';
+    return namespacePrefix && displayName.startsWith(namespacePrefix)
+        ? displayName.slice(namespacePrefix.length)
+        : displayName;
+}
+
 function renderClassSvg(diagram) {
     const classes = flattenClassElements(diagram.elements).filter((element) => element.type === 'class');
     const columns = Math.min(3, classes.length);
@@ -453,7 +511,7 @@ function renderClassSvg(diagram) {
         const sourceLabel = path.basename(element.source_location.file);
         return `      <g class="class-node" data-class-id="${escapeHtml(element.id)}">
         <rect x="${position.x}" y="${position.y}" width="${position.width}" height="${position.height}" rx="14" />
-        ${renderMultilineText(element.name, position.x + position.width / 2, position.y + 28, 'class-name', 28)}
+        ${renderMultilineText(classNodeDisplayName(element), position.x + position.width / 2, position.y + 28, 'class-name', 28)}
         ${renderMultilineText(namespaceLabel, position.x + position.width / 2, position.y + 58, 'class-namespace', 34)}
         ${renderMultilineText(counts, position.x + position.width / 2, position.y + 83, 'class-counts', 34)}
         ${renderMultilineText(sourceLabel, position.x + position.width / 2, position.y + 106, 'class-source', 34)}
@@ -563,20 +621,31 @@ export async function validateClassDiagram(diagram, options = {}) {
     if (!diagram || typeof diagram !== 'object' || Array.isArray(diagram)) {
         return ['class diagram must be an object'];
     }
+    const contract = CLASS_DIAGRAM_CONTRACTS[diagram.name];
     if (diagram.diagram_type !== 'class') {
         errors.push('diagram_type must be class');
     }
-    if (!EXPECTED_CLASS_SOURCE_FILES.includes(`${diagram.name}.json`)) {
+    if (!contract || !EXPECTED_CLASS_SOURCE_FILES.includes(`${diagram.name}.json`)) {
         errors.push('name must be engine or network');
+    }
+    if (diagram.package_type !== 'namespace') {
+        errors.push('package_type must be namespace');
+    }
+    if (!diagram.metadata || typeof diagram.metadata !== 'object' || Array.isArray(diagram.metadata)) {
+        errors.push('metadata must be a clang-uml metadata object');
     }
     if (diagram.metadata?.clang_uml_version !== '0.6.3') {
         errors.push('metadata.clang_uml_version must be 0.6.3');
     }
-    if (typeof diagram.metadata?.llvm_version !== 'string' || diagram.metadata.llvm_version.length === 0) {
-        errors.push('metadata.llvm_version must be a non-empty string');
+    if (diagram.metadata?.schema_version !== 3) {
+        errors.push('metadata.schema_version must be clang-uml JSON schema 3');
     }
-    if (typeof diagram.title !== 'string' || !diagram.title.includes(CANONICAL_BASIS_COMMIT_SHA)) {
-        errors.push('title must contain the canonical basis commit');
+    if (typeof diagram.metadata?.llvm_version !== 'string'
+        || !/^clang version 22\.1\.8\b/u.test(diagram.metadata.llvm_version)) {
+        errors.push('metadata.llvm_version must identify clang 22.1.8');
+    }
+    if (!contract || diagram.title !== contract.title) {
+        errors.push(`title must exactly identify ${diagram.name ?? 'the diagram'} and the canonical basis commit`);
     }
     for (const field of ['schemaVersion', 'basisCommitSha', 'nodes', 'edges']) {
         if (Object.hasOwn(diagram, field)) {
@@ -584,24 +653,65 @@ export async function validateClassDiagram(diagram, options = {}) {
         }
     }
 
+    if (!Array.isArray(diagram.elements)) {
+        errors.push('elements must be a clang-uml array');
+    } else if (diagram.elements.some((element) => element?.type !== 'class')) {
+        errors.push('elements must contain only raw clang-uml class elements');
+    }
     const classes = flattenClassElements(diagram.elements).filter((element) => element?.type === 'class');
     const ids = new Set();
-    if (classes.length === 0) {
+    const names = new Set(classes.map((element) => element?.name));
+    if (contract && classes.length < contract.minimumClasses) {
+        errors.push(`elements must contain minimum ${contract.minimumClasses} classes for ${diagram.name}`);
+    } else if (classes.length === 0) {
         errors.push('elements must contain at least one class');
     }
+    for (const requiredClass of contract?.requiredClasses ?? []) {
+        if (!names.has(requiredClass)) {
+            errors.push(`missing required class: ${requiredClass}`);
+        }
+    }
     for (const [index, element] of classes.entries()) {
-        if (typeof element.id !== 'string' || element.id.length === 0 || ids.has(element.id)) {
-            errors.push(`class[${index}] requires a unique string id`);
+        if (typeof element.id !== 'string' || !/^[0-9]+$/u.test(element.id) || ids.has(element.id)) {
+            errors.push(`class[${index}] requires a unique numeric clang-uml id`);
         } else {
             ids.add(element.id);
         }
-        if (!Array.isArray(element.members) || !Array.isArray(element.methods)) {
-            errors.push(`class[${index}] must retain clang-uml members and methods arrays`);
+        if (typeof element.name !== 'string' || element.name.length === 0
+            || typeof element.display_name !== 'string' || element.display_name.length === 0
+            || typeof element.namespace !== 'string') {
+            errors.push(`class[${index}] must retain clang-uml name, display_name and namespace`);
+        }
+        for (const field of ['is_abstract', 'is_nested', 'is_struct', 'is_template', 'is_union']) {
+            if (typeof element[field] !== 'boolean') {
+                errors.push(`class[${index}].${field} must be a clang-uml boolean`);
+            }
+        }
+        for (const field of ['bases', 'members', 'methods', 'template_parameters']) {
+            if (!Array.isArray(element[field])) {
+                errors.push(`class[${index}].${field} must be a clang-uml array`);
+            }
+        }
+        if (!element.source_location || typeof element.source_location !== 'object') {
+            errors.push(`class[${index}] requires clang-uml source_location`);
         }
         const sourcePath = String(element.source_location?.file ?? '').replaceAll('\\', '/');
+        const translationUnit = String(element.source_location?.translation_unit ?? '').replaceAll('\\', '/');
         if (!sourcePath || path.isAbsolute(sourcePath) || /^(?:tests?|third_party)\//iu.test(sourcePath)) {
-            errors.push(`class[${index}] requires a production repository-relative source path`);
+            errors.push(`class[${index}] requires a production repository-relative source path without test or third-party leakage`);
             continue;
+        }
+        if (contract && !contract.sourcePrefixes.some((prefix) => sourcePath.startsWith(prefix))) {
+            errors.push(`class[${index}] source is outside the allowed source prefix for ${diagram.name}: ${sourcePath}`);
+            continue;
+        }
+        if (!Number.isInteger(element.source_location?.line) || element.source_location.line <= 0
+            || !Number.isInteger(element.source_location?.column) || element.source_location.column <= 0
+            || !translationUnit
+            || (contract
+                && !contract.translationUnitPrefixes.some((prefix) => translationUnit.startsWith(prefix))
+                && !contract.translationUnitFiles.includes(translationUnit))) {
+            errors.push(`class[${index}] requires a valid diagram-specific clang-uml translation unit and location`);
         }
         const resolvedPath = path.resolve(root, sourcePath);
         if (!resolvedPath.startsWith(`${root}${path.sep}`)) {
@@ -614,6 +724,18 @@ export async function validateClassDiagram(diagram, options = {}) {
             errors.push(`class[${index}] source is missing from current checkout: ${sourcePath}`);
             continue;
         }
+        if (translationUnit) {
+            const resolvedTranslationUnit = path.resolve(root, translationUnit);
+            if (!resolvedTranslationUnit.startsWith(`${root}${path.sep}`)) {
+                errors.push(`class[${index}] translation unit escapes root: ${translationUnit}`);
+            } else {
+                try {
+                    await access(resolvedTranslationUnit);
+                } catch {
+                    errors.push(`class[${index}] translation unit is missing from current checkout: ${translationUnit}`);
+                }
+            }
+        }
         if (verifyBasisCommit) {
             const result = spawnSync('git', ['cat-file', '-e', `${CANONICAL_BASIS_COMMIT_SHA}:${sourcePath}`], {
                 cwd: root,
@@ -622,10 +744,24 @@ export async function validateClassDiagram(diagram, options = {}) {
             if (result.status !== 0) {
                 errors.push(`class[${index}] source is missing from basis commit: ${sourcePath}`);
             }
+            if (translationUnit) {
+                const translationUnitResult = spawnSync(
+                    'git',
+                    ['cat-file', '-e', `${CANONICAL_BASIS_COMMIT_SHA}:${translationUnit}`],
+                    { cwd: root, encoding: 'utf8' }
+                );
+                if (translationUnitResult.status !== 0) {
+                    errors.push(`class[${index}] translation unit is missing from basis commit: ${translationUnit}`);
+                }
+            }
         }
     }
 
-    if (!Array.isArray(diagram.relationships) || diagram.relationships.length === 0) {
+    if (!Array.isArray(diagram.relationships)) {
+        errors.push('relationships must be a clang-uml array');
+    } else if (contract && diagram.relationships.length < contract.minimumRelationships) {
+        errors.push(`relationships must contain minimum ${contract.minimumRelationships} entries for ${diagram.name}`);
+    } else if (diagram.relationships.length === 0) {
         errors.push('relationships must not be empty');
     }
     for (const [index, relationship] of (diagram.relationships ?? []).entries()) {
@@ -634,6 +770,9 @@ export async function validateClassDiagram(diagram, options = {}) {
         }
         if (typeof relationship?.type !== 'string' || relationship.type.length === 0) {
             errors.push(`relationship[${index}] type must be a non-empty string`);
+        }
+        if (relationship?.source === relationship?.destination) {
+            errors.push(`relationship[${index}] must not be a self relationship`);
         }
     }
     return errors;

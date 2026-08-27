@@ -6,8 +6,10 @@ import { spawnSync } from 'node:child_process';
 
 import { loadEvidence, validateEvidence } from './evidence.mjs';
 import {
+    renderClassDiagram,
     renderDiagram,
     renderIndex,
+    validateClassDiagram,
     validateDiagram
 } from './render-diagrams.mjs';
 
@@ -127,7 +129,11 @@ function hasDatedCheck(value) {
         && !Number.isNaN(Date.parse(value));
 }
 
-function validateClassDiagramProof(item, evidencePaths) {
+function normalizedTextSha256(content) {
+    return sha256(String(content).replaceAll('\r\n', '\n'));
+}
+
+async function validateClassDiagramProof(item, evidencePaths, options) {
     const errors = [];
     const proof = item.proof;
     if (proof?.tool !== 'clang-uml') {
@@ -148,6 +154,65 @@ function validateClassDiagramProof(item, evidencePaths) {
     for (const [index, requiredPath] of REQUIRED_CLASS_DIAGRAM_PATHS.entries()) {
         if (proofPaths[index] !== requiredPath || !evidencePaths.includes(requiredPath)) {
             errors.push(`${item.id}.proof.outputs: must list ${requiredPath}`);
+        }
+    }
+
+    const requiredInputs = [
+        ['config', '.clang-uml'],
+        ['generator', 'scripts/portfolio/generate-class-diagrams.ps1']
+    ];
+    for (const [inputName, requiredPath] of requiredInputs) {
+        const input = proof?.inputs?.[inputName];
+        const field = `${item.id}.proof.inputs.${inputName}`;
+        if (input?.path !== requiredPath) {
+            errors.push(`${field}.path: must be ${requiredPath}`);
+            continue;
+        }
+        if (!/^[0-9a-f]{64}$/u.test(input?.sha256 ?? '')) {
+            errors.push(`${field}.sha256: must be a lowercase SHA-256`);
+            continue;
+        }
+        try {
+            const content = await readFile(path.join(options.root, requiredPath), 'utf8');
+            if (normalizedTextSha256(content) !== input.sha256) {
+                errors.push(`${field}.sha256: current file does not match release provenance`);
+            }
+        } catch (error) {
+            errors.push(`${field}.path: cannot read ${requiredPath}: ${error.message}`);
+        }
+    }
+
+    for (const diagramName of ['engine', 'network']) {
+        const jsonPath = proof?.outputs?.[diagramName]?.json;
+        const htmlPath = proof?.outputs?.[diagramName]?.html;
+        if (jsonPath !== `docs/diagrams/class/${diagramName}.json`
+            || htmlPath !== `docs/diagrams/class/${diagramName}.html`) {
+            continue;
+        }
+        let diagram;
+        try {
+            diagram = JSON.parse(await readFile(path.join(options.root, jsonPath), 'utf8'));
+        } catch (error) {
+            errors.push(`${item.id}.proof.outputs.${diagramName}.json: raw clang-uml JSON is invalid: ${error.message}`);
+            continue;
+        }
+        const diagramErrors = await validateClassDiagram(diagram, {
+            root: options.root,
+            verifyBasisCommit: options.verifyClassBasisCommit ?? true
+        });
+        errors.push(...diagramErrors.map((error) => (
+            `${item.id}.proof.outputs.${diagramName}.json: raw clang-uml validation failed: ${error}`
+        )));
+        if (diagramErrors.length > 0) {
+            continue;
+        }
+        try {
+            const actualHtml = await readFile(path.join(options.root, htmlPath), 'utf8');
+            if (actualHtml !== renderClassDiagram(diagram)) {
+                errors.push(`${item.id}.proof.outputs.${diagramName}.html: does not match the production renderer`);
+            }
+        } catch (error) {
+            errors.push(`${item.id}.proof.outputs.${diagramName}.html: renderer output cannot be read: ${error.message}`);
         }
     }
     return errors;
@@ -354,7 +419,7 @@ async function validateVerifiedProof(item, evidencePaths, options) {
     }
 
     if (item.id === 'class-diagrams') {
-        return validateClassDiagramProof(item, evidencePaths);
+        return validateClassDiagramProof(item, evidencePaths, options);
     }
     if (item.id === 'portfolio-pdf') {
         return validatePdfProof(item, evidencePaths);
@@ -490,7 +555,8 @@ export async function validateReleaseStatus(document, options = {}) {
         const proofErrors = await validateVerifiedProof(item, evidencePaths, {
             root,
             realRoot,
-            items: document.items
+            items: document.items,
+            verifyClassBasisCommit: options.verifyClassBasisCommit
         });
         if (proofErrors.length > 0) {
             errors.push(`release-status.json.${id}.status: verified proof requirements are not satisfied`);
