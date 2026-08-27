@@ -45,7 +45,7 @@
         "assets/runtime/environment/prototype-floor.dxam",
         "assets/runtime/environment/colormap.dds"
       ],
-      "note": "현재 checkout의 세 runtime asset은 pointer가 아닌 파일이지만 공개 후보 checkout의 dated git lfs fsck 및 hydration proof는 아직 기록하지 않았다."
+      "note": "현재 checkout의 세 runtime asset은 pointer가 아닌 파일이지만 공개 후보 checkout의 committed pointer, object-store SHA 및 size, worktree hydration을 함께 대조한 dated proof는 아직 기록하지 않았다."
     },
     {
       "id": "current-head-builds",

@@ -1,4 +1,5 @@
-import { readFile, readdir, realpath, stat } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { lstat, readFile, readdir, realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
@@ -38,6 +39,11 @@ const REQUIRED_CLASS_DIAGRAM_PATHS = [
     'docs/diagrams/class/network.json',
     'docs/diagrams/class/engine.html',
     'docs/diagrams/class/network.html'
+];
+const REQUIRED_RUNTIME_LFS_PATHS = [
+    'assets/runtime/characters/cyber-runner.dxam',
+    'assets/runtime/environment/colormap.dds',
+    'assets/runtime/environment/prototype-floor.dxam'
 ];
 const MARKDOWN_SCAN_EXCLUSIONS = new Set([
     '.git',
@@ -189,20 +195,117 @@ function validateDemoProof(item, evidencePaths) {
     return errors;
 }
 
+function sha256(content) {
+    return createHash('sha256').update(content).digest('hex');
+}
+
+function parseLfsPointer(pointerText) {
+    const normalized = pointerText.replaceAll('\r\n', '\n');
+    const match = /^version https:\/\/git-lfs\.github\.com\/spec\/v1\noid sha256:([0-9a-f]{64})\nsize (0|[1-9][0-9]*)\n?$/u.exec(normalized);
+    if (!match) {
+        return null;
+    }
+    const size = Number(match[2]);
+    return Number.isSafeInteger(size) ? { oid: match[1], size } : null;
+}
+
+function runReadOnlyGit(root, argumentsList) {
+    return spawnSync('git', argumentsList, { cwd: root, encoding: 'utf8' });
+}
+
+function hasExactOrderedPaths(actualPaths, expectedPaths) {
+    return Array.isArray(actualPaths)
+        && actualPaths.length === expectedPaths.length
+        && actualPaths.every((entry, index) => entry === expectedPaths[index]);
+}
+
+async function validateLfsObject(item, lfsPath, index, options) {
+    const errors = [];
+    const field = `${item.id}.proof.paths[${index}]`;
+    const attribute = runReadOnlyGit(options.root, ['check-attr', 'filter', '--', lfsPath]);
+    if (attribute.status !== 0 || attribute.stdout.trim() !== `${lfsPath}: filter: lfs`) {
+        errors.push(`${field}: ${lfsPath} is not LFS-tracked`);
+    }
+
+    const blob = runReadOnlyGit(options.root, ['cat-file', 'blob', `HEAD:${lfsPath}`]);
+    if (blob.status !== 0) {
+        errors.push(`${field}.pointer: committed blob is missing`);
+        return errors;
+    }
+    const pointer = parseLfsPointer(blob.stdout);
+    if (!pointer) {
+        errors.push(`${field}.pointer: committed blob is not an exact Git LFS pointer`);
+        return errors;
+    }
+
+    const objectPath = path.join(
+        options.gitCommonDirectory,
+        'lfs',
+        'objects',
+        pointer.oid.slice(0, 2),
+        pointer.oid.slice(2, 4),
+        pointer.oid
+    );
+    let objectContent;
+    try {
+        const objectStats = await lstat(objectPath);
+        if (!objectStats.isFile()) {
+            errors.push(`${field}.object: LFS object path is not a regular file`);
+            return errors;
+        }
+        objectContent = await readFile(objectPath);
+    } catch (error) {
+        if (error.code === 'ENOENT') {
+            errors.push(`${field}.object: LFS object file is missing`);
+        } else {
+            errors.push(`${field}.object: LFS object file cannot be read (${error.message})`);
+        }
+        return errors;
+    }
+    if (objectContent.length !== pointer.size || sha256(objectContent) !== pointer.oid) {
+        errors.push(`${field}.object: object SHA-256 or size does not match committed pointer`);
+    }
+
+    const inspection = await inspectRepositoryPath(options.root, options.realRoot, lfsPath);
+    if (inspection.status !== 'found') {
+        return errors;
+    }
+    try {
+        const worktreePath = path.join(options.root, lfsPath);
+        const worktreeStats = await lstat(worktreePath);
+        if (!worktreeStats.isFile()) {
+            errors.push(`${field}.worktree: path is not a regular file`);
+            return errors;
+        }
+        const worktreeContent = await readFile(inspection.realTarget);
+        if (parseLfsPointer(worktreeContent.toString('utf8'))) {
+            errors.push(`${field}.worktree: path still contains an LFS pointer`);
+        } else if (worktreeContent.length !== objectContent.length
+            || sha256(worktreeContent) !== sha256(objectContent)) {
+            errors.push(`${field}.worktree: worktree SHA-256 or size does not match LFS object`);
+        }
+    } catch (error) {
+        errors.push(`${field}.worktree: path cannot be read (${error.message})`);
+    }
+    return errors;
+}
+
 async function validateLfsProof(item, evidencePaths, options) {
     const errors = [];
     const proof = item.proof;
     if (!hasDatedCheck(proof?.checkedAt)) {
         errors.push(`${item.id}.proof.checkedAt: must be a nonempty parseable date`);
     }
-    if (proof?.gitLfsFsckPassed !== true) {
-        errors.push(`${item.id}.proof.gitLfsFsckPassed: must be true`);
+    if (proof?.objectsVerified !== true) {
+        errors.push(`${item.id}.proof.objectsVerified: must be true`);
     }
     if (proof?.objectsHydrated !== true) {
         errors.push(`${item.id}.proof.objectsHydrated: must be true`);
     }
-    if (!Array.isArray(proof?.paths) || proof.paths.length === 0) {
-        errors.push(`${item.id}.proof.paths: must list hydrated LFS object paths`);
+    if (!hasExactOrderedPaths(proof?.paths, REQUIRED_RUNTIME_LFS_PATHS)) {
+        errors.push(`${item.id}.proof.paths: must exactly list the sorted runtime LFS paths`);
+    }
+    if (!Array.isArray(proof?.paths)) {
         return errors;
     }
     for (const [index, lfsPath] of proof.paths.entries()) {
@@ -210,23 +313,20 @@ async function validateLfsProof(item, evidencePaths, options) {
             errors.push(`${item.id}.proof.paths[${index}]: must name a listed evidence path`);
             continue;
         }
-        try {
-            const inspection = await inspectRepositoryPath(options.root, options.realRoot, lfsPath);
-            if (inspection.status !== 'found') {
-                continue;
-            }
-            const prefix = (await readFile(inspection.realTarget)).subarray(0, 64).toString('utf8');
-            if (prefix.startsWith('version https://git-lfs.github.com/spec/v1')) {
-                errors.push(`${item.id}.proof.paths[${index}]: worktree still contains an LFS pointer`);
-            }
-        } catch {
-            // The evidence-path validator reports missing and unreadable files with field context.
-        }
     }
-    if (proof.gitLfsFsckPassed === true) {
-        const result = spawnSync('git', ['lfs', 'fsck'], { cwd: options.root, encoding: 'utf8' });
-        if (result.status !== 0) {
-            errors.push(`${item.id}.proof.gitLfsFsckPassed: git lfs fsck does not pass in this checkout`);
+
+    const commonDirectory = runReadOnlyGit(options.root, ['rev-parse', '--git-common-dir']);
+    if (commonDirectory.status !== 0 || commonDirectory.stdout.trim().length === 0) {
+        errors.push(`${item.id}.proof.objectsVerified: Git common directory cannot be resolved`);
+        return errors;
+    }
+    const gitCommonDirectory = path.resolve(options.root, commonDirectory.stdout.trim());
+    for (const [index, lfsPath] of proof.paths.entries()) {
+        if (typeof lfsPath === 'string') {
+            errors.push(...await validateLfsObject(item, lfsPath, index, {
+                ...options,
+                gitCommonDirectory
+            }));
         }
     }
     return errors;
@@ -564,7 +664,10 @@ function collectReferenceDefinitions(markdown, mask) {
             }
             const target = parseDefinitionDestination(markdown, cursor, lineEnd);
             if (target !== null) {
-                definitions.set(normalizeReferenceLabel(label.value), target);
+                const normalizedLabel = normalizeReferenceLabel(label.value);
+                if (!definitions.has(normalizedLabel)) {
+                    definitions.set(normalizedLabel, target);
+                }
                 definitionLines.push({ start: lineStart, end: lineEnd });
             }
         }

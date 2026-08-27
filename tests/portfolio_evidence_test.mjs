@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { mkdtemp, mkdir, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
@@ -14,6 +16,11 @@ import {
 
 const basisCommitSha = '884e5e70d68d9fcf9dfe5638d97e06623da154c2';
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const requiredRuntimeLfsPaths = [
+    'assets/runtime/characters/cyber-runner.dxam',
+    'assets/runtime/environment/colormap.dds',
+    'assets/runtime/environment/prototype-floor.dxam'
+];
 const requiredCaseHeadings = [
     '## 상황',
     '## 재현',
@@ -82,6 +89,111 @@ async function withReleaseFixture(callback) {
     } finally {
         await rm(root, { recursive: true, force: true });
     }
+}
+
+function runFixtureGit(root, argumentsList, options = {}) {
+    const result = spawnSync('git', argumentsList, { cwd: root, encoding: 'utf8' });
+    if (result.status !== 0 && !options.allowFailure) {
+        throw new Error(`git ${argumentsList.join(' ')} failed: ${result.stderr || result.stdout}`);
+    }
+    return result;
+}
+
+function sha256(content) {
+    return createHash('sha256').update(content).digest('hex');
+}
+
+async function listFixtureFiles(root, directory = root) {
+    let entries;
+    try {
+        entries = await readdir(directory, { withFileTypes: true });
+    } catch (error) {
+        if (error.code === 'ENOENT') {
+            return [];
+        }
+        throw error;
+    }
+    const files = [];
+    for (const entry of entries) {
+        const entryPath = path.join(directory, entry.name);
+        if (entry.isDirectory()) {
+            files.push(...await listFixtureFiles(root, entryPath));
+        } else if (entry.isFile()) {
+            files.push(path.relative(root, entryPath).split(path.sep).join('/'));
+        }
+    }
+    return files.sort((left, right) => left.localeCompare(right, 'en'));
+}
+
+async function snapshotFixtureRepository(root, objectRoot) {
+    return {
+        status: runFixtureGit(root, ['status', '--porcelain=v1', '--untracked-files=all']).stdout,
+        objectPaths: await listFixtureFiles(objectRoot)
+    };
+}
+
+async function createLfsRepositoryFixture() {
+    const root = await mkdtemp(path.join(tmpdir(), 'dxa-portfolio-lfs-repository-'));
+    runFixtureGit(root, ['init']);
+    runFixtureGit(root, ['config', 'user.email', 'fixture@example.com']);
+    runFixtureGit(root, ['config', 'user.name', 'Fixture']);
+    runFixtureGit(root, ['config', 'core.autocrlf', 'false']);
+    runFixtureGit(root, ['config', 'filter.lfs.clean', 'cat']);
+    runFixtureGit(root, ['config', 'filter.lfs.smudge', 'cat']);
+    runFixtureGit(root, ['config', 'filter.lfs.required', 'false']);
+    runFixtureGit(root, ['config', 'filter.lfs.process', '']);
+
+    const assetRecords = requiredRuntimeLfsPaths.map((relativePath, index) => {
+        const content = Buffer.from(`runtime asset ${index}: ${relativePath}\n`, 'utf8');
+        return {
+            relativePath,
+            content,
+            oid: sha256(content),
+            size: content.length
+        };
+    });
+    await writeFile(path.join(root, '.gitattributes'), 'assets/runtime/** filter=lfs diff=lfs merge=lfs -text\n', 'utf8');
+    await writeFile(path.join(root, 'evidence.md'), '# evidence\n', 'utf8');
+    await writeFile(path.join(root, 'LICENSE'), 'fixture license\n', 'utf8');
+    for (const asset of assetRecords) {
+        const worktreePath = path.join(root, asset.relativePath);
+        await mkdir(path.dirname(worktreePath), { recursive: true });
+        await writeFile(
+            worktreePath,
+            `version https://git-lfs.github.com/spec/v1\noid sha256:${asset.oid}\nsize ${asset.size}\n`,
+            'utf8'
+        );
+    }
+
+    for (const relativePath of ['.gitattributes', 'evidence.md', 'LICENSE', ...requiredRuntimeLfsPaths]) {
+        const blob = runFixtureGit(root, ['hash-object', '-w', '--no-filters', relativePath]).stdout.trim();
+        runFixtureGit(root, ['update-index', '--add', '--cacheinfo', `100644,${blob},${relativePath}`]);
+    }
+    runFixtureGit(root, ['commit', '-m', 'fixture']);
+
+    const commonDirectoryOutput = runFixtureGit(root, ['rev-parse', '--git-common-dir']).stdout.trim();
+    const commonDirectory = path.resolve(root, commonDirectoryOutput);
+    const objectRoot = path.join(commonDirectory, 'lfs', 'objects');
+    for (const asset of assetRecords) {
+        const objectPath = path.join(objectRoot, asset.oid.slice(0, 2), asset.oid.slice(2, 4), asset.oid);
+        await mkdir(path.dirname(objectPath), { recursive: true });
+        await writeFile(objectPath, asset.content);
+        await writeFile(path.join(root, asset.relativePath), asset.content);
+        asset.objectPath = objectPath;
+    }
+
+    const document = createReleaseDocument();
+    const lfs = document.items.find((item) => item.id === 'lfs-object-availability');
+    lfs.status = 'verified';
+    lfs.evidence = [...requiredRuntimeLfsPaths];
+    lfs.proof = {
+        checkedAt: '2026-08-27T12:00:00+09:00',
+        objectsVerified: true,
+        objectsHydrated: true,
+        paths: [...requiredRuntimeLfsPaths]
+    };
+
+    return { root, objectRoot, assetRecords, document };
 }
 
 async function withFixture(callback) {
@@ -463,49 +575,80 @@ test('AWS cannot be verified unless resources, external test, and cleanup were a
     });
 });
 
-test('LFS object availability requires dated fsck and hydrated object proof before verified', async () => {
+test('LFS object availability requires dated object-store and hydration proof before verified', async () => {
     await withReleaseFixture(async (document, root) => {
         const lfs = document.items.find((item) => item.id === 'lfs-object-availability');
         lfs.status = 'verified';
         lfs.proof = {
             checkedAt: '',
-            gitLfsFsckPassed: false,
+            objectsVerified: false,
             objectsHydrated: false,
             paths: []
         };
 
         const errors = await validateReleaseStatus(document, { root });
 
-        for (const field of ['checkedAt', 'gitLfsFsckPassed', 'objectsHydrated', 'paths']) {
+        for (const field of ['checkedAt', 'objectsVerified', 'objectsHydrated', 'paths']) {
             assert.ok(errors.some((error) => error.includes(`lfs-object-availability.proof.${field}`)), field);
         }
     });
 });
 
-test('LFS verification rejects pointer files and a checkout where git lfs fsck does not pass', async () => {
-    await withReleaseFixture(async (document, root) => {
-        const pointerPath = 'assets/runtime/pointer.dxam';
-        await mkdir(path.join(root, 'assets/runtime'), { recursive: true });
-        await writeFile(
-            path.join(root, pointerPath),
-            'version https://git-lfs.github.com/spec/v1\noid sha256:0123456789abcdef\nsize 16\n',
-            'utf8'
-        );
-        const lfs = document.items.find((item) => item.id === 'lfs-object-availability');
-        lfs.status = 'verified';
-        lfs.evidence = [pointerPath];
-        lfs.proof = {
-            checkedAt: '2026-08-27T12:00:00+09:00',
-            gitLfsFsckPassed: true,
-            objectsHydrated: true,
-            paths: [pointerPath]
-        };
+test('LFS verification is read-only for exact tracked pointer, object-store, and worktree matches', async () => {
+    const fixture = await createLfsRepositoryFixture();
+    try {
+        const before = await snapshotFixtureRepository(fixture.root, fixture.objectRoot);
 
-        const errors = await validateReleaseStatus(document, { root });
+        const errors = await validateReleaseStatus(fixture.document, { root: fixture.root });
 
-        assert.ok(errors.some((error) => error.includes('worktree still contains an LFS pointer')));
-        assert.ok(errors.some((error) => error.includes('git lfs fsck does not pass')));
-    });
+        const after = await snapshotFixtureRepository(fixture.root, fixture.objectRoot);
+        assert.deepEqual(errors.filter((error) => error.includes('lfs-object-availability')), []);
+        assert.deepEqual(after, before);
+    } finally {
+        await rm(fixture.root, { recursive: true, force: true });
+    }
+});
+
+test('LFS verification rejects corrupted, missing, worktree-mismatched, and wrong-path objects read-only', async () => {
+    const fixture = await createLfsRepositoryFixture();
+    const [firstAsset] = fixture.assetRecords;
+    try {
+        await writeFile(firstAsset.objectPath, 'corrupt object\n', 'utf8');
+        let before = await snapshotFixtureRepository(fixture.root, fixture.objectRoot);
+        let errors = await validateReleaseStatus(fixture.document, { root: fixture.root });
+        let after = await snapshotFixtureRepository(fixture.root, fixture.objectRoot);
+        assert.ok(errors.some((error) => error.includes('object SHA-256 or size does not match committed pointer')));
+        assert.deepEqual(after, before);
+
+        await rm(firstAsset.objectPath, { force: true });
+        before = await snapshotFixtureRepository(fixture.root, fixture.objectRoot);
+        errors = await validateReleaseStatus(fixture.document, { root: fixture.root });
+        after = await snapshotFixtureRepository(fixture.root, fixture.objectRoot);
+        assert.ok(errors.some((error) => error.includes('LFS object file is missing')));
+        assert.deepEqual(after, before);
+
+        await mkdir(path.dirname(firstAsset.objectPath), { recursive: true });
+        await writeFile(firstAsset.objectPath, firstAsset.content);
+        await writeFile(path.join(fixture.root, firstAsset.relativePath), 'corrupt worktree\n', 'utf8');
+        before = await snapshotFixtureRepository(fixture.root, fixture.objectRoot);
+        errors = await validateReleaseStatus(fixture.document, { root: fixture.root });
+        after = await snapshotFixtureRepository(fixture.root, fixture.objectRoot);
+        assert.ok(errors.some((error) => error.includes('worktree SHA-256 or size does not match LFS object')));
+        assert.deepEqual(after, before);
+
+        await writeFile(path.join(fixture.root, firstAsset.relativePath), firstAsset.content);
+        const lfs = fixture.document.items.find((item) => item.id === 'lfs-object-availability');
+        lfs.evidence = [...requiredRuntimeLfsPaths.slice(0, 2), 'LICENSE'];
+        lfs.proof.paths = [...requiredRuntimeLfsPaths.slice(0, 2), 'LICENSE'];
+        before = await snapshotFixtureRepository(fixture.root, fixture.objectRoot);
+        errors = await validateReleaseStatus(fixture.document, { root: fixture.root });
+        after = await snapshotFixtureRepository(fixture.root, fixture.objectRoot);
+        assert.ok(errors.some((error) => error.includes('must exactly list the sorted runtime LFS paths')));
+        assert.ok(errors.some((error) => error.includes('LICENSE') && error.includes('not LFS-tracked')));
+        assert.deepEqual(after, before);
+    } finally {
+        await rm(fixture.root, { recursive: true, force: true });
+    }
 });
 
 test('v0.1.0 requires an actual local tag and every publication prerequisite', async () => {
@@ -611,6 +754,44 @@ test('Markdown link validation resolves full, collapsed, and shortcut references
             'README.md: local link target is missing: docs/missing-collapsed.md',
             'README.md: local link target is missing: docs/missing-shortcut.md'
         ]);
+    } finally {
+        await rm(root, { recursive: true, force: true });
+    }
+});
+
+test('Markdown duplicate references keep an earlier missing target over a later existing target', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'dxa-portfolio-reference-first-missing-'));
+    try {
+        await mkdir(path.join(root, 'docs'), { recursive: true });
+        await writeFile(path.join(root, 'docs', 'existing.md'), '# existing\n', 'utf8');
+        await writeFile(
+            path.join(root, 'README.md'),
+            '[target]: docs/missing.md\n[target]: docs/existing.md\n\n[target]\n',
+            'utf8'
+        );
+
+        const errors = await validateMarkdownLinks({ root, files: ['README.md'] });
+
+        assert.deepEqual(errors, ['README.md: local link target is missing: docs/missing.md']);
+    } finally {
+        await rm(root, { recursive: true, force: true });
+    }
+});
+
+test('Markdown duplicate references keep an earlier existing target over a later missing target', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'dxa-portfolio-reference-first-existing-'));
+    try {
+        await mkdir(path.join(root, 'docs'), { recursive: true });
+        await writeFile(path.join(root, 'docs', 'existing.md'), '# existing\n', 'utf8');
+        await writeFile(
+            path.join(root, 'README.md'),
+            '[target]: docs/existing.md\n[target]: docs/missing.md\n\n[target]\n',
+            'utf8'
+        );
+
+        const errors = await validateMarkdownLinks({ root, files: ['README.md'] });
+
+        assert.deepEqual(errors, []);
     } finally {
         await rm(root, { recursive: true, force: true });
     }
