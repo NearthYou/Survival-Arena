@@ -1,10 +1,22 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
+import path from 'node:path';
 import test from 'node:test';
 
 import { renderDiagram, validateDiagram } from '../scripts/portfolio/render-diagrams.mjs';
 
 const basisCommitSha = '884e5e70d68d9fcf9dfe5638d97e06623da154c2';
+const repositoryRoot = path.resolve(import.meta.dirname, '..');
+const generatedHtmlPaths = [
+    'docs/diagrams/game-start-sequence.html',
+    'docs/diagrams/room-lifecycle.html',
+    'docs/diagrams/snapshot-data-flow.html',
+    'docs/diagrams/system-architecture.html',
+    'docs/diagrams/class/engine.html',
+    'docs/diagrams/class/network.html',
+    'docs/diagrams/index.html'
+];
 const flowDiagramNames = [
     'system-architecture',
     'room-lifecycle',
@@ -68,6 +80,20 @@ function createSequenceDiagram() {
         ]
     };
 }
+
+test('generated HTML is pinned to LF for deterministic public Windows checkout', () => {
+    const result = spawnSync(
+        'git',
+        ['check-attr', 'eol', '--', ...generatedHtmlPaths],
+        { cwd: repositoryRoot, encoding: 'utf8' }
+    );
+
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.deepEqual(
+        result.stdout.trim().split(/\r?\n/u),
+        generatedHtmlPaths.map((relativePath) => `${relativePath}: eol: lf`)
+    );
+});
 
 test('rejects duplicate node IDs', async () => {
     const diagram = createFlowDiagram();
