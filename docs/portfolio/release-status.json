@@ -109,7 +109,7 @@
         "basisCommitSha": "884e5e70d68d9fcf9dfe5638d97e06623da154c2",
         "manifest": {
           "path": "docs/diagrams/class/manifest.json",
-          "sha256": "0b8358bb3f9d74816d8c78b91f7ee6c6f553eaf70467836bbfa66573ad5de978"
+          "sha256": "611c4958e0b2f01277e5768a923384fdbd6d77b1da405b35e66877d676374a66"
         },
         "inputs": {
           "config": {
@@ -118,7 +118,7 @@
           },
           "generator": {
             "path": "scripts/portfolio/generate-class-diagrams.ps1",
-            "sha256": "ffccda6ece35ae854cae4447fcd907d2ac9262fa697fc2fc9262cbb3e95492e4"
+            "sha256": "57dcb72288f921ca05b27ac2208dae123ddc427befe2da06343f0df54d758b78"
           }
         },
         "outputs": {
@@ -132,7 +132,7 @@
           }
         }
       },
-      "note": "clang-uml 0.6.3 raw AST JSON과 generation manifest에서 engine 9개 class와 5개 relationship, network 9개 class와 1개 relationship 및 compile, CMake, vcpkg provenance를 확인했다."
+      "note": "clang-uml 0.6.3 raw AST JSON과 privacy-safe generation snapshot manifest에서 engine 9개 class와 5개 relationship, network 9개 class와 1개 relationship 및 compile, CMake, vcpkg provenance를 확인했다."
     },
     {
       "id": "portfolio-pdf",

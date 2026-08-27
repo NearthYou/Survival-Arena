@@ -1,690 +1,717 @@
 {
-  "schemaVersion": 1,
-  "basis": {
-    "commitSha": "884e5e70d68d9fcf9dfe5638d97e06623da154c2",
-    "treeSha": "a3d167d7ddb3fadfe5ce9a2dfea6f5a58b170890"
-  },
-  "tooling": {
-    "clangUml": {
-      "version": "0.6.3",
-      "fullVersion": "clang-uml 0.6.3\nCopyright (C) 2021-2026 Bartek Kryza <bkryza@gmail.com>\nWindows, 32-bit\nBuilt against LLVM/Clang libraries version: 22.1.8\nUsing LLVM/Clang libraries version: clang version 22.1.8 (https://github.com/llvm/llvm-project.git ca7933e47d3a3451d81e72ac174dcb5aa28b59d1)",
-      "llvmIdentity": "clang version 22.1.8 (https://github.com/llvm/llvm-project.git ca7933e47d3a3451d81e72ac174dcb5aa28b59d1)"
-    },
-    "config": {
-      "path": ".clang-uml",
-      "sha256": "5808ccd8bcd03d89be982f8351e2efc4ebc65f0d77c2dbb6226e0a5028cc12bf"
-    },
-    "generator": {
-      "path": "scripts/portfolio/generate-class-diagrams.ps1",
-      "sha256": "ffccda6ece35ae854cae4447fcd907d2ac9262fa697fc2fc9262cbb3e95492e4"
-    },
-    "cmakeVersion": "cmake version 3.31.6-msvc6",
-    "ninjaVersion": "1.12.1",
-    "msvcVersion": "19.44.35228"
-  },
-  "compilation": {
-    "compileCommands": {
-      "path": "out/build/portfolio-clang-uml/compile_commands.json",
-      "sha256": "d0eb0a498d1c658c2bb5556bbe2a48b8b896318d8c1d0969aa9892611b016603",
-      "totalTranslationUnits": 172,
-      "selectedTranslationUnits": 44,
-      "selectedPathsSha256": "bc151ca0e304365bbce60b85fb4a16a87fb02485868e3844d1c0d519d42b97db",
-      "selectedPaths": [
-        "apps/game_client/src/ClientPredictor.cpp",
-        "apps/game_client/src/ClientSnapshotStream.cpp",
-        "apps/game_client/src/GameNetworkRuntime.cpp",
-        "apps/game_client/src/GameSession.cpp",
-        "apps/game_client/src/RemoteInterpolator.cpp",
-        "apps/game_client/src/SnapshotReassembler.cpp",
-        "apps/game_server/src/AuthoritativeMatch.cpp",
-        "apps/game_server/src/FixedTickScheduler.cpp",
-        "apps/game_server/src/GameServer.cpp",
-        "apps/game_server/src/GameServerOptions.cpp",
-        "apps/game_server/src/GameTicketStore.cpp",
-        "apps/game_server/src/InterestGrid.cpp",
-        "apps/game_server/src/ParticipantRoster.cpp",
-        "apps/game_server/src/SecureUdpTokenSource.cpp",
-        "apps/game_server/src/ServerMatchMetrics.cpp",
-        "apps/game_server/src/SnapshotReplicator.cpp",
-        "apps/game_server/src/main.cpp",
-        "apps/lobby_server/src/LobbyServerOptions.cpp",
-        "apps/lobby_server/src/LobbyService.cpp",
-        "apps/lobby_server/src/LobbyTcpServer.cpp",
-        "apps/lobby_server/src/MatchTicketRegistry.cpp",
-        "apps/lobby_server/src/Room.cpp",
-        "apps/lobby_server/src/SecureTicketSource.cpp",
-        "apps/lobby_server/src/WorkerControlServer.cpp",
-        "apps/lobby_server/src/WorkerRegistry.cpp",
-        "apps/lobby_server/src/main.cpp",
-        "engine/src/assets/AnimationPlayback.cpp",
-        "engine/src/assets/AssetFile.cpp",
-        "engine/src/benchmark/BenchmarkReport.cpp",
-        "engine/src/benchmark/GpuPassTiming.cpp",
-        "engine/src/benchmark/PerspectiveFrustum.cpp",
-        "engine/src/benchmark/StressScene.cpp",
-        "engine/src/windows/AssetSceneRenderer.cpp",
-        "engine/src/windows/EngineApp.cpp",
-        "engine/src/windows/ForwardRenderer.cpp",
-        "engine/src/windows/GpuFrameTimer.cpp",
-        "engine/src/windows/GpuSceneModel.cpp",
-        "engine/src/windows/GraphicsDevice.cpp",
-        "engine/src/windows/GroundPlanePicking.cpp",
-        "engine/src/windows/HybridDeferredPasses.cpp",
-        "engine/src/windows/HybridDeferredRenderer.cpp",
-        "engine/src/windows/SystemMetrics.cpp",
-        "engine/src/windows/Window.cpp",
-        "tests/engine_resource_pool_test.cpp"
-      ]
-    },
-    "cmakeCache": {
-      "path": "out/build/portfolio-clang-uml/CMakeCache.txt",
-      "sha256": "cf15d5806d349ff376d9d47ab47af4ebc89b3334bfffb6037438604384ccee2d",
-      "generator": "Ninja",
-      "homeDirectory": ".",
-      "buildDirectory": "out/build/portfolio-clang-uml",
-      "compiler": "C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/bin/Hostx64/x64/cl.exe",
-      "makeProgram": "C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/Ninja/ninja.exe",
-      "toolchain": "C:/Program Files/Microsoft Visual Studio/2022/Community/VC/vcpkg/scripts/buildsystems/vcpkg.cmake",
-      "vcpkgInstalled": "out/build/portfolio-clang-uml/vcpkg_installed"
-    }
-  },
-  "dependencies": {
-    "vcpkgManifest": {
-      "path": "vcpkg.json",
-      "sha256": "604d8c57255d4222f7e807abe090b5ae2940b25bdecdd8ee7c537bf8b4ba6bf3"
-    },
-    "vcpkgConfiguration": null,
-    "installed": {
-      "status": {
-        "path": "vcpkg/status",
-        "sha256": "8e3483cfcf179994fba1dcfc632325190401fde2404e333bcf5366b9d29e30f2"
-      },
-      "metadataFileCount": 142,
-      "metadataSetSha256": "ab673cbfa056c0a34ada7aaba82f2a4bdb363832648748dffb0de45c70246163",
-      "metadataFiles": [
-        {
-          "path": "vcpkg/info/assimp_6.0.4_x64-windows.list",
-          "sha256": "2ab7e836c48d425ce2ce2e5ae8867401183ea8f47cf4bc92c557337813e48c08"
-        },
-        {
-          "path": "vcpkg/info/boost-algorithm_1.92.0_x64-windows.list",
-          "sha256": "a25e611baa4071b80e759ac19785f601f7cd9b89b914281b29e335c42f29d684"
-        },
-        {
-          "path": "vcpkg/info/boost-align_1.92.0_x64-windows.list",
-          "sha256": "6efcc691a43e399a4095633c6430ce8560691621a86960f2e65ef605875183fa"
-        },
-        {
-          "path": "vcpkg/info/boost-array_1.92.0_x64-windows.list",
-          "sha256": "260d759f47846756351b220a578d8fc7049960bb59924df150df63a6ec54590b"
-        },
-        {
-          "path": "vcpkg/info/boost-asio_1.92.0_x64-windows.list",
-          "sha256": "308af5fed66258e007b58b615ceacfb09c8a03e663d4e7257988c3bf84151a6f"
-        },
-        {
-          "path": "vcpkg/info/boost-assert_1.92.0_x64-windows.list",
-          "sha256": "49947b8321bd61a6540aa97eab64a0a1a6cf715c19f769c8ada7449eb7b7046f"
-        },
-        {
-          "path": "vcpkg/info/boost-bind_1.92.0_x64-windows.list",
-          "sha256": "121341bb09deb67527a87a0a745db5013c25e1e44dcf17f4d7ff554d211b515d"
-        },
-        {
-          "path": "vcpkg/info/boost-cmake_1.92.0_x64-windows.list",
-          "sha256": "aa18f0250f77b7b36a7efa61c46911b71aeb012aa0fa24b515b455b254118b11"
-        },
-        {
-          "path": "vcpkg/info/boost-compat_1.92.0_x64-windows.list",
-          "sha256": "8601cb72e40382098118bb669f1bccdcf28bf559965c9065e78b600f10e2d668"
-        },
-        {
-          "path": "vcpkg/info/boost-concept-check_1.92.0_x64-windows.list",
-          "sha256": "21db4cb00e9f807b03bc13ef2b886a2a7174a384725a6ec5c853baa3323e4620"
-        },
-        {
-          "path": "vcpkg/info/boost-config_1.92.0_x64-windows.list",
-          "sha256": "ffa950c43b4d686807f3378894a281ae7e6aee6a7e39c74f2eeddb78177cc0c6"
-        },
-        {
-          "path": "vcpkg/info/boost-container-hash_1.92.0_x64-windows.list",
-          "sha256": "ec4c2bc050c2adb5de042f2367cfda351bde8d671bb7f76b1aa5285e9f1ad385"
-        },
-        {
-          "path": "vcpkg/info/boost-container_1.92.0_x64-windows.list",
-          "sha256": "cb5571f08ef96703cee2c5730a7ca8612bb69b56951ef7668c6ac59bf20d0dd1"
-        },
-        {
-          "path": "vcpkg/info/boost-context_1.92.0_x64-windows.list",
-          "sha256": "33a5f3546241836aa71f568f00656a369ec0ca3053f011b1fcbce17b7a3d5b5f"
-        },
-        {
-          "path": "vcpkg/info/boost-conversion_1.92.0_x64-windows.list",
-          "sha256": "49b4a603caff63deebe50feb04a481e33426750789257623d49982238b6d0189"
-        },
-        {
-          "path": "vcpkg/info/boost-core_1.92.0_x64-windows.list",
-          "sha256": "c01b34d73b605128c008aaa84c9186595e0721ef870af920a75c90038fd8f914"
-        },
-        {
-          "path": "vcpkg/info/boost-date-time_1.92.0_x64-windows.list",
-          "sha256": "0294e87af8c2e54a0cfd6803ce8f693476356eda2e6934e0ce7a9640b2fe1816"
-        },
-        {
-          "path": "vcpkg/info/boost-describe_1.92.0_x64-windows.list",
-          "sha256": "5594fefac33913e3f0119b63b2fbfd943a5e73336acf6d7bc8da3d4baf05fd97"
-        },
-        {
-          "path": "vcpkg/info/boost-detail_1.92.0_x64-windows.list",
-          "sha256": "14297a232c6a42aa3ef19601590bdaf449037b2e45d593213611561627b32919"
-        },
-        {
-          "path": "vcpkg/info/boost-exception_1.92.0_x64-windows.list",
-          "sha256": "18845c7a597edb75fcbbdece87987c57209f3b1aff4f7f405dcf6da24237ac06"
-        },
-        {
-          "path": "vcpkg/info/boost-function-types_1.92.0_x64-windows.list",
-          "sha256": "6c6332dc36c88bbfb4eb86fa642c46acc9d9f95fc6310c8e2677f051c0ff1af9"
-        },
-        {
-          "path": "vcpkg/info/boost-function_1.92.0_x64-windows.list",
-          "sha256": "e48da196b95abebb7aed3d8c74ef886ee6d01669d0cd782ab77fe6d7844509cc"
-        },
-        {
-          "path": "vcpkg/info/boost-fusion_1.92.0_x64-windows.list",
-          "sha256": "a5704836e635619d4e66b630cf52e43cc49b55a0b87f1c696fca6a5fd7cd7a52"
-        },
-        {
-          "path": "vcpkg/info/boost-headers_1.92.0_x64-windows.list",
-          "sha256": "75827a4b39c9f56ecde11fa62cf12948d5aa406611da4b23ab59214429a89257"
-        },
-        {
-          "path": "vcpkg/info/boost-integer_1.92.0_x64-windows.list",
-          "sha256": "3580e6eaf70d38ae8e7e8a38e0ef4c5aff7ae439a15b5facbdce33e07792c696"
-        },
-        {
-          "path": "vcpkg/info/boost-intrusive_1.92.0_x64-windows.list",
-          "sha256": "4b1d1783b0579594af0e6684ffd3f72ca6ce5c65a0f94c3acc89883f4db6c7b2"
-        },
-        {
-          "path": "vcpkg/info/boost-io_1.92.0_x64-windows.list",
-          "sha256": "e166c12a4ac0093854c5d72ab5eec44948d0846cadcd545cad5b1964b5d0ee84"
-        },
-        {
-          "path": "vcpkg/info/boost-iterator_1.92.0_x64-windows.list",
-          "sha256": "ec73fa2ec9000200340dbc888e3e3d0ff33815b19ffaeb7f3e26edfa102e6348"
-        },
-        {
-          "path": "vcpkg/info/boost-lexical-cast_1.92.0_x64-windows.list",
-          "sha256": "f65cdbc96c3d8e9ceb11f6ec3701a74b9ff6ad64448511ee6461d12cf0c2d90a"
-        },
-        {
-          "path": "vcpkg/info/boost-move_1.92.0_x64-windows.list",
-          "sha256": "a709b8d7cbd7e892e5bcbb2cf59b9165647c57c8702abbcdd652e09b5505c5ba"
-        },
-        {
-          "path": "vcpkg/info/boost-mp11_1.92.0_x64-windows.list",
-          "sha256": "1ace229e7c849c0dc2c5d99e760efb546d6f54b9a8d4c30c8fed5fda387a00b2"
-        },
-        {
-          "path": "vcpkg/info/boost-mpl_1.92.0_x64-windows.list",
-          "sha256": "24f4a00b9c52e042fe1f83a4ae3c24ad39dee39fecf21d3c2a9b6f06aaea3d1d"
-        },
-        {
-          "path": "vcpkg/info/boost-numeric-conversion_1.92.0_x64-windows.list",
-          "sha256": "70cb5ca77081ad161367e9465d9f1223be68625e25c3f6d7a2076abff5673fef"
-        },
-        {
-          "path": "vcpkg/info/boost-optional_1.92.0_x64-windows.list",
-          "sha256": "a61be32f9dbd5ec0c84c3271c79b732caa87c479e835aebfcf9ddd559c1eae0c"
-        },
-        {
-          "path": "vcpkg/info/boost-pool_1.92.0_x64-windows.list",
-          "sha256": "ac27595e22ced8731ccc8859102672f32306eefdbc46591c18db876ce9cfc17d"
-        },
-        {
-          "path": "vcpkg/info/boost-predef_1.92.0_x64-windows.list",
-          "sha256": "ff4ce88ae7566cfa383a154bae91e8edeab1e142476c5f42ac6ced2265d05c8d"
-        },
-        {
-          "path": "vcpkg/info/boost-preprocessor_1.92.0_x64-windows.list",
-          "sha256": "752b5ff803db61cf021a1e0d3852bf33820732154877d812ceb8e28ca63c105c"
-        },
-        {
-          "path": "vcpkg/info/boost-range_1.92.0_x64-windows.list",
-          "sha256": "962779355387cb002749b77e366d30788fbe196e33d025b6bfb2fb58f9780ceb"
-        },
-        {
-          "path": "vcpkg/info/boost-regex_1.92.0_x64-windows.list",
-          "sha256": "5a16d4e22ccaa448434bb9ba09a6feea42b689a8532f89bfb72181cd986bf06c"
-        },
-        {
-          "path": "vcpkg/info/boost-smart-ptr_1.92.0_x64-windows.list",
-          "sha256": "da34de27e22c20a85c0c57c11df18c482398d5c5947efe752a755b08f3c3c9e6"
-        },
-        {
-          "path": "vcpkg/info/boost-static-assert_1.92.0_x64-windows.list",
-          "sha256": "4e5ee85095bffca0b82913e09c7dbc89d82255a5e39d7e6041cdb557213e2463"
-        },
-        {
-          "path": "vcpkg/info/boost-system_1.92.0_x64-windows.list",
-          "sha256": "97108de57fdfa6b3312abd1f46747a836ce755870c263082f0030d290bcee7cb"
-        },
-        {
-          "path": "vcpkg/info/boost-throw-exception_1.92.0_x64-windows.list",
-          "sha256": "af27e331be273bda98bd57d3e0404574b8b1e68de636a34e39103d07e4f3a368"
-        },
-        {
-          "path": "vcpkg/info/boost-tokenizer_1.92.0_x64-windows.list",
-          "sha256": "0667419e4ab8463ce0c78c028d0e651128bf7113fbe5f2930d4d05974da63665"
-        },
-        {
-          "path": "vcpkg/info/boost-tuple_1.92.0_x64-windows.list",
-          "sha256": "b8eb0f9003b64d2d91b4d1c9f3c5d03c943a4febafb0d9980dcea7044064aea8"
-        },
-        {
-          "path": "vcpkg/info/boost-type-traits_1.92.0_x64-windows.list",
-          "sha256": "969f9fa442e1f4ebe7bde9295378aa63110d109b758dfc017885748b1a14dee6"
-        },
-        {
-          "path": "vcpkg/info/boost-typeof_1.92.0_x64-windows.list",
-          "sha256": "604418a5a5a753589b5a2346ddd585ded1379ebf402121ba65b9ce15085e9bd9"
-        },
-        {
-          "path": "vcpkg/info/boost-uninstall_1.92.0_x64-windows.list",
-          "sha256": "c8473198c77652d99255627a37e257470f1eacc586e1cf861d45c88a6755110f"
-        },
-        {
-          "path": "vcpkg/info/boost-unordered_1.92.0_x64-windows.list",
-          "sha256": "8138f57fa5d0e2e538476954bb4e981c4884e78c3e7667624714407cdb607b84"
-        },
-        {
-          "path": "vcpkg/info/boost-utility_1.92.0_x64-windows.list",
-          "sha256": "8bca504e2abfc3243b9776832b69858a915d64ff030eee392d759ac516df6231"
-        },
-        {
-          "path": "vcpkg/info/boost-variant2_1.92.0_x64-windows.list",
-          "sha256": "fb2986c8a3bf8a97ba384a6f239dd3a55975f93cc673cc412c573b3f8f8d749a"
-        },
-        {
-          "path": "vcpkg/info/boost-winapi_1.92.0_x64-windows.list",
-          "sha256": "1c56db447df34269b2551cb250d5e593ac310e38c81a24717cbd0625a9e1ff06"
-        },
-        {
-          "path": "vcpkg/info/directxmath_2026-06-12_x64-windows.list",
-          "sha256": "fb66ed3c3b3bf0b99f8f5fec1bb02f2242edf14f0261323e3954accf5af6740a"
-        },
-        {
-          "path": "vcpkg/info/directxtex_2026-05-07_x64-windows.list",
-          "sha256": "e9746b19a42e6b6d15f4a2ff47d2c2516b861125dd52af756e1dfd8d65ada94b"
-        },
-        {
-          "path": "vcpkg/info/directxtk_2026-05-07_x64-windows.list",
-          "sha256": "4e8acb3491e6b4775c52b4cbd0f35d8ff4b250fe2ecd1cd9a3fa50fb8d6ec447"
-        },
-        {
-          "path": "vcpkg/info/fmt_12.2.0_x64-windows.list",
-          "sha256": "96d272562b7a5c4cf7ea53da6d05f14579923458683edef07d4db95638faf991"
-        },
-        {
-          "path": "vcpkg/info/gtest_1.18.0_x64-windows.list",
-          "sha256": "93a9e9b54c57c5d1d600b7746618182dc2377609aab9382ad088dc39cdf2a77a"
-        },
-        {
-          "path": "vcpkg/info/jhasse-poly2tri_2023-12-27_x64-windows.list",
-          "sha256": "68c2108b20e71b53cfbc32078501bddf18a5233b9c382914f1178f9bc9c1f24d"
-        },
-        {
-          "path": "vcpkg/info/kubazip_0.3.14_x64-windows.list",
-          "sha256": "b2ad686e63404b4406d8f67682f9e4c1dea62cf5acf1365c0c6540cd76459ba1"
-        },
-        {
-          "path": "vcpkg/info/minizip_1.3.2_x64-windows.list",
-          "sha256": "9807c7e8c094bd58f6990948e40011aed6c58473fa116237b79adb93d539797f"
-        },
-        {
-          "path": "vcpkg/info/polyclipping_6.4.2_x64-windows.list",
-          "sha256": "a9b71eb3b6b079e015c1b08645b49eb90e1f73cb1bc90416e95b3c371697c26c"
-        },
-        {
-          "path": "vcpkg/info/pugixml_1.16_x64-windows.list",
-          "sha256": "6947bc927bb889b123d7aaf115e2eca8d216aced0bafcb2cc4be21ae026e8ddd"
-        },
-        {
-          "path": "vcpkg/info/rapidjson_2025-02-26_x64-windows.list",
-          "sha256": "365c3233a92c8f3cd95bcd6fa3b6ab66ea0f8199d7100ea718f6f93b1e5802bd"
-        },
-        {
-          "path": "vcpkg/info/spdlog_1.17.0_x64-windows.list",
-          "sha256": "32d5e83bdd222f655f47924254077bf9cab76f5b7090badcea3a74ea24d47190"
-        },
-        {
-          "path": "vcpkg/info/stb_2024-07-29_x64-windows.list",
-          "sha256": "79fe640e463fce0727c5dfd59804d781e95412b368b1e2238f2dc66be0887ebb"
-        },
-        {
-          "path": "vcpkg/info/utfcpp_4.1.1_x64-windows.list",
-          "sha256": "b0c8a37dad9891de3aa1bd474c752cf2d1bd8f9462f7a096931dcc8f86c2310a"
-        },
-        {
-          "path": "vcpkg/info/vcpkg-boost_2026-08-21_x64-windows.list",
-          "sha256": "95c68d86913e3ed6f09f773dff521910c416221e5f44d32e65e15b53a173053a"
-        },
-        {
-          "path": "vcpkg/info/vcpkg-cmake-config_2026-07-21_x64-windows.list",
-          "sha256": "69e0644c7bb61ef1acf15e336db105a5b11e5756bc379cf07d2e89a1b486e033"
-        },
-        {
-          "path": "vcpkg/info/vcpkg-cmake-get-vars_2025-05-29_x64-windows.list",
-          "sha256": "16bcfeb42a8039ba91fb1bff33c6cad02322820b12d8baf5a227754d5fec7b5e"
-        },
-        {
-          "path": "vcpkg/info/vcpkg-cmake_2025-08-07_x64-windows.list",
-          "sha256": "c6e412bc967c160e890fcd791ab7d07e6cf2325d3fed4f3d731ac8e268d0f335"
-        },
-        {
-          "path": "vcpkg/info/zlib_1.3.2_x64-windows.list",
-          "sha256": "e2f55e9069a77a9f6bc7c6b35b2871ea8930ded0f6f11bc2afc42d3a8d7d6d8c"
-        },
-        {
-          "path": "x64-windows/share/assimp/vcpkg_abi_info.txt",
-          "sha256": "652add0f9e22279ebc5e62759616e88bc8a3a0e9513fa244554580918e1d91bb"
-        },
-        {
-          "path": "x64-windows/share/boost-algorithm/vcpkg_abi_info.txt",
-          "sha256": "98242d75d1d712b2baeec705eadb212d8577d8df391f61e210d52937782dd26d"
-        },
-        {
-          "path": "x64-windows/share/boost-align/vcpkg_abi_info.txt",
-          "sha256": "3daff12caa2c23e398b127569e382ea7cae63e7059fbfe01ba88373152f6906c"
-        },
-        {
-          "path": "x64-windows/share/boost-array/vcpkg_abi_info.txt",
-          "sha256": "536d9251cb4eddb075e72a24da9d1fc8692ef792f3207f8df6f12ea51c1a3590"
-        },
-        {
-          "path": "x64-windows/share/boost-asio/vcpkg_abi_info.txt",
-          "sha256": "25d0ed6ebfd67bd766ee01808318381e73754bc7096ca8a7e3db41055b2dc139"
-        },
-        {
-          "path": "x64-windows/share/boost-assert/vcpkg_abi_info.txt",
-          "sha256": "483c160f152ab450c9533acc751545fcf162537919d01145d11e5003f74f0c50"
-        },
-        {
-          "path": "x64-windows/share/boost-bind/vcpkg_abi_info.txt",
-          "sha256": "69d8e7de1f1ffcc86c0e2221cb468af330f90129eff1a2da5b5d093790c72615"
-        },
-        {
-          "path": "x64-windows/share/boost-cmake/vcpkg_abi_info.txt",
-          "sha256": "ef82d483079d679e3a9fb989f924a0d8ffb9bbd6d421561ea9d75a3cf0a49cfb"
-        },
-        {
-          "path": "x64-windows/share/boost-compat/vcpkg_abi_info.txt",
-          "sha256": "367202eb26d5fd67afde561a40f4dccd49eeaa77f089b6f4c8d0f8a3813af2cf"
-        },
-        {
-          "path": "x64-windows/share/boost-concept-check/vcpkg_abi_info.txt",
-          "sha256": "dd31e0899ba9bc0c9b9ae910f5c2ac1069825cedad049117760885274209cfe8"
-        },
-        {
-          "path": "x64-windows/share/boost-config/vcpkg_abi_info.txt",
-          "sha256": "6536d9a950ccfc857cdc0dadf7f554bee4696101ff952e2d442e94da4da1fa61"
-        },
-        {
-          "path": "x64-windows/share/boost-container-hash/vcpkg_abi_info.txt",
-          "sha256": "897e1495abd8c108059b69c483a194f33aa351275b479198f795c0554c6464d8"
-        },
-        {
-          "path": "x64-windows/share/boost-container/vcpkg_abi_info.txt",
-          "sha256": "15b6dd9a7d594168bbf7c7e75151c494ce1a336032ada52c9cd40b93507eeb97"
-        },
-        {
-          "path": "x64-windows/share/boost-context/vcpkg_abi_info.txt",
-          "sha256": "5ede6cbdc1d86ebc6a6367eab774e4af8d205c3738a0b80e80c1b200155ec1ac"
-        },
-        {
-          "path": "x64-windows/share/boost-conversion/vcpkg_abi_info.txt",
-          "sha256": "9f0177c9f140907cc50cb99c799c2a2ed90c2d5f41e32cf6f51dd6a86a7ec026"
-        },
-        {
-          "path": "x64-windows/share/boost-core/vcpkg_abi_info.txt",
-          "sha256": "2693bd0288b91a0e153c8dadb9e6549eb80cb1494797d3c50b58d6e82881e8e9"
-        },
-        {
-          "path": "x64-windows/share/boost-date-time/vcpkg_abi_info.txt",
-          "sha256": "f34a4e9d41f65802030a00b47d57b6cd6b0e05aaca07d24bea34f60ab3c7ebca"
-        },
-        {
-          "path": "x64-windows/share/boost-describe/vcpkg_abi_info.txt",
-          "sha256": "c0c8f8853907f0a04fe3055f0abf7f98a1e0a8aa88ee6ea7c5ae02e4b6fa0475"
-        },
-        {
-          "path": "x64-windows/share/boost-detail/vcpkg_abi_info.txt",
-          "sha256": "28ddeb4aa16d81d8683b9440eb3c275fd06cb2fdcb6e8b10a64926ae32bef7d9"
-        },
-        {
-          "path": "x64-windows/share/boost-exception/vcpkg_abi_info.txt",
-          "sha256": "4b32b3e6782b4e47ff7784c08fa8ed4bab9e76e10a3f60f7db64624f5d8e7dda"
-        },
-        {
-          "path": "x64-windows/share/boost-function-types/vcpkg_abi_info.txt",
-          "sha256": "35eaf1f85f38948fd4b3211a18023f719ea0de8d82bd3c8e1d6a03e7e0ac4f27"
-        },
-        {
-          "path": "x64-windows/share/boost-function/vcpkg_abi_info.txt",
-          "sha256": "db29240f77387ef8245689bf5beb3be73013043cd4ce67f318ba9bab94b814c9"
-        },
-        {
-          "path": "x64-windows/share/boost-fusion/vcpkg_abi_info.txt",
-          "sha256": "b1378c3de75169f58c46d44f9d57b5ba84b1ef3f03757a41252eb423442a2746"
-        },
-        {
-          "path": "x64-windows/share/boost-headers/vcpkg_abi_info.txt",
-          "sha256": "8c16420ba07c10d5ce2e2f0825085b7250835512c219e99ecafa3f5b6d3c932f"
-        },
-        {
-          "path": "x64-windows/share/boost-integer/vcpkg_abi_info.txt",
-          "sha256": "1fb9d75434404db1e052979c90eba10d78d09931840d0a93f0de5fb093112bba"
-        },
-        {
-          "path": "x64-windows/share/boost-intrusive/vcpkg_abi_info.txt",
-          "sha256": "6bbf4a07e99fd09b788c13a89b6fc3e78da3a23b5382873dbf93ce4e862b7f7f"
-        },
-        {
-          "path": "x64-windows/share/boost-io/vcpkg_abi_info.txt",
-          "sha256": "de3c899e1479e62cfb753bf6a63ff663a6135352ba50823423bee07bbd5776e3"
-        },
-        {
-          "path": "x64-windows/share/boost-iterator/vcpkg_abi_info.txt",
-          "sha256": "f756fe098b4ecd36ceb1bdbffcde5f8610e1faf95cbd84db96a6dd0063241331"
-        },
-        {
-          "path": "x64-windows/share/boost-lexical-cast/vcpkg_abi_info.txt",
-          "sha256": "e30b6d254e8afdbe0e959dc38e1dbac7496b1d5ee1bd06bf1e683d497ce7576a"
-        },
-        {
-          "path": "x64-windows/share/boost-move/vcpkg_abi_info.txt",
-          "sha256": "0d947b2dc3361c769cde4b8f2efea7d0481a0aebcbcbda2c95165314109dbb26"
-        },
-        {
-          "path": "x64-windows/share/boost-mp11/vcpkg_abi_info.txt",
-          "sha256": "288895f32afb6b24a1026f60ba5bc5747a66a1c4085e9844e260c71ba3f7f51d"
-        },
-        {
-          "path": "x64-windows/share/boost-mpl/vcpkg_abi_info.txt",
-          "sha256": "a14625be8528b58e37661031fd2b6acea066e77698501377ad4312e0733a93d4"
-        },
-        {
-          "path": "x64-windows/share/boost-numeric-conversion/vcpkg_abi_info.txt",
-          "sha256": "44c42efcc6e36b4483eff636b02dd44b35ef164cdcf22e4f8750894e3a1c74b0"
-        },
-        {
-          "path": "x64-windows/share/boost-optional/vcpkg_abi_info.txt",
-          "sha256": "e971147092d452f2823b0cad28f3cadb2324ef33996904728673d13b0c5e7258"
-        },
-        {
-          "path": "x64-windows/share/boost-pool/vcpkg_abi_info.txt",
-          "sha256": "fbfe6e4cd55580ad292413bdbc61e3035804d6f84b3a7f14c35d36dffa490a47"
-        },
-        {
-          "path": "x64-windows/share/boost-predef/vcpkg_abi_info.txt",
-          "sha256": "f73bd62ccdc2a503eb05b5f3ac6665e62f2e32796a292b4ae781b9207bfa6de1"
-        },
-        {
-          "path": "x64-windows/share/boost-preprocessor/vcpkg_abi_info.txt",
-          "sha256": "8108dab492aff1f59e3fe15b5852a32ce3b7660a9711df7040d81bb52bb90200"
-        },
-        {
-          "path": "x64-windows/share/boost-range/vcpkg_abi_info.txt",
-          "sha256": "b0be4108b7ddcfd112f150b8421e85a1efff6759a12931148b95a55096ec9a76"
-        },
-        {
-          "path": "x64-windows/share/boost-regex/vcpkg_abi_info.txt",
-          "sha256": "8fa2caa19549a1fbe2fc60c29eac9e2d56894899f276ccf5536e5e0a531df443"
-        },
-        {
-          "path": "x64-windows/share/boost-smart-ptr/vcpkg_abi_info.txt",
-          "sha256": "1aab10c393cd55f480a59fb716e53de2ab4cefa0a3affb14a1bbdd217a2f5d08"
-        },
-        {
-          "path": "x64-windows/share/boost-static-assert/vcpkg_abi_info.txt",
-          "sha256": "9445852aba26ed0ebbdc5181c423519907baf31e9cb9d3e0658bc76d07339066"
-        },
-        {
-          "path": "x64-windows/share/boost-system/vcpkg_abi_info.txt",
-          "sha256": "f7dbb3f2c405e8d933c74097d82afeb63ce3d3822555dcc820e932ac7d89f48e"
-        },
-        {
-          "path": "x64-windows/share/boost-throw-exception/vcpkg_abi_info.txt",
-          "sha256": "a21a2585137880d846a4f82529ed6a52449a58c7657a154fc29fb5868ccb5c65"
-        },
-        {
-          "path": "x64-windows/share/boost-tokenizer/vcpkg_abi_info.txt",
-          "sha256": "cf694c82a7415d92a66da19f91a60df709d64dfbad13366470bb6ab1d6e880ae"
-        },
-        {
-          "path": "x64-windows/share/boost-tuple/vcpkg_abi_info.txt",
-          "sha256": "c7c1769b2d3bc257bfc7101670013cce5ca2f8cde7ffeb3828babb2fac224367"
-        },
-        {
-          "path": "x64-windows/share/boost-type-traits/vcpkg_abi_info.txt",
-          "sha256": "96bd0fbb413f455077e6c41a6bc3fee72067311d22669321d227cff1319dea5b"
-        },
-        {
-          "path": "x64-windows/share/boost-typeof/vcpkg_abi_info.txt",
-          "sha256": "ca7ec0eb0eb62e7eb387e560a8e326960289095c2c4cdc353cfc4442c4ffd496"
-        },
-        {
-          "path": "x64-windows/share/boost-uninstall/vcpkg_abi_info.txt",
-          "sha256": "6b8e87565bc546527990b3845dda844f6cada978b1659a8c3dc0233c3f65e6a2"
-        },
-        {
-          "path": "x64-windows/share/boost-unordered/vcpkg_abi_info.txt",
-          "sha256": "08a1e6521bd53b960ef951b34e51ab07894eb489c04838d8590239265f4af5b4"
-        },
-        {
-          "path": "x64-windows/share/boost-utility/vcpkg_abi_info.txt",
-          "sha256": "c57d4e5d26c7775dad0a92afac8ef4d55a7496cd510fa96305da6cfd49992075"
-        },
-        {
-          "path": "x64-windows/share/boost-variant2/vcpkg_abi_info.txt",
-          "sha256": "aff0fa4df6b72baaa409baf0b4c9a51b80ed8021dcb3aa3ec37d3bc1439298f8"
-        },
-        {
-          "path": "x64-windows/share/boost-winapi/vcpkg_abi_info.txt",
-          "sha256": "b0bcc688a0c6cbaef6635daeb76b16fdb9101484a9c01c29233292a1e01e8d2d"
-        },
-        {
-          "path": "x64-windows/share/directxmath/vcpkg_abi_info.txt",
-          "sha256": "0ec671c83218fa890f8bc749c99f0f09c174eecfe8156da77fef388445ae908f"
-        },
-        {
-          "path": "x64-windows/share/directxtex/vcpkg_abi_info.txt",
-          "sha256": "227b357827452c80316d4d1a631b86202a568f1a82f40f9c163b8175016b6f7e"
-        },
-        {
-          "path": "x64-windows/share/directxtk/vcpkg_abi_info.txt",
-          "sha256": "50b6884eaf2ae13ebe4dd771085cba92fde5510b27b267910631a6fe04ad8db5"
-        },
-        {
-          "path": "x64-windows/share/fmt/vcpkg_abi_info.txt",
-          "sha256": "63e5989880e880003cfabb2d2898af53f23b28cdea3cfa4a249e91a1c5ff33b6"
-        },
-        {
-          "path": "x64-windows/share/gtest/vcpkg_abi_info.txt",
-          "sha256": "51a27b3257f8c3aa95e59b1c1d19285898d410897e79c9af9b039a21db4756ee"
-        },
-        {
-          "path": "x64-windows/share/jhasse-poly2tri/vcpkg_abi_info.txt",
-          "sha256": "8192995d5980323490f5f8223cf67d43eace032bb9c2e7541cea0fd5d9b3f0a4"
-        },
-        {
-          "path": "x64-windows/share/kubazip/vcpkg_abi_info.txt",
-          "sha256": "c6a16f64f6c68f4b06204b728caa8a44fe745e428609b13c885447dac4c55a9a"
-        },
-        {
-          "path": "x64-windows/share/minizip/vcpkg_abi_info.txt",
-          "sha256": "331edbead9cfa667ee8503340bc24718b2fe5abba2b05ee804448c38beb489ff"
-        },
-        {
-          "path": "x64-windows/share/polyclipping/vcpkg_abi_info.txt",
-          "sha256": "51f2e15215f24580b1d86ab7bee5e2f4e6fc237dfa9369f2b0a50d2a8555ec1f"
-        },
-        {
-          "path": "x64-windows/share/pugixml/vcpkg_abi_info.txt",
-          "sha256": "2ef1fc5e36cb114ab5153c200ffde33bc4c8d766490f4099b8581b1261788dfa"
-        },
-        {
-          "path": "x64-windows/share/rapidjson/vcpkg_abi_info.txt",
-          "sha256": "090f3ac8ab56c0ed86a6fbd646215b8e381a644d664a708da62faa426fa40fb5"
-        },
-        {
-          "path": "x64-windows/share/spdlog/vcpkg_abi_info.txt",
-          "sha256": "ca319552d3248d7e677c7d0c2bc2f5648a6e572fa6fabe46091d7749355fe928"
-        },
-        {
-          "path": "x64-windows/share/stb/vcpkg_abi_info.txt",
-          "sha256": "5e2b3736c135b202b67b274df2e542df6ce8c7076097a4f6709b3fc3721aec43"
-        },
-        {
-          "path": "x64-windows/share/utfcpp/vcpkg_abi_info.txt",
-          "sha256": "5000bbd27055809c9758521066dee2becac7ecd3d060dde054a2e86cbc2062c6"
-        },
-        {
-          "path": "x64-windows/share/vcpkg-boost/vcpkg_abi_info.txt",
-          "sha256": "554a80dab14ed94b2ddc2c40b08222cedcdbdf3fb462ffde356acd9604e3a104"
-        },
-        {
-          "path": "x64-windows/share/vcpkg-cmake-config/vcpkg_abi_info.txt",
-          "sha256": "b915c331d7d6dea3f1aa117abf957f8819c0c0499c79e80afae3e1067b964843"
-        },
-        {
-          "path": "x64-windows/share/vcpkg-cmake-get-vars/vcpkg_abi_info.txt",
-          "sha256": "82044fec7268a38f2bba736f270b3988dbbdffab81ea717da8c4167271fa9800"
-        },
-        {
-          "path": "x64-windows/share/vcpkg-cmake/vcpkg_abi_info.txt",
-          "sha256": "27f4e8a9aa3e22d7390560e4841abe6da77901bb4d1a9886eb39810ec69c4afb"
-        },
-        {
-          "path": "x64-windows/share/zlib/vcpkg_abi_info.txt",
-          "sha256": "b4c168c3255948a1033653c7950c3a025abf6cf058a2288651bf9cd483c50f9e"
-        }
-      ]
-    }
-  },
-  "diagrams": {
-    "engine": {
-      "path": "docs/diagrams/class/engine.json",
-      "sha256": "96c2d0a2972802fb541b9b8e3760dbf2abb6089772d2731f713df4a4d089d603",
-      "classCount": 9,
-      "relationshipCount": 5
-    },
-    "network": {
-      "path": "docs/diagrams/class/network.json",
-      "sha256": "1c7849edb78675ebe0ba5179380a917a703a50ff29cb66f3ad8a0f89283871f1",
-      "classCount": 9,
-      "relationshipCount": 1
-    }
-  }
+    "schemaVersion":  2,
+    "basis":  {
+                  "commitSha":  "884e5e70d68d9fcf9dfe5638d97e06623da154c2",
+                  "treeSha":  "a3d167d7ddb3fadfe5ce9a2dfea6f5a58b170890"
+              },
+    "tooling":  {
+                    "clangUml":  {
+                                     "version":  "0.6.3",
+                                     "fullVersion":  "clang-uml 0.6.3\nCopyright (C) 2021-2026 Bartek Kryza \u003cbkryza@gmail.com\u003e\nWindows, 32-bit\nBuilt against LLVM/Clang libraries version: 22.1.8\nUsing LLVM/Clang libraries version: clang version 22.1.8 (https://github.com/llvm/llvm-project.git ca7933e47d3a3451d81e72ac174dcb5aa28b59d1)",
+                                     "llvmIdentity":  "clang version 22.1.8 (https://github.com/llvm/llvm-project.git ca7933e47d3a3451d81e72ac174dcb5aa28b59d1)"
+                                 },
+                    "config":  {
+                                   "path":  ".clang-uml",
+                                   "sha256":  "5808ccd8bcd03d89be982f8351e2efc4ebc65f0d77c2dbb6226e0a5028cc12bf"
+                               },
+                    "generator":  {
+                                      "path":  "scripts/portfolio/generate-class-diagrams.ps1",
+                                      "sha256":  "57dcb72288f921ca05b27ac2208dae123ddc427befe2da06343f0df54d758b78"
+                                  },
+                    "cmakeVersion":  "cmake version 3.31.6-msvc6",
+                    "ninjaVersion":  "1.12.1",
+                    "msvcVersion":  "19.44.35228"
+                },
+    "compilation":  {
+                        "compileCommands":  {
+                                                "path":  "out/build/portfolio-clang-uml/compile_commands.json",
+                                                "sha256":  "30c8113df2a0e088181d4cdfe0ea335d3e4c49fb958564fe7059457752058e37",
+                                                "totalTranslationUnits":  172,
+                                                "selectedTranslationUnits":  44,
+                                                "selectedPathsSha256":  "bc151ca0e304365bbce60b85fb4a16a87fb02485868e3844d1c0d519d42b97db",
+                                                "selectedPaths":  [
+                                                                      "apps/game_client/src/ClientPredictor.cpp",
+                                                                      "apps/game_client/src/ClientSnapshotStream.cpp",
+                                                                      "apps/game_client/src/GameNetworkRuntime.cpp",
+                                                                      "apps/game_client/src/GameSession.cpp",
+                                                                      "apps/game_client/src/RemoteInterpolator.cpp",
+                                                                      "apps/game_client/src/SnapshotReassembler.cpp",
+                                                                      "apps/game_server/src/AuthoritativeMatch.cpp",
+                                                                      "apps/game_server/src/FixedTickScheduler.cpp",
+                                                                      "apps/game_server/src/GameServer.cpp",
+                                                                      "apps/game_server/src/GameServerOptions.cpp",
+                                                                      "apps/game_server/src/GameTicketStore.cpp",
+                                                                      "apps/game_server/src/InterestGrid.cpp",
+                                                                      "apps/game_server/src/ParticipantRoster.cpp",
+                                                                      "apps/game_server/src/SecureUdpTokenSource.cpp",
+                                                                      "apps/game_server/src/ServerMatchMetrics.cpp",
+                                                                      "apps/game_server/src/SnapshotReplicator.cpp",
+                                                                      "apps/game_server/src/main.cpp",
+                                                                      "apps/lobby_server/src/LobbyServerOptions.cpp",
+                                                                      "apps/lobby_server/src/LobbyService.cpp",
+                                                                      "apps/lobby_server/src/LobbyTcpServer.cpp",
+                                                                      "apps/lobby_server/src/MatchTicketRegistry.cpp",
+                                                                      "apps/lobby_server/src/Room.cpp",
+                                                                      "apps/lobby_server/src/SecureTicketSource.cpp",
+                                                                      "apps/lobby_server/src/WorkerControlServer.cpp",
+                                                                      "apps/lobby_server/src/WorkerRegistry.cpp",
+                                                                      "apps/lobby_server/src/main.cpp",
+                                                                      "engine/src/assets/AnimationPlayback.cpp",
+                                                                      "engine/src/assets/AssetFile.cpp",
+                                                                      "engine/src/benchmark/BenchmarkReport.cpp",
+                                                                      "engine/src/benchmark/GpuPassTiming.cpp",
+                                                                      "engine/src/benchmark/PerspectiveFrustum.cpp",
+                                                                      "engine/src/benchmark/StressScene.cpp",
+                                                                      "engine/src/windows/AssetSceneRenderer.cpp",
+                                                                      "engine/src/windows/EngineApp.cpp",
+                                                                      "engine/src/windows/ForwardRenderer.cpp",
+                                                                      "engine/src/windows/GpuFrameTimer.cpp",
+                                                                      "engine/src/windows/GpuSceneModel.cpp",
+                                                                      "engine/src/windows/GraphicsDevice.cpp",
+                                                                      "engine/src/windows/GroundPlanePicking.cpp",
+                                                                      "engine/src/windows/HybridDeferredPasses.cpp",
+                                                                      "engine/src/windows/HybridDeferredRenderer.cpp",
+                                                                      "engine/src/windows/SystemMetrics.cpp",
+                                                                      "engine/src/windows/Window.cpp",
+                                                                      "tests/engine_resource_pool_test.cpp"
+                                                                  ]
+                                            },
+                        "cmakeCache":  {
+                                           "path":  "out/build/portfolio-clang-uml/CMakeCache.txt",
+                                           "sha256":  "dbba9982ca36b6d955cbed25c85a0384504adc7277c113a419e4ec737d2ed6f6",
+                                           "generator":  "Ninja",
+                                           "homeDirectory":  ".",
+                                           "buildDirectory":  "out/build/portfolio-clang-uml",
+                                           "compiler":  "C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/bin/Hostx64/x64/cl.exe",
+                                           "compilerIdentity":  {
+                                                                    "volumeSerialNumber":  "0xec51c6f3",
+                                                                    "fileId":  "0x0000000000000000000200000005b13f",
+                                                                    "sha256":  "88c8344236a27a6e727e0a8edc49aaa2690bdc7a9464b9d18cc7abe70a9f1c0d"
+                                                                },
+                                           "makeProgram":  "C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/Ninja/ninja.exe",
+                                           "toolchain":  "C:/Program Files/Microsoft Visual Studio/2022/Community/VC/vcpkg/scripts/buildsystems/vcpkg.cmake",
+                                           "vcpkgInstalled":  "out/build/portfolio-clang-uml/vcpkg_installed"
+                                       }
+                    },
+    "dependencies":  {
+                         "vcpkgManifest":  {
+                                               "path":  "vcpkg.json",
+                                               "sha256":  "604d8c57255d4222f7e807abe090b5ae2940b25bdecdd8ee7c537bf8b4ba6bf3"
+                                           },
+                         "vcpkgConfiguration":  null,
+                         "installed":  {
+                                           "status":  {
+                                                          "path":  "vcpkg/status",
+                                                          "sha256":  "8e3483cfcf179994fba1dcfc632325190401fde2404e333bcf5366b9d29e30f2"
+                                                      },
+                                           "metadataFileCount":  142,
+                                           "metadataSetSha256":  "ab673cbfa056c0a34ada7aaba82f2a4bdb363832648748dffb0de45c70246163",
+                                           "metadataFiles":  [
+                                                                 {
+                                                                     "path":  "vcpkg/info/assimp_6.0.4_x64-windows.list",
+                                                                     "sha256":  "2ab7e836c48d425ce2ce2e5ae8867401183ea8f47cf4bc92c557337813e48c08"
+                                                                 },
+                                                                 {
+                                                                     "path":  "vcpkg/info/boost-algorithm_1.92.0_x64-windows.list",
+                                                                     "sha256":  "a25e611baa4071b80e759ac19785f601f7cd9b89b914281b29e335c42f29d684"
+                                                                 },
+                                                                 {
+                                                                     "path":  "vcpkg/info/boost-align_1.92.0_x64-windows.list",
+                                                                     "sha256":  "6efcc691a43e399a4095633c6430ce8560691621a86960f2e65ef605875183fa"
+                                                                 },
+                                                                 {
+                                                                     "path":  "vcpkg/info/boost-array_1.92.0_x64-windows.list",
+                                                                     "sha256":  "260d759f47846756351b220a578d8fc7049960bb59924df150df63a6ec54590b"
+                                                                 },
+                                                                 {
+                                                                     "path":  "vcpkg/info/boost-asio_1.92.0_x64-windows.list",
+                                                                     "sha256":  "308af5fed66258e007b58b615ceacfb09c8a03e663d4e7257988c3bf84151a6f"
+                                                                 },
+                                                                 {
+                                                                     "path":  "vcpkg/info/boost-assert_1.92.0_x64-windows.list",
+                                                                     "sha256":  "49947b8321bd61a6540aa97eab64a0a1a6cf715c19f769c8ada7449eb7b7046f"
+                                                                 },
+                                                                 {
+                                                                     "path":  "vcpkg/info/boost-bind_1.92.0_x64-windows.list",
+                                                                     "sha256":  "121341bb09deb67527a87a0a745db5013c25e1e44dcf17f4d7ff554d211b515d"
+                                                                 },
+                                                                 {
+                                                                     "path":  "vcpkg/info/boost-cmake_1.92.0_x64-windows.list",
+                                                                     "sha256":  "aa18f0250f77b7b36a7efa61c46911b71aeb012aa0fa24b515b455b254118b11"
+                                                                 },
+                                                                 {
+                                                                     "path":  "vcpkg/info/boost-compat_1.92.0_x64-windows.list",
+                                                                     "sha256":  "8601cb72e40382098118bb669f1bccdcf28bf559965c9065e78b600f10e2d668"
+                                                                 },
+                                                                 {
+                                                                     "path":  "vcpkg/info/boost-concept-check_1.92.0_x64-windows.list",
+                                                                     "sha256":  "21db4cb00e9f807b03bc13ef2b886a2a7174a384725a6ec5c853baa3323e4620"
+                                                                 },
+                                                                 {
+                                                                     "path":  "vcpkg/info/boost-config_1.92.0_x64-windows.list",
+                                                                     "sha256":  "ffa950c43b4d686807f3378894a281ae7e6aee6a7e39c74f2eeddb78177cc0c6"
+                                                                 },
+                                                                 {
+                                                                     "path":  "vcpkg/info/boost-container-hash_1.92.0_x64-windows.list",
+                                                                     "sha256":  "ec4c2bc050c2adb5de042f2367cfda351bde8d671bb7f76b1aa5285e9f1ad385"
+                                                                 },
+                                                                 {
+                                                                     "path":  "vcpkg/info/boost-container_1.92.0_x64-windows.list",
+                                                                     "sha256":  "cb5571f08ef96703cee2c5730a7ca8612bb69b56951ef7668c6ac59bf20d0dd1"
+                                                                 },
+                                                                 {
+                                                                     "path":  "vcpkg/info/boost-context_1.92.0_x64-windows.list",
+                                                                     "sha256":  "33a5f3546241836aa71f568f00656a369ec0ca3053f011b1fcbce17b7a3d5b5f"
+                                                                 },
+                                                                 {
+                                                                     "path":  "vcpkg/info/boost-conversion_1.92.0_x64-windows.list",
+                                                                     "sha256":  "49b4a603caff63deebe50feb04a481e33426750789257623d49982238b6d0189"
+                                                                 },
+                                                                 {
+                                                                     "path":  "vcpkg/info/boost-core_1.92.0_x64-windows.list",
+                                                                     "sha256":  "c01b34d73b605128c008aaa84c9186595e0721ef870af920a75c90038fd8f914"
+                                                                 },
+                                                                 {
+                                                                     "path":  "vcpkg/info/boost-date-time_1.92.0_x64-windows.list",
+                                                                     "sha256":  "0294e87af8c2e54a0cfd6803ce8f693476356eda2e6934e0ce7a9640b2fe1816"
+                                                                 },
+                                                                 {
+                                                                     "path":  "vcpkg/info/boost-describe_1.92.0_x64-windows.list",
+                                                                     "sha256":  "5594fefac33913e3f0119b63b2fbfd943a5e73336acf6d7bc8da3d4baf05fd97"
+                                                                 },
+                                                                 {
+                                                                     "path":  "vcpkg/info/boost-detail_1.92.0_x64-windows.list",
+                                                                     "sha256":  "14297a232c6a42aa3ef19601590bdaf449037b2e45d593213611561627b32919"
+                                                                 },
+                                                                 {
+                                                                     "path":  "vcpkg/info/boost-exception_1.92.0_x64-windows.list",
+                                                                     "sha256":  "18845c7a597edb75fcbbdece87987c57209f3b1aff4f7f405dcf6da24237ac06"
+                                                                 },
+                                                                 {
+                                                                     "path":  "vcpkg/info/boost-function-types_1.92.0_x64-windows.list",
+                                                                     "sha256":  "6c6332dc36c88bbfb4eb86fa642c46acc9d9f95fc6310c8e2677f051c0ff1af9"
+                                                                 },
+                                                                 {
+                                                                     "path":  "vcpkg/info/boost-function_1.92.0_x64-windows.list",
+                                                                     "sha256":  "e48da196b95abebb7aed3d8c74ef886ee6d01669d0cd782ab77fe6d7844509cc"
+                                                                 },
+                                                                 {
+                                                                     "path":  "vcpkg/info/boost-fusion_1.92.0_x64-windows.list",
+                                                                     "sha256":  "a5704836e635619d4e66b630cf52e43cc49b55a0b87f1c696fca6a5fd7cd7a52"
+                                                                 },
+                                                                 {
+                                                                     "path":  "vcpkg/info/boost-headers_1.92.0_x64-windows.list",
+                                                                     "sha256":  "75827a4b39c9f56ecde11fa62cf12948d5aa406611da4b23ab59214429a89257"
+                                                                 },
+                                                                 {
+                                                                     "path":  "vcpkg/info/boost-integer_1.92.0_x64-windows.list",
+                                                                     "sha256":  "3580e6eaf70d38ae8e7e8a38e0ef4c5aff7ae439a15b5facbdce33e07792c696"
+                                                                 },
+                                                                 {
+                                                                     "path":  "vcpkg/info/boost-intrusive_1.92.0_x64-windows.list",
+                                                                     "sha256":  "4b1d1783b0579594af0e6684ffd3f72ca6ce5c65a0f94c3acc89883f4db6c7b2"
+                                                                 },
+                                                                 {
+                                                                     "path":  "vcpkg/info/boost-io_1.92.0_x64-windows.list",
+                                                                     "sha256":  "e166c12a4ac0093854c5d72ab5eec44948d0846cadcd545cad5b1964b5d0ee84"
+                                                                 },
+                                                                 {
+                                                                     "path":  "vcpkg/info/boost-iterator_1.92.0_x64-windows.list",
+                                                                     "sha256":  "ec73fa2ec9000200340dbc888e3e3d0ff33815b19ffaeb7f3e26edfa102e6348"
+                                                                 },
+                                                                 {
+                                                                     "path":  "vcpkg/info/boost-lexical-cast_1.92.0_x64-windows.list",
+                                                                     "sha256":  "f65cdbc96c3d8e9ceb11f6ec3701a74b9ff6ad64448511ee6461d12cf0c2d90a"
+                                                                 },
+                                                                 {
+                                                                     "path":  "vcpkg/info/boost-move_1.92.0_x64-windows.list",
+                                                                     "sha256":  "a709b8d7cbd7e892e5bcbb2cf59b9165647c57c8702abbcdd652e09b5505c5ba"
+                                                                 },
+                                                                 {
+                                                                     "path":  "vcpkg/info/boost-mp11_1.92.0_x64-windows.list",
+                                                                     "sha256":  "1ace229e7c849c0dc2c5d99e760efb546d6f54b9a8d4c30c8fed5fda387a00b2"
+                                                                 },
+                                                                 {
+                                                                     "path":  "vcpkg/info/boost-mpl_1.92.0_x64-windows.list",
+                                                                     "sha256":  "24f4a00b9c52e042fe1f83a4ae3c24ad39dee39fecf21d3c2a9b6f06aaea3d1d"
+                                                                 },
+                                                                 {
+                                                                     "path":  "vcpkg/info/boost-numeric-conversion_1.92.0_x64-windows.list",
+                                                                     "sha256":  "70cb5ca77081ad161367e9465d9f1223be68625e25c3f6d7a2076abff5673fef"
+                                                                 },
+                                                                 {
+                                                                     "path":  "vcpkg/info/boost-optional_1.92.0_x64-windows.list",
+                                                                     "sha256":  "a61be32f9dbd5ec0c84c3271c79b732caa87c479e835aebfcf9ddd559c1eae0c"
+                                                                 },
+                                                                 {
+                                                                     "path":  "vcpkg/info/boost-pool_1.92.0_x64-windows.list",
+                                                                     "sha256":  "ac27595e22ced8731ccc8859102672f32306eefdbc46591c18db876ce9cfc17d"
+                                                                 },
+                                                                 {
+                                                                     "path":  "vcpkg/info/boost-predef_1.92.0_x64-windows.list",
+                                                                     "sha256":  "ff4ce88ae7566cfa383a154bae91e8edeab1e142476c5f42ac6ced2265d05c8d"
+                                                                 },
+                                                                 {
+                                                                     "path":  "vcpkg/info/boost-preprocessor_1.92.0_x64-windows.list",
+                                                                     "sha256":  "752b5ff803db61cf021a1e0d3852bf33820732154877d812ceb8e28ca63c105c"
+                                                                 },
+                                                                 {
+                                                                     "path":  "vcpkg/info/boost-range_1.92.0_x64-windows.list",
+                                                                     "sha256":  "962779355387cb002749b77e366d30788fbe196e33d025b6bfb2fb58f9780ceb"
+                                                                 },
+                                                                 {
+                                                                     "path":  "vcpkg/info/boost-regex_1.92.0_x64-windows.list",
+                                                                     "sha256":  "5a16d4e22ccaa448434bb9ba09a6feea42b689a8532f89bfb72181cd986bf06c"
+                                                                 },
+                                                                 {
+                                                                     "path":  "vcpkg/info/boost-smart-ptr_1.92.0_x64-windows.list",
+                                                                     "sha256":  "da34de27e22c20a85c0c57c11df18c482398d5c5947efe752a755b08f3c3c9e6"
+                                                                 },
+                                                                 {
+                                                                     "path":  "vcpkg/info/boost-static-assert_1.92.0_x64-windows.list",
+                                                                     "sha256":  "4e5ee85095bffca0b82913e09c7dbc89d82255a5e39d7e6041cdb557213e2463"
+                                                                 },
+                                                                 {
+                                                                     "path":  "vcpkg/info/boost-system_1.92.0_x64-windows.list",
+                                                                     "sha256":  "97108de57fdfa6b3312abd1f46747a836ce755870c263082f0030d290bcee7cb"
+                                                                 },
+                                                                 {
+                                                                     "path":  "vcpkg/info/boost-throw-exception_1.92.0_x64-windows.list",
+                                                                     "sha256":  "af27e331be273bda98bd57d3e0404574b8b1e68de636a34e39103d07e4f3a368"
+                                                                 },
+                                                                 {
+                                                                     "path":  "vcpkg/info/boost-tokenizer_1.92.0_x64-windows.list",
+                                                                     "sha256":  "0667419e4ab8463ce0c78c028d0e651128bf7113fbe5f2930d4d05974da63665"
+                                                                 },
+                                                                 {
+                                                                     "path":  "vcpkg/info/boost-tuple_1.92.0_x64-windows.list",
+                                                                     "sha256":  "b8eb0f9003b64d2d91b4d1c9f3c5d03c943a4febafb0d9980dcea7044064aea8"
+                                                                 },
+                                                                 {
+                                                                     "path":  "vcpkg/info/boost-type-traits_1.92.0_x64-windows.list",
+                                                                     "sha256":  "969f9fa442e1f4ebe7bde9295378aa63110d109b758dfc017885748b1a14dee6"
+                                                                 },
+                                                                 {
+                                                                     "path":  "vcpkg/info/boost-typeof_1.92.0_x64-windows.list",
+                                                                     "sha256":  "604418a5a5a753589b5a2346ddd585ded1379ebf402121ba65b9ce15085e9bd9"
+                                                                 },
+                                                                 {
+                                                                     "path":  "vcpkg/info/boost-uninstall_1.92.0_x64-windows.list",
+                                                                     "sha256":  "c8473198c77652d99255627a37e257470f1eacc586e1cf861d45c88a6755110f"
+                                                                 },
+                                                                 {
+                                                                     "path":  "vcpkg/info/boost-unordered_1.92.0_x64-windows.list",
+                                                                     "sha256":  "8138f57fa5d0e2e538476954bb4e981c4884e78c3e7667624714407cdb607b84"
+                                                                 },
+                                                                 {
+                                                                     "path":  "vcpkg/info/boost-utility_1.92.0_x64-windows.list",
+                                                                     "sha256":  "8bca504e2abfc3243b9776832b69858a915d64ff030eee392d759ac516df6231"
+                                                                 },
+                                                                 {
+                                                                     "path":  "vcpkg/info/boost-variant2_1.92.0_x64-windows.list",
+                                                                     "sha256":  "fb2986c8a3bf8a97ba384a6f239dd3a55975f93cc673cc412c573b3f8f8d749a"
+                                                                 },
+                                                                 {
+                                                                     "path":  "vcpkg/info/boost-winapi_1.92.0_x64-windows.list",
+                                                                     "sha256":  "1c56db447df34269b2551cb250d5e593ac310e38c81a24717cbd0625a9e1ff06"
+                                                                 },
+                                                                 {
+                                                                     "path":  "vcpkg/info/directxmath_2026-06-12_x64-windows.list",
+                                                                     "sha256":  "fb66ed3c3b3bf0b99f8f5fec1bb02f2242edf14f0261323e3954accf5af6740a"
+                                                                 },
+                                                                 {
+                                                                     "path":  "vcpkg/info/directxtex_2026-05-07_x64-windows.list",
+                                                                     "sha256":  "e9746b19a42e6b6d15f4a2ff47d2c2516b861125dd52af756e1dfd8d65ada94b"
+                                                                 },
+                                                                 {
+                                                                     "path":  "vcpkg/info/directxtk_2026-05-07_x64-windows.list",
+                                                                     "sha256":  "4e8acb3491e6b4775c52b4cbd0f35d8ff4b250fe2ecd1cd9a3fa50fb8d6ec447"
+                                                                 },
+                                                                 {
+                                                                     "path":  "vcpkg/info/fmt_12.2.0_x64-windows.list",
+                                                                     "sha256":  "96d272562b7a5c4cf7ea53da6d05f14579923458683edef07d4db95638faf991"
+                                                                 },
+                                                                 {
+                                                                     "path":  "vcpkg/info/gtest_1.18.0_x64-windows.list",
+                                                                     "sha256":  "93a9e9b54c57c5d1d600b7746618182dc2377609aab9382ad088dc39cdf2a77a"
+                                                                 },
+                                                                 {
+                                                                     "path":  "vcpkg/info/jhasse-poly2tri_2023-12-27_x64-windows.list",
+                                                                     "sha256":  "68c2108b20e71b53cfbc32078501bddf18a5233b9c382914f1178f9bc9c1f24d"
+                                                                 },
+                                                                 {
+                                                                     "path":  "vcpkg/info/kubazip_0.3.14_x64-windows.list",
+                                                                     "sha256":  "b2ad686e63404b4406d8f67682f9e4c1dea62cf5acf1365c0c6540cd76459ba1"
+                                                                 },
+                                                                 {
+                                                                     "path":  "vcpkg/info/minizip_1.3.2_x64-windows.list",
+                                                                     "sha256":  "9807c7e8c094bd58f6990948e40011aed6c58473fa116237b79adb93d539797f"
+                                                                 },
+                                                                 {
+                                                                     "path":  "vcpkg/info/polyclipping_6.4.2_x64-windows.list",
+                                                                     "sha256":  "a9b71eb3b6b079e015c1b08645b49eb90e1f73cb1bc90416e95b3c371697c26c"
+                                                                 },
+                                                                 {
+                                                                     "path":  "vcpkg/info/pugixml_1.16_x64-windows.list",
+                                                                     "sha256":  "6947bc927bb889b123d7aaf115e2eca8d216aced0bafcb2cc4be21ae026e8ddd"
+                                                                 },
+                                                                 {
+                                                                     "path":  "vcpkg/info/rapidjson_2025-02-26_x64-windows.list",
+                                                                     "sha256":  "365c3233a92c8f3cd95bcd6fa3b6ab66ea0f8199d7100ea718f6f93b1e5802bd"
+                                                                 },
+                                                                 {
+                                                                     "path":  "vcpkg/info/spdlog_1.17.0_x64-windows.list",
+                                                                     "sha256":  "32d5e83bdd222f655f47924254077bf9cab76f5b7090badcea3a74ea24d47190"
+                                                                 },
+                                                                 {
+                                                                     "path":  "vcpkg/info/stb_2024-07-29_x64-windows.list",
+                                                                     "sha256":  "79fe640e463fce0727c5dfd59804d781e95412b368b1e2238f2dc66be0887ebb"
+                                                                 },
+                                                                 {
+                                                                     "path":  "vcpkg/info/utfcpp_4.1.1_x64-windows.list",
+                                                                     "sha256":  "b0c8a37dad9891de3aa1bd474c752cf2d1bd8f9462f7a096931dcc8f86c2310a"
+                                                                 },
+                                                                 {
+                                                                     "path":  "vcpkg/info/vcpkg-boost_2026-08-21_x64-windows.list",
+                                                                     "sha256":  "95c68d86913e3ed6f09f773dff521910c416221e5f44d32e65e15b53a173053a"
+                                                                 },
+                                                                 {
+                                                                     "path":  "vcpkg/info/vcpkg-cmake-config_2026-07-21_x64-windows.list",
+                                                                     "sha256":  "69e0644c7bb61ef1acf15e336db105a5b11e5756bc379cf07d2e89a1b486e033"
+                                                                 },
+                                                                 {
+                                                                     "path":  "vcpkg/info/vcpkg-cmake-get-vars_2025-05-29_x64-windows.list",
+                                                                     "sha256":  "16bcfeb42a8039ba91fb1bff33c6cad02322820b12d8baf5a227754d5fec7b5e"
+                                                                 },
+                                                                 {
+                                                                     "path":  "vcpkg/info/vcpkg-cmake_2025-08-07_x64-windows.list",
+                                                                     "sha256":  "c6e412bc967c160e890fcd791ab7d07e6cf2325d3fed4f3d731ac8e268d0f335"
+                                                                 },
+                                                                 {
+                                                                     "path":  "vcpkg/info/zlib_1.3.2_x64-windows.list",
+                                                                     "sha256":  "e2f55e9069a77a9f6bc7c6b35b2871ea8930ded0f6f11bc2afc42d3a8d7d6d8c"
+                                                                 },
+                                                                 {
+                                                                     "path":  "x64-windows/share/assimp/vcpkg_abi_info.txt",
+                                                                     "sha256":  "652add0f9e22279ebc5e62759616e88bc8a3a0e9513fa244554580918e1d91bb"
+                                                                 },
+                                                                 {
+                                                                     "path":  "x64-windows/share/boost-algorithm/vcpkg_abi_info.txt",
+                                                                     "sha256":  "98242d75d1d712b2baeec705eadb212d8577d8df391f61e210d52937782dd26d"
+                                                                 },
+                                                                 {
+                                                                     "path":  "x64-windows/share/boost-align/vcpkg_abi_info.txt",
+                                                                     "sha256":  "3daff12caa2c23e398b127569e382ea7cae63e7059fbfe01ba88373152f6906c"
+                                                                 },
+                                                                 {
+                                                                     "path":  "x64-windows/share/boost-array/vcpkg_abi_info.txt",
+                                                                     "sha256":  "536d9251cb4eddb075e72a24da9d1fc8692ef792f3207f8df6f12ea51c1a3590"
+                                                                 },
+                                                                 {
+                                                                     "path":  "x64-windows/share/boost-asio/vcpkg_abi_info.txt",
+                                                                     "sha256":  "25d0ed6ebfd67bd766ee01808318381e73754bc7096ca8a7e3db41055b2dc139"
+                                                                 },
+                                                                 {
+                                                                     "path":  "x64-windows/share/boost-assert/vcpkg_abi_info.txt",
+                                                                     "sha256":  "483c160f152ab450c9533acc751545fcf162537919d01145d11e5003f74f0c50"
+                                                                 },
+                                                                 {
+                                                                     "path":  "x64-windows/share/boost-bind/vcpkg_abi_info.txt",
+                                                                     "sha256":  "69d8e7de1f1ffcc86c0e2221cb468af330f90129eff1a2da5b5d093790c72615"
+                                                                 },
+                                                                 {
+                                                                     "path":  "x64-windows/share/boost-cmake/vcpkg_abi_info.txt",
+                                                                     "sha256":  "ef82d483079d679e3a9fb989f924a0d8ffb9bbd6d421561ea9d75a3cf0a49cfb"
+                                                                 },
+                                                                 {
+                                                                     "path":  "x64-windows/share/boost-compat/vcpkg_abi_info.txt",
+                                                                     "sha256":  "367202eb26d5fd67afde561a40f4dccd49eeaa77f089b6f4c8d0f8a3813af2cf"
+                                                                 },
+                                                                 {
+                                                                     "path":  "x64-windows/share/boost-concept-check/vcpkg_abi_info.txt",
+                                                                     "sha256":  "dd31e0899ba9bc0c9b9ae910f5c2ac1069825cedad049117760885274209cfe8"
+                                                                 },
+                                                                 {
+                                                                     "path":  "x64-windows/share/boost-config/vcpkg_abi_info.txt",
+                                                                     "sha256":  "6536d9a950ccfc857cdc0dadf7f554bee4696101ff952e2d442e94da4da1fa61"
+                                                                 },
+                                                                 {
+                                                                     "path":  "x64-windows/share/boost-container-hash/vcpkg_abi_info.txt",
+                                                                     "sha256":  "897e1495abd8c108059b69c483a194f33aa351275b479198f795c0554c6464d8"
+                                                                 },
+                                                                 {
+                                                                     "path":  "x64-windows/share/boost-container/vcpkg_abi_info.txt",
+                                                                     "sha256":  "15b6dd9a7d594168bbf7c7e75151c494ce1a336032ada52c9cd40b93507eeb97"
+                                                                 },
+                                                                 {
+                                                                     "path":  "x64-windows/share/boost-context/vcpkg_abi_info.txt",
+                                                                     "sha256":  "5ede6cbdc1d86ebc6a6367eab774e4af8d205c3738a0b80e80c1b200155ec1ac"
+                                                                 },
+                                                                 {
+                                                                     "path":  "x64-windows/share/boost-conversion/vcpkg_abi_info.txt",
+                                                                     "sha256":  "9f0177c9f140907cc50cb99c799c2a2ed90c2d5f41e32cf6f51dd6a86a7ec026"
+                                                                 },
+                                                                 {
+                                                                     "path":  "x64-windows/share/boost-core/vcpkg_abi_info.txt",
+                                                                     "sha256":  "2693bd0288b91a0e153c8dadb9e6549eb80cb1494797d3c50b58d6e82881e8e9"
+                                                                 },
+                                                                 {
+                                                                     "path":  "x64-windows/share/boost-date-time/vcpkg_abi_info.txt",
+                                                                     "sha256":  "f34a4e9d41f65802030a00b47d57b6cd6b0e05aaca07d24bea34f60ab3c7ebca"
+                                                                 },
+                                                                 {
+                                                                     "path":  "x64-windows/share/boost-describe/vcpkg_abi_info.txt",
+                                                                     "sha256":  "c0c8f8853907f0a04fe3055f0abf7f98a1e0a8aa88ee6ea7c5ae02e4b6fa0475"
+                                                                 },
+                                                                 {
+                                                                     "path":  "x64-windows/share/boost-detail/vcpkg_abi_info.txt",
+                                                                     "sha256":  "28ddeb4aa16d81d8683b9440eb3c275fd06cb2fdcb6e8b10a64926ae32bef7d9"
+                                                                 },
+                                                                 {
+                                                                     "path":  "x64-windows/share/boost-exception/vcpkg_abi_info.txt",
+                                                                     "sha256":  "4b32b3e6782b4e47ff7784c08fa8ed4bab9e76e10a3f60f7db64624f5d8e7dda"
+                                                                 },
+                                                                 {
+                                                                     "path":  "x64-windows/share/boost-function-types/vcpkg_abi_info.txt",
+                                                                     "sha256":  "35eaf1f85f38948fd4b3211a18023f719ea0de8d82bd3c8e1d6a03e7e0ac4f27"
+                                                                 },
+                                                                 {
+                                                                     "path":  "x64-windows/share/boost-function/vcpkg_abi_info.txt",
+                                                                     "sha256":  "db29240f77387ef8245689bf5beb3be73013043cd4ce67f318ba9bab94b814c9"
+                                                                 },
+                                                                 {
+                                                                     "path":  "x64-windows/share/boost-fusion/vcpkg_abi_info.txt",
+                                                                     "sha256":  "b1378c3de75169f58c46d44f9d57b5ba84b1ef3f03757a41252eb423442a2746"
+                                                                 },
+                                                                 {
+                                                                     "path":  "x64-windows/share/boost-headers/vcpkg_abi_info.txt",
+                                                                     "sha256":  "8c16420ba07c10d5ce2e2f0825085b7250835512c219e99ecafa3f5b6d3c932f"
+                                                                 },
+                                                                 {
+                                                                     "path":  "x64-windows/share/boost-integer/vcpkg_abi_info.txt",
+                                                                     "sha256":  "1fb9d75434404db1e052979c90eba10d78d09931840d0a93f0de5fb093112bba"
+                                                                 },
+                                                                 {
+                                                                     "path":  "x64-windows/share/boost-intrusive/vcpkg_abi_info.txt",
+                                                                     "sha256":  "6bbf4a07e99fd09b788c13a89b6fc3e78da3a23b5382873dbf93ce4e862b7f7f"
+                                                                 },
+                                                                 {
+                                                                     "path":  "x64-windows/share/boost-io/vcpkg_abi_info.txt",
+                                                                     "sha256":  "de3c899e1479e62cfb753bf6a63ff663a6135352ba50823423bee07bbd5776e3"
+                                                                 },
+                                                                 {
+                                                                     "path":  "x64-windows/share/boost-iterator/vcpkg_abi_info.txt",
+                                                                     "sha256":  "f756fe098b4ecd36ceb1bdbffcde5f8610e1faf95cbd84db96a6dd0063241331"
+                                                                 },
+                                                                 {
+                                                                     "path":  "x64-windows/share/boost-lexical-cast/vcpkg_abi_info.txt",
+                                                                     "sha256":  "e30b6d254e8afdbe0e959dc38e1dbac7496b1d5ee1bd06bf1e683d497ce7576a"
+                                                                 },
+                                                                 {
+                                                                     "path":  "x64-windows/share/boost-move/vcpkg_abi_info.txt",
+                                                                     "sha256":  "0d947b2dc3361c769cde4b8f2efea7d0481a0aebcbcbda2c95165314109dbb26"
+                                                                 },
+                                                                 {
+                                                                     "path":  "x64-windows/share/boost-mp11/vcpkg_abi_info.txt",
+                                                                     "sha256":  "288895f32afb6b24a1026f60ba5bc5747a66a1c4085e9844e260c71ba3f7f51d"
+                                                                 },
+                                                                 {
+                                                                     "path":  "x64-windows/share/boost-mpl/vcpkg_abi_info.txt",
+                                                                     "sha256":  "a14625be8528b58e37661031fd2b6acea066e77698501377ad4312e0733a93d4"
+                                                                 },
+                                                                 {
+                                                                     "path":  "x64-windows/share/boost-numeric-conversion/vcpkg_abi_info.txt",
+                                                                     "sha256":  "44c42efcc6e36b4483eff636b02dd44b35ef164cdcf22e4f8750894e3a1c74b0"
+                                                                 },
+                                                                 {
+                                                                     "path":  "x64-windows/share/boost-optional/vcpkg_abi_info.txt",
+                                                                     "sha256":  "e971147092d452f2823b0cad28f3cadb2324ef33996904728673d13b0c5e7258"
+                                                                 },
+                                                                 {
+                                                                     "path":  "x64-windows/share/boost-pool/vcpkg_abi_info.txt",
+                                                                     "sha256":  "fbfe6e4cd55580ad292413bdbc61e3035804d6f84b3a7f14c35d36dffa490a47"
+                                                                 },
+                                                                 {
+                                                                     "path":  "x64-windows/share/boost-predef/vcpkg_abi_info.txt",
+                                                                     "sha256":  "f73bd62ccdc2a503eb05b5f3ac6665e62f2e32796a292b4ae781b9207bfa6de1"
+                                                                 },
+                                                                 {
+                                                                     "path":  "x64-windows/share/boost-preprocessor/vcpkg_abi_info.txt",
+                                                                     "sha256":  "8108dab492aff1f59e3fe15b5852a32ce3b7660a9711df7040d81bb52bb90200"
+                                                                 },
+                                                                 {
+                                                                     "path":  "x64-windows/share/boost-range/vcpkg_abi_info.txt",
+                                                                     "sha256":  "b0be4108b7ddcfd112f150b8421e85a1efff6759a12931148b95a55096ec9a76"
+                                                                 },
+                                                                 {
+                                                                     "path":  "x64-windows/share/boost-regex/vcpkg_abi_info.txt",
+                                                                     "sha256":  "8fa2caa19549a1fbe2fc60c29eac9e2d56894899f276ccf5536e5e0a531df443"
+                                                                 },
+                                                                 {
+                                                                     "path":  "x64-windows/share/boost-smart-ptr/vcpkg_abi_info.txt",
+                                                                     "sha256":  "1aab10c393cd55f480a59fb716e53de2ab4cefa0a3affb14a1bbdd217a2f5d08"
+                                                                 },
+                                                                 {
+                                                                     "path":  "x64-windows/share/boost-static-assert/vcpkg_abi_info.txt",
+                                                                     "sha256":  "9445852aba26ed0ebbdc5181c423519907baf31e9cb9d3e0658bc76d07339066"
+                                                                 },
+                                                                 {
+                                                                     "path":  "x64-windows/share/boost-system/vcpkg_abi_info.txt",
+                                                                     "sha256":  "f7dbb3f2c405e8d933c74097d82afeb63ce3d3822555dcc820e932ac7d89f48e"
+                                                                 },
+                                                                 {
+                                                                     "path":  "x64-windows/share/boost-throw-exception/vcpkg_abi_info.txt",
+                                                                     "sha256":  "a21a2585137880d846a4f82529ed6a52449a58c7657a154fc29fb5868ccb5c65"
+                                                                 },
+                                                                 {
+                                                                     "path":  "x64-windows/share/boost-tokenizer/vcpkg_abi_info.txt",
+                                                                     "sha256":  "cf694c82a7415d92a66da19f91a60df709d64dfbad13366470bb6ab1d6e880ae"
+                                                                 },
+                                                                 {
+                                                                     "path":  "x64-windows/share/boost-tuple/vcpkg_abi_info.txt",
+                                                                     "sha256":  "c7c1769b2d3bc257bfc7101670013cce5ca2f8cde7ffeb3828babb2fac224367"
+                                                                 },
+                                                                 {
+                                                                     "path":  "x64-windows/share/boost-type-traits/vcpkg_abi_info.txt",
+                                                                     "sha256":  "96bd0fbb413f455077e6c41a6bc3fee72067311d22669321d227cff1319dea5b"
+                                                                 },
+                                                                 {
+                                                                     "path":  "x64-windows/share/boost-typeof/vcpkg_abi_info.txt",
+                                                                     "sha256":  "ca7ec0eb0eb62e7eb387e560a8e326960289095c2c4cdc353cfc4442c4ffd496"
+                                                                 },
+                                                                 {
+                                                                     "path":  "x64-windows/share/boost-uninstall/vcpkg_abi_info.txt",
+                                                                     "sha256":  "6b8e87565bc546527990b3845dda844f6cada978b1659a8c3dc0233c3f65e6a2"
+                                                                 },
+                                                                 {
+                                                                     "path":  "x64-windows/share/boost-unordered/vcpkg_abi_info.txt",
+                                                                     "sha256":  "08a1e6521bd53b960ef951b34e51ab07894eb489c04838d8590239265f4af5b4"
+                                                                 },
+                                                                 {
+                                                                     "path":  "x64-windows/share/boost-utility/vcpkg_abi_info.txt",
+                                                                     "sha256":  "c57d4e5d26c7775dad0a92afac8ef4d55a7496cd510fa96305da6cfd49992075"
+                                                                 },
+                                                                 {
+                                                                     "path":  "x64-windows/share/boost-variant2/vcpkg_abi_info.txt",
+                                                                     "sha256":  "aff0fa4df6b72baaa409baf0b4c9a51b80ed8021dcb3aa3ec37d3bc1439298f8"
+                                                                 },
+                                                                 {
+                                                                     "path":  "x64-windows/share/boost-winapi/vcpkg_abi_info.txt",
+                                                                     "sha256":  "b0bcc688a0c6cbaef6635daeb76b16fdb9101484a9c01c29233292a1e01e8d2d"
+                                                                 },
+                                                                 {
+                                                                     "path":  "x64-windows/share/directxmath/vcpkg_abi_info.txt",
+                                                                     "sha256":  "0ec671c83218fa890f8bc749c99f0f09c174eecfe8156da77fef388445ae908f"
+                                                                 },
+                                                                 {
+                                                                     "path":  "x64-windows/share/directxtex/vcpkg_abi_info.txt",
+                                                                     "sha256":  "227b357827452c80316d4d1a631b86202a568f1a82f40f9c163b8175016b6f7e"
+                                                                 },
+                                                                 {
+                                                                     "path":  "x64-windows/share/directxtk/vcpkg_abi_info.txt",
+                                                                     "sha256":  "50b6884eaf2ae13ebe4dd771085cba92fde5510b27b267910631a6fe04ad8db5"
+                                                                 },
+                                                                 {
+                                                                     "path":  "x64-windows/share/fmt/vcpkg_abi_info.txt",
+                                                                     "sha256":  "63e5989880e880003cfabb2d2898af53f23b28cdea3cfa4a249e91a1c5ff33b6"
+                                                                 },
+                                                                 {
+                                                                     "path":  "x64-windows/share/gtest/vcpkg_abi_info.txt",
+                                                                     "sha256":  "51a27b3257f8c3aa95e59b1c1d19285898d410897e79c9af9b039a21db4756ee"
+                                                                 },
+                                                                 {
+                                                                     "path":  "x64-windows/share/jhasse-poly2tri/vcpkg_abi_info.txt",
+                                                                     "sha256":  "8192995d5980323490f5f8223cf67d43eace032bb9c2e7541cea0fd5d9b3f0a4"
+                                                                 },
+                                                                 {
+                                                                     "path":  "x64-windows/share/kubazip/vcpkg_abi_info.txt",
+                                                                     "sha256":  "c6a16f64f6c68f4b06204b728caa8a44fe745e428609b13c885447dac4c55a9a"
+                                                                 },
+                                                                 {
+                                                                     "path":  "x64-windows/share/minizip/vcpkg_abi_info.txt",
+                                                                     "sha256":  "331edbead9cfa667ee8503340bc24718b2fe5abba2b05ee804448c38beb489ff"
+                                                                 },
+                                                                 {
+                                                                     "path":  "x64-windows/share/polyclipping/vcpkg_abi_info.txt",
+                                                                     "sha256":  "51f2e15215f24580b1d86ab7bee5e2f4e6fc237dfa9369f2b0a50d2a8555ec1f"
+                                                                 },
+                                                                 {
+                                                                     "path":  "x64-windows/share/pugixml/vcpkg_abi_info.txt",
+                                                                     "sha256":  "2ef1fc5e36cb114ab5153c200ffde33bc4c8d766490f4099b8581b1261788dfa"
+                                                                 },
+                                                                 {
+                                                                     "path":  "x64-windows/share/rapidjson/vcpkg_abi_info.txt",
+                                                                     "sha256":  "090f3ac8ab56c0ed86a6fbd646215b8e381a644d664a708da62faa426fa40fb5"
+                                                                 },
+                                                                 {
+                                                                     "path":  "x64-windows/share/spdlog/vcpkg_abi_info.txt",
+                                                                     "sha256":  "ca319552d3248d7e677c7d0c2bc2f5648a6e572fa6fabe46091d7749355fe928"
+                                                                 },
+                                                                 {
+                                                                     "path":  "x64-windows/share/stb/vcpkg_abi_info.txt",
+                                                                     "sha256":  "5e2b3736c135b202b67b274df2e542df6ce8c7076097a4f6709b3fc3721aec43"
+                                                                 },
+                                                                 {
+                                                                     "path":  "x64-windows/share/utfcpp/vcpkg_abi_info.txt",
+                                                                     "sha256":  "5000bbd27055809c9758521066dee2becac7ecd3d060dde054a2e86cbc2062c6"
+                                                                 },
+                                                                 {
+                                                                     "path":  "x64-windows/share/vcpkg-boost/vcpkg_abi_info.txt",
+                                                                     "sha256":  "554a80dab14ed94b2ddc2c40b08222cedcdbdf3fb462ffde356acd9604e3a104"
+                                                                 },
+                                                                 {
+                                                                     "path":  "x64-windows/share/vcpkg-cmake-config/vcpkg_abi_info.txt",
+                                                                     "sha256":  "b915c331d7d6dea3f1aa117abf957f8819c0c0499c79e80afae3e1067b964843"
+                                                                 },
+                                                                 {
+                                                                     "path":  "x64-windows/share/vcpkg-cmake-get-vars/vcpkg_abi_info.txt",
+                                                                     "sha256":  "82044fec7268a38f2bba736f270b3988dbbdffab81ea717da8c4167271fa9800"
+                                                                 },
+                                                                 {
+                                                                     "path":  "x64-windows/share/vcpkg-cmake/vcpkg_abi_info.txt",
+                                                                     "sha256":  "27f4e8a9aa3e22d7390560e4841abe6da77901bb4d1a9886eb39810ec69c4afb"
+                                                                 },
+                                                                 {
+                                                                     "path":  "x64-windows/share/zlib/vcpkg_abi_info.txt",
+                                                                     "sha256":  "b4c168c3255948a1033653c7950c3a025abf6cf058a2288651bf9cd483c50f9e"
+                                                                 }
+                                                             ]
+                                       }
+                     },
+    "snapshots":  [
+                      {
+                          "path":  "docs/diagrams/class/evidence/cmake-cache.json",
+                          "sha256":  "20a39f759b4c40c0446fc0019032c020ba310f516277ba4fef9e4dff9867d149"
+                      },
+                      {
+                          "path":  "docs/diagrams/class/evidence/compile-commands.json",
+                          "sha256":  "f86d33061e82f3649e12ad84051383f8d49c23c6f5d9296dede32e290f0d5c9b"
+                      },
+                      {
+                          "path":  "docs/diagrams/class/evidence/tool-identities.json",
+                          "sha256":  "1d8c5bb2b7aca34085b8113301d55003d4219f2f3c3b65f9c3c3b46358c32ca4"
+                      },
+                      {
+                          "path":  "docs/diagrams/class/evidence/vcpkg-metadata.json",
+                          "sha256":  "c07e766fae1cd23067c46b1db8390efed5a84f5a66e95b91127bb5db5184a2bc"
+                      },
+                      {
+                          "path":  "docs/diagrams/class/evidence/vcpkg-status.json",
+                          "sha256":  "07949bca81c4d43d36e697c4fd900969521055243e959fc3dbef26c5db6bac1e"
+                      }
+                  ],
+    "diagrams":  {
+                     "engine":  {
+                                    "path":  "docs/diagrams/class/engine.json",
+                                    "sha256":  "96c2d0a2972802fb541b9b8e3760dbf2abb6089772d2731f713df4a4d089d603",
+                                    "classCount":  9,
+                                    "relationshipCount":  5
+                                },
+                     "network":  {
+                                     "path":  "docs/diagrams/class/network.json",
+                                     "sha256":  "1c7849edb78675ebe0ba5179380a917a703a50ff29cb66f3ad8a0f89283871f1",
+                                     "classCount":  9,
+                                     "relationshipCount":  1
+                                 }
+                 }
 }

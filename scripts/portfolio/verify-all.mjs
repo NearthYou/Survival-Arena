@@ -43,6 +43,14 @@ const REQUIRED_CLASS_DIAGRAM_PATHS = [
     'docs/diagrams/class/network.html'
 ];
 const CLASS_GENERATION_MANIFEST_PATH = 'docs/diagrams/class/manifest.json';
+const CLASS_GENERATION_EVIDENCE_DIRECTORY = 'docs/diagrams/class/evidence';
+const REQUIRED_CLASS_GENERATION_SNAPSHOTS = [
+    `${CLASS_GENERATION_EVIDENCE_DIRECTORY}/cmake-cache.json`,
+    `${CLASS_GENERATION_EVIDENCE_DIRECTORY}/compile-commands.json`,
+    `${CLASS_GENERATION_EVIDENCE_DIRECTORY}/tool-identities.json`,
+    `${CLASS_GENERATION_EVIDENCE_DIRECTORY}/vcpkg-metadata.json`,
+    `${CLASS_GENERATION_EVIDENCE_DIRECTORY}/vcpkg-status.json`
+];
 const REQUIRED_RUNTIME_LFS_PATHS = [
     'assets/runtime/characters/cyber-runner.dxam',
     'assets/runtime/environment/colormap.dds',
@@ -169,14 +177,491 @@ function validateSortedHashEntries(entries, field) {
     return errors;
 }
 
+function equalJson(left, right) {
+    return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function privacySensitiveSnapshotPattern(content) {
+    return [
+        /[A-Z]:[\\/]Users[\\/]/iu,
+        /AppData|[\\/]Temp[\\/]|\.worktrees|siwon/iu,
+        /"(?:generatedAt|timestamp|createdAt)"\s*:/iu
+    ].find((pattern) => pattern.test(content));
+}
+
+function parseCmakeCacheSnapshot(content) {
+    const entries = new Map();
+    const duplicates = new Set();
+    for (const line of content.split('\n')) {
+        const match = /^([^#/:][^:=]*):[^=]*=(.*)$/u.exec(line);
+        if (!match) {
+            continue;
+        }
+        if (entries.has(match[1])) {
+            duplicates.add(match[1]);
+        }
+        entries.set(match[1], match[2]);
+    }
+    return { entries, duplicates };
+}
+
+function parseVcpkgStatusSnapshot(content) {
+    return content
+        .trim()
+        .split(/\n\n+/u)
+        .map((paragraph) => {
+            const fields = {};
+            for (const line of paragraph.split('\n')) {
+                const separator = line.indexOf(': ');
+                if (separator > 0) {
+                    fields[line.slice(0, separator)] = line.slice(separator + 2);
+                }
+            }
+            return fields;
+        });
+}
+
+function snapshotNormalizationMatches(actual, expected) {
+    return actual
+        && typeof actual === 'object'
+        && !Array.isArray(actual)
+        && equalJson(actual, expected);
+}
+
+function validateCompilerIdentity(actual, expected, field) {
+    const errors = [];
+    const formats = {
+        volumeSerialNumber: /^0x[0-9a-f]{8}$/u,
+        fileId: /^0x[0-9a-f]{32}$/u,
+        sha256: /^[0-9a-f]{64}$/u
+    };
+    for (const [name, pattern] of Object.entries(formats)) {
+        if (!pattern.test(actual?.[name] ?? '')) {
+            errors.push(`${field}.${name}: invalid Windows compiler identity`);
+        } else if (actual[name] !== expected?.[name]) {
+            errors.push(`${field}.${name}: does not match the CMake compiler identity`);
+        }
+    }
+    return errors;
+}
+
+async function loadClassGenerationSnapshots(manifest, options, field) {
+    const errors = [];
+    const snapshots = new Map();
+    const snapshotEntries = manifest.snapshots;
+    if (!Array.isArray(snapshotEntries)
+        || snapshotEntries.length !== REQUIRED_CLASS_GENERATION_SNAPSHOTS.length
+        || snapshotEntries.some((entry, index) => entry?.path !== REQUIRED_CLASS_GENERATION_SNAPSHOTS[index])) {
+        errors.push(`${field}.snapshots: must enumerate the exact sorted generation evidence snapshot set`);
+    }
+
+    const manifestSnapshotByPath = new Map();
+    if (Array.isArray(snapshotEntries)) {
+        for (const [index, entry] of snapshotEntries.entries()) {
+            if (typeof entry?.path !== 'string' || !/^[0-9a-f]{64}$/u.test(entry?.sha256 ?? '')) {
+                errors.push(`${field}.snapshots[${index}]: must contain a path and lowercase SHA-256`);
+                continue;
+            }
+            if (manifestSnapshotByPath.has(entry.path)) {
+                errors.push(`${field}.snapshots[${index}].path: must be unique`);
+            }
+            manifestSnapshotByPath.set(entry.path, entry);
+        }
+    }
+
+    const evidenceDirectory = path.join(options.root, CLASS_GENERATION_EVIDENCE_DIRECTORY);
+    try {
+        const directoryEntries = await readdir(evidenceDirectory, { withFileTypes: true });
+        const actualPaths = directoryEntries
+            .map((entry) => `${CLASS_GENERATION_EVIDENCE_DIRECTORY}/${entry.name}`)
+            .sort(compareOrdinal);
+        for (const requiredPath of REQUIRED_CLASS_GENERATION_SNAPSHOTS) {
+            if (!actualPaths.includes(requiredPath)) {
+                errors.push(`${field}.snapshots: ${requiredPath} is missing`);
+            }
+        }
+        for (const actualPath of actualPaths) {
+            if (!REQUIRED_CLASS_GENERATION_SNAPSHOTS.includes(actualPath)) {
+                errors.push(`${field}.snapshots: ${actualPath} is extra`);
+            }
+        }
+        for (const entry of directoryEntries) {
+            const relativePath = `${CLASS_GENERATION_EVIDENCE_DIRECTORY}/${entry.name}`;
+            if (REQUIRED_CLASS_GENERATION_SNAPSHOTS.includes(relativePath) && !entry.isFile()) {
+                errors.push(`${field}.snapshots: ${relativePath} must be a regular file`);
+            }
+        }
+    } catch (error) {
+        if (error.code === 'ENOENT') {
+            for (const requiredPath of REQUIRED_CLASS_GENERATION_SNAPSHOTS) {
+                errors.push(`${field}.snapshots: ${requiredPath} is missing`);
+            }
+        } else {
+            errors.push(`${field}.snapshots: cannot enumerate evidence directory: ${error.message}`);
+        }
+    }
+
+    let realRoot;
+    try {
+        realRoot = await realpath(options.root);
+    } catch (error) {
+        errors.push(`${field}.snapshots: cannot resolve repository root: ${error.message}`);
+        return { errors, snapshots };
+    }
+    for (const relativePath of REQUIRED_CLASS_GENERATION_SNAPSHOTS) {
+        try {
+            const inspected = await inspectRepositoryPath(options.root, realRoot, relativePath);
+            if (inspected.status !== 'found' || !inspected.stats.isFile()) {
+                continue;
+            }
+            const bytes = await readFile(path.join(options.root, relativePath));
+            const content = bytes.toString('utf8');
+            snapshots.set(relativePath, { bytes, content });
+            const manifestEntry = manifestSnapshotByPath.get(relativePath);
+            if (!manifestEntry || sha256(bytes) !== manifestEntry.sha256) {
+                errors.push(`${field}.snapshots: ${relativePath} hash does not match the manifest`);
+            }
+            const privacyPattern = privacySensitiveSnapshotPattern(content);
+            if (privacyPattern) {
+                errors.push(`${field}.snapshots: ${relativePath} is not privacy-safe`);
+            }
+            if (content.includes('\r')) {
+                errors.push(`${field}.snapshots: ${relativePath} must use LF line endings`);
+            }
+        } catch (error) {
+            if (error.code !== 'ENOENT') {
+                errors.push(`${field}.snapshots: cannot read ${relativePath}: ${error.message}`);
+            }
+        }
+    }
+    return { errors, snapshots };
+}
+
+function validateCompileCommandsSnapshot(snapshot, manifest, field) {
+    const errors = [];
+    const snapshotField = `${field}.snapshots.compile-commands.json`;
+    let document;
+    try {
+        document = JSON.parse(snapshot.content);
+    } catch (error) {
+        return [`${snapshotField}: invalid JSON: ${error.message}`];
+    }
+    if (document.schemaVersion !== 1) {
+        errors.push(`${snapshotField}.schemaVersion: must be 1`);
+    }
+    if (!snapshotNormalizationMatches(document.normalization, {
+        encoding: 'UTF-8',
+        lineEndings: 'LF',
+        pathSeparator: '/',
+        commandCompilerToken: '${MSVC_COMPILER}'
+    })) {
+        errors.push(`${snapshotField}.normalization: unexpected normalization contract`);
+    }
+    const entries = document.entries;
+    const expectedTotal = manifest.compilation?.compileCommands?.totalTranslationUnits;
+    if (!Array.isArray(entries) || entries.length !== expectedTotal || entries.length !== 172) {
+        errors.push(`${snapshotField}.entries: must contain all 172 compile database entries`);
+        return errors;
+    }
+    const files = entries.map((entry) => entry?.file);
+    if (new Set(files).size !== files.length
+        || files.some((entryPath, index) => entryPath !== [...files].sort(compareOrdinal)[index])) {
+        errors.push(`${snapshotField}.entries: source paths must be sorted and unique`);
+    }
+    for (const [index, entry] of entries.entries()) {
+        const entryField = `${snapshotField}.entries[${index}]`;
+        if (typeof entry?.file !== 'string'
+            || !/^(?:apps|engine|protocol|simulation|tests)\/.+\.cpp$/u.test(entry.file)) {
+            errors.push(`${entryField}.file: must be a normalized repository C++ source path`);
+        }
+        if (entry?.directory !== '${BUILD_ROOT}') {
+            errors.push(`${entryField}.directory: must be the normalized build root`);
+        }
+        if (typeof entry?.command !== 'string' || !entry.command.startsWith('${MSVC_COMPILER} ')) {
+            errors.push(`${entryField}.command: compiler token must be the exact first executable`);
+        }
+        if (typeof entry?.command !== 'string'
+            || !entry.command.includes(`\${REPOSITORY_ROOT}/${entry?.file}`)) {
+            errors.push(`${entryField}.command: must compile its normalized repository source`);
+        }
+        if (typeof entry?.command === 'string' && /[A-Z]:[\\/]/iu.test(entry.command)) {
+            errors.push(`${entryField}.command: must not retain an absolute build or dependency root`);
+        }
+    }
+    const selectedFiles = files.filter((entryPath) => selectedTranslationUnit(entryPath));
+    const manifestSelected = manifest.compilation?.compileCommands?.selectedPaths;
+    if (!equalJson(selectedFiles, manifestSelected)) {
+        errors.push(`${snapshotField}.entries: selected TU set does not match the generation manifest`);
+    }
+    return errors;
+}
+
+function validateCmakeCacheSnapshot(snapshot, manifest, field) {
+    const errors = [];
+    const snapshotField = `${field}.snapshots.cmake-cache.json`;
+    let document;
+    try {
+        document = JSON.parse(snapshot.content);
+    } catch (error) {
+        return [`${snapshotField}: invalid JSON: ${error.message}`];
+    }
+    if (document.schemaVersion !== 1
+        || document.format !== 'cmake-cache'
+        || !snapshotNormalizationMatches(document.normalization, {
+            encoding: 'UTF-8',
+            lineEndings: 'LF',
+            pathSeparator: '/'
+        })
+        || typeof document.content !== 'string') {
+        errors.push(`${snapshotField}: unexpected schema or normalization contract`);
+        return errors;
+    }
+    const { entries, duplicates } = parseCmakeCacheSnapshot(document.content);
+    if (duplicates.size > 0) {
+        errors.push(`${snapshotField}: required cache keys must be unique`);
+    }
+    const vcpkgRoot = typeof manifest.compilation?.cmakeCache?.toolchain === 'string'
+        ? manifest.compilation.cmakeCache.toolchain.replace(/\/scripts\/buildsystems\/vcpkg\.cmake$/iu, '')
+        : undefined;
+    const expected = {
+        CMAKE_CXX_COMPILER: '${MSVC_COMPILER}',
+        CMAKE_MAKE_PROGRAM: '${NINJA}',
+        CMAKE_COMMAND: '${CMAKE}',
+        CMAKE_TOOLCHAIN_FILE: '${VCPKG_TOOLCHAIN}',
+        VCPKG_INSTALLED_DIR: '${VCPKG_INSTALLED_ROOT}',
+        CMAKE_GENERATOR: 'Ninja',
+        CMAKE_HOME_DIRECTORY: '${REPOSITORY_ROOT}',
+        CMAKE_CACHEFILE_DIR: '${BUILD_ROOT}',
+        VCPKG_MANIFEST_DIR: '${REPOSITORY_ROOT}',
+        VCPKG_TARGET_TRIPLET: 'x64-windows',
+        _VCPKG_INSTALLED_DIR: '${VCPKG_INSTALLED_ROOT}',
+        Z_VCPKG_ROOT_DIR: vcpkgRoot,
+        DXA_POWERSHELL_EXECUTABLE: '${POWERSHELL}',
+        Z_VCPKG_PWSH_PATH: '${POWERSHELL}',
+        Z_VCPKG_POWERSHELL_PATH: '${POWERSHELL}'
+    };
+    for (const [name, expectedValue] of Object.entries(expected)) {
+        if (entries.get(name) !== expectedValue) {
+            errors.push(`${snapshotField}.${name}: must be ${expectedValue}`);
+        }
+    }
+    if (manifest.compilation?.cmakeCache?.generator !== entries.get('CMAKE_GENERATOR')) {
+        errors.push(`${snapshotField}.CMAKE_GENERATOR: does not match generation manifest`);
+    }
+    return errors;
+}
+
+function validateToolIdentitiesSnapshot(snapshot, manifest, field) {
+    const errors = [];
+    const snapshotField = `${field}.snapshots.tool-identities.json`;
+    let document;
+    try {
+        document = JSON.parse(snapshot.content);
+    } catch (error) {
+        return [`${snapshotField}: invalid JSON: ${error.message}`];
+    }
+    if (document.schemaVersion !== 1) {
+        errors.push(`${snapshotField}.schemaVersion: must be 1`);
+    }
+    const cache = manifest.compilation?.cmakeCache;
+    const expectedRootTokens = {
+        '${REPOSITORY_ROOT}': '.',
+        '${BUILD_ROOT}': 'out/build/portfolio-clang-uml',
+        '${VCPKG_INSTALLED_ROOT}': 'out/build/portfolio-clang-uml/vcpkg_installed',
+        '${MSVC_COMPILER}': cache?.compiler,
+        '${CMAKE}': 'C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/bin/cmake.exe',
+        '${NINJA}': cache?.makeProgram,
+        '${VCPKG_TOOLCHAIN}': cache?.toolchain,
+        '${POWERSHELL}': 'external/powershell'
+    };
+    if (!snapshotNormalizationMatches(document.normalization, {
+        encoding: 'UTF-8',
+        lineEndings: 'LF',
+        pathSeparator: '/',
+        rootTokens: expectedRootTokens
+    })) {
+        errors.push(`${snapshotField}.normalization: root-token map does not match manifest tool and build roots`);
+    }
+    if (!equalJson(document.clangUml, manifest.tooling?.clangUml)) {
+        errors.push(`${snapshotField}.clangUml: does not match manifest tool identity`);
+    }
+    for (const name of ['cmakeVersion', 'ninjaVersion', 'msvcVersion']) {
+        if (document[name] !== manifest.tooling?.[name]) {
+            errors.push(`${snapshotField}.${name}: does not match manifest tool identity`);
+        }
+    }
+    errors.push(...validateCompilerIdentity(
+        document.compilerIdentity,
+        cache?.compilerIdentity,
+        `${snapshotField}.compilerIdentity`
+    ));
+    const expectedSourceDigests = {
+        compileCommandsRawSha256: manifest.compilation?.compileCommands?.sha256,
+        cmakeCacheRawSha256: cache?.sha256,
+        vcpkgStatusRawSha256: manifest.dependencies?.installed?.status?.sha256
+    };
+    if (!equalJson(document.sourceDigests, expectedSourceDigests)) {
+        errors.push(`${snapshotField}.sourceDigests: raw generation inputs do not match the manifest`);
+    }
+    return errors;
+}
+
+function validateVcpkgSnapshots(statusSnapshot, metadataSnapshot, manifest, field) {
+    const errors = [];
+    const statusField = `${field}.snapshots.vcpkg-status.json`;
+    const metadataField = `${field}.snapshots.vcpkg-metadata.json`;
+    let statusDocument;
+    try {
+        statusDocument = JSON.parse(statusSnapshot.content);
+    } catch (error) {
+        return [`${statusField}: invalid JSON: ${error.message}`];
+    }
+    if (statusDocument.schemaVersion !== 1
+        || statusDocument.format !== 'vcpkg-status'
+        || !snapshotNormalizationMatches(statusDocument.normalization, {
+            encoding: 'UTF-8',
+            lineEndings: 'LF'
+        })
+        || typeof statusDocument.content !== 'string'
+        || statusDocument.content.includes('\r')) {
+        errors.push(`${statusField}: unexpected schema or normalization contract`);
+        return errors;
+    }
+    const paragraphs = parseVcpkgStatusSnapshot(statusDocument.content);
+    const installedPackages = paragraphs.filter((entry) => entry.Status === 'install ok installed'
+        && entry.Architecture === 'x64-windows'
+        && /^[0-9a-f]{64}$/u.test(entry.Abi ?? ''));
+    const packageNames = installedPackages.map((entry) => entry.Package);
+    if (installedPackages.length !== 71 || new Set(packageNames).size !== installedPackages.length) {
+        errors.push(`${statusField}: must contain exactly 71 unique installed base-package records with ABI hashes`);
+    }
+    if (manifest.dependencies?.installed?.status?.path !== 'vcpkg/status'
+        || manifest.dependencies?.installed?.status?.sha256 !== sha256(statusDocument.content)) {
+        errors.push(`${statusField}: bytes do not match installed status provenance`);
+    }
+
+    let metadata;
+    try {
+        metadata = JSON.parse(metadataSnapshot.content);
+    } catch (error) {
+        return [...errors, `${metadataField}: invalid JSON: ${error.message}`];
+    }
+    if (metadata.schemaVersion !== 1
+        || !snapshotNormalizationMatches(metadata.normalization, {
+            encoding: 'UTF-8',
+            lineEndings: 'LF'
+        })) {
+        errors.push(`${metadataField}: unexpected schema or normalization contract`);
+    }
+    const files = metadata.files;
+    if (!Array.isArray(files)) {
+        errors.push(`${metadataField}.files: must be an array`);
+        return errors;
+    }
+    const paths = files.map((entry) => entry?.path);
+    if (new Set(paths).size !== paths.length
+        || paths.some((entryPath, index) => entryPath !== [...paths].sort(compareOrdinal)[index])) {
+        errors.push(`${metadataField}.files: paths must be sorted and unique`);
+    }
+    for (const [index, entry] of files.entries()) {
+        if (typeof entry?.content !== 'string'
+            || entry.content.includes('\r')
+            || privacySensitiveSnapshotPattern(entry.content)
+            || sha256(entry.content) !== entry?.sha256) {
+            errors.push(`${metadataField}.files[${index}]: content and SHA-256 must be normalized and privacy-safe`);
+        }
+    }
+    const listFiles = files.filter((entry) => /^vcpkg\/info\/.+\.list$/u.test(entry?.path ?? ''));
+    const abiFiles = files.filter((entry) => /^x64-windows\/share\/.+\/vcpkg_abi_info\.txt$/u.test(entry?.path ?? ''));
+    if (listFiles.length !== 71) {
+        errors.push(`${metadataField}: expected 71 installed list snapshots`);
+    }
+    if (abiFiles.length !== 71) {
+        errors.push(`${metadataField}: expected 71 ABI metadata snapshots`);
+    }
+    const matchedLists = new Set();
+    const matchedAbis = new Set();
+    for (const installedPackage of installedPackages) {
+        const packageName = installedPackage.Package;
+        const lists = listFiles.filter((entry) => entry.path.startsWith(`vcpkg/info/${packageName}_`)
+            && entry.path.endsWith('_x64-windows.list'));
+        const abiPath = `x64-windows/share/${packageName}/vcpkg_abi_info.txt`;
+        const abis = abiFiles.filter((entry) => entry.path === abiPath);
+        if (lists.length !== 1) {
+            errors.push(`${metadataField}: missing installed list for ${packageName}`);
+        } else {
+            matchedLists.add(lists[0].path);
+            if (!lists[0].content.includes(`${abiPath}\n`)) {
+                errors.push(`${metadataField}: installed list for ${packageName} omits its ABI metadata path`);
+            }
+        }
+        if (abis.length !== 1) {
+            errors.push(`${metadataField}: missing ABI metadata for ${packageName}`);
+        } else {
+            matchedAbis.add(abis[0].path);
+            if (abis[0].sha256 !== installedPackage.Abi) {
+                errors.push(`${metadataField}: ABI metadata hash does not match status for ${packageName}`);
+            }
+        }
+    }
+    for (const entry of listFiles) {
+        if (!matchedLists.has(entry.path)) {
+            errors.push(`${metadataField}: extra installed list ${entry.path}`);
+        }
+    }
+    for (const entry of abiFiles) {
+        if (!matchedAbis.has(entry.path)) {
+            errors.push(`${metadataField}: extra ABI metadata ${entry.path}`);
+        }
+    }
+
+    const installed = manifest.dependencies?.installed;
+    const snapshotEntries = files.map((entry) => ({ path: entry.path, sha256: entry.sha256 }));
+    if (!equalJson(installed?.metadataFiles, snapshotEntries)) {
+        errors.push(`${metadataField}: file hashes do not match manifest installed metadata`);
+    }
+    if (installed?.metadataFileCount !== files.length) {
+        errors.push(`${metadataField}: file count does not match manifest installed metadata`);
+    }
+    const setMaterial = snapshotEntries.map((entry) => `${entry.path}\0${entry.sha256}\n`).join('');
+    if (installed?.metadataSetSha256 !== sha256(setMaterial)) {
+        errors.push(`${metadataField}: set hash does not match actual snapshot files`);
+    }
+    return errors;
+}
+
+async function validateClassGenerationSnapshots(manifest, options, field) {
+    const loaded = await loadClassGenerationSnapshots(manifest, options, field);
+    const errors = [...loaded.errors];
+    const get = (name) => loaded.snapshots.get(`${CLASS_GENERATION_EVIDENCE_DIRECTORY}/${name}`);
+    const compile = get('compile-commands.json');
+    const cache = get('cmake-cache.json');
+    const tools = get('tool-identities.json');
+    const metadata = get('vcpkg-metadata.json');
+    const status = get('vcpkg-status.json');
+    if (compile) {
+        errors.push(...validateCompileCommandsSnapshot(compile, manifest, field));
+    }
+    if (cache) {
+        errors.push(...validateCmakeCacheSnapshot(cache, manifest, field));
+    }
+    if (tools) {
+        errors.push(...validateToolIdentitiesSnapshot(tools, manifest, field));
+    }
+    if (status && metadata) {
+        errors.push(...validateVcpkgSnapshots(status, metadata, manifest, field));
+    }
+    return { errors, compile };
+}
+
 async function validateClassGenerationManifest(manifest, options) {
     const errors = [];
     const field = 'class-diagrams.proof.manifest';
     if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest)) {
         return [`${field}: must be an object`];
     }
-    if (manifest.schemaVersion !== 1) {
-        errors.push(`${field}.schemaVersion: must be 1`);
+    if (manifest.schemaVersion !== 2) {
+        errors.push(`${field}.schemaVersion: must be 2`);
     }
     if (manifest.basis?.commitSha !== CANONICAL_CODE_BASIS_SHA) {
         errors.push(`${field}.basis.commitSha: must match the canonical code basis SHA`);
@@ -305,6 +790,11 @@ async function validateClassGenerationManifest(manifest, options) {
             errors.push(`${field}.compilation.cmakeCache.${cacheField}: invalid normalized tool path`);
         }
     }
+    errors.push(...validateCompilerIdentity(
+        cache?.compilerIdentity,
+        cache?.compilerIdentity,
+        `${field}.compilation.cmakeCache.compilerIdentity`
+    ));
 
     const vcpkgManifest = manifest.dependencies?.vcpkgManifest;
     if (vcpkgManifest?.path !== 'vcpkg.json') {
@@ -348,6 +838,33 @@ async function validateClassGenerationManifest(manifest, options) {
         const material = installed.metadataFiles.map((entry) => `${entry.path}\0${entry.sha256}\n`).join('');
         if (installed.metadataSetSha256 !== sha256(material)) {
             errors.push(`${field}.dependencies.installed.metadataSetSha256: package metadata set hash mismatch`);
+        }
+    }
+
+    const snapshotValidation = await validateClassGenerationSnapshots(manifest, options, field);
+    errors.push(...snapshotValidation.errors);
+    if ((options.verifyClassBasisCommit ?? true) && snapshotValidation.compile) {
+        try {
+            const compileSnapshot = JSON.parse(snapshotValidation.compile.content);
+            const basisFilesResult = spawnSync(
+                'git',
+                [
+                    'ls-tree', '-r', '--name-only', CANONICAL_CODE_BASIS_SHA, '--',
+                    'apps', 'engine', 'protocol', 'simulation', 'tests'
+                ],
+                { cwd: options.root, encoding: 'utf8' }
+            );
+            const basisFiles = new Set(basisFilesResult.stdout.split(/\r?\n/u).filter(Boolean));
+            const missingAtBasis = Array.isArray(compileSnapshot.entries)
+                ? compileSnapshot.entries
+                    .map((entry) => entry?.file)
+                    .filter((entryPath) => typeof entryPath === 'string' && !basisFiles.has(entryPath))
+                : [];
+            if (basisFilesResult.status !== 0 || missingAtBasis.length > 0) {
+                errors.push(`${field}.snapshots.compile-commands.json: compile source is not tracked at the basis commit`);
+            }
+        } catch (error) {
+            errors.push(`${field}.snapshots.compile-commands.json: cannot validate basis source set: ${error.message}`);
         }
     }
 

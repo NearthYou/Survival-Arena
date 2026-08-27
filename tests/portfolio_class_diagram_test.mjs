@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { access, mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { access, mkdtemp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -69,6 +69,12 @@ function sha256(content) {
 
 function compareOrdinal(left, right) {
     return left < right ? -1 : (left > right ? 1 : 0);
+}
+
+function selectedTranslationUnit(relativePath) {
+    return /^engine\/src\/.+\.cpp$/u.test(relativePath)
+        || /^apps\/(?:game_client|game_server|lobby_server)\/src\/.+\.cpp$/u.test(relativePath)
+        || relativePath === 'tests/engine_resource_pool_test.cpp';
 }
 
 function relationshipMidpoint(html, source, destination) {
@@ -458,7 +464,7 @@ test('committed generation manifest deterministically binds AST generation input
         readFile(path.join(repositoryRoot, 'vcpkg.json'))
     ]);
 
-    assert.equal(manifest.schemaVersion, 1);
+    assert.equal(manifest.schemaVersion, 2);
     assert.deepEqual(manifest.basis, {
         commitSha: basisCommitSha,
         treeSha: basisTreeSha
@@ -495,6 +501,9 @@ test('committed generation manifest deterministically binds AST generation input
     assert.equal(cache.homeDirectory, '.');
     assert.equal(cache.buildDirectory, 'out/build/portfolio-clang-uml');
     assert.match(cache.compiler, /\/cl\.exe$/iu);
+    assert.match(cache.compilerIdentity.volumeSerialNumber, /^0x[0-9a-f]{8}$/u);
+    assert.match(cache.compilerIdentity.fileId, /^0x[0-9a-f]{32}$/u);
+    assert.match(cache.compilerIdentity.sha256, /^[0-9a-f]{64}$/u);
     assert.match(cache.makeProgram, /\/ninja\.exe$/iu);
     assert.match(cache.toolchain, /\/vcpkg\.cmake$/iu);
     assert.equal(cache.vcpkgInstalled, 'out/build/portfolio-clang-uml/vcpkg_installed');
@@ -530,6 +539,64 @@ test('committed generation manifest deterministically binds AST generation input
             relationshipCount: raw.relationships.length
         });
     }
+});
+
+test('committed generation evidence snapshot is complete, enumerated and privacy-safe', async () => {
+    const evidenceDirectory = path.join(repositoryRoot, 'docs/diagrams/class/evidence');
+    const expectedFiles = [
+        'cmake-cache.json',
+        'compile-commands.json',
+        'tool-identities.json',
+        'vcpkg-metadata.json',
+        'vcpkg-status.json'
+    ];
+    const actualFiles = (await readdir(evidenceDirectory)).sort(compareOrdinal);
+    assert.deepEqual(actualFiles, expectedFiles);
+
+    const manifest = JSON.parse(await readFile(
+        path.join(repositoryRoot, 'docs/diagrams/class/manifest.json'),
+        'utf8'
+    ));
+    assert.deepEqual(
+        manifest.snapshots.map((entry) => entry.path),
+        expectedFiles.map((file) => `docs/diagrams/class/evidence/${file}`)
+    );
+    for (const snapshot of manifest.snapshots) {
+        const bytes = await readFile(path.join(repositoryRoot, snapshot.path));
+        assert.equal(snapshot.sha256, sha256(bytes), snapshot.path);
+        const text = bytes.toString('utf8');
+        assert.doesNotMatch(text, /C:[/\\]Users[/\\]/iu, snapshot.path);
+        assert.doesNotMatch(text, /AppData|[/\\]Temp[/\\]|\.worktrees|siwon/iu, snapshot.path);
+        assert.doesNotMatch(text, /"(?:generatedAt|timestamp|createdAt)"\s*:/iu, snapshot.path);
+    }
+
+    const [compileSnapshot, toolSnapshot, metadataSnapshot, statusSnapshot] = await Promise.all([
+        readFile(path.join(evidenceDirectory, 'compile-commands.json'), 'utf8').then(JSON.parse),
+        readFile(path.join(evidenceDirectory, 'tool-identities.json'), 'utf8').then(JSON.parse),
+        readFile(path.join(evidenceDirectory, 'vcpkg-metadata.json'), 'utf8').then(JSON.parse),
+        readFile(path.join(evidenceDirectory, 'vcpkg-status.json'), 'utf8').then(JSON.parse)
+    ]);
+    assert.equal(compileSnapshot.entries.length, manifest.compilation.compileCommands.totalTranslationUnits);
+    assert.deepEqual(
+        compileSnapshot.entries
+            .map((entry) => entry.file)
+            .filter((entryPath) => selectedTranslationUnit(entryPath)),
+        manifest.compilation.compileCommands.selectedPaths
+    );
+    assert.deepEqual(toolSnapshot.compilerIdentity, manifest.compilation.cmakeCache.compilerIdentity);
+    assert.deepEqual(toolSnapshot.sourceDigests, {
+        compileCommandsRawSha256: manifest.compilation.compileCommands.sha256,
+        cmakeCacheRawSha256: manifest.compilation.cmakeCache.sha256,
+        vcpkgStatusRawSha256: manifest.dependencies.installed.status.sha256
+    });
+    assert.equal(sha256(statusSnapshot.content), manifest.dependencies.installed.status.sha256);
+    assert.deepEqual(
+        metadataSnapshot.files.map(({ path: relativePath, sha256: digest }) => ({
+            path: relativePath,
+            sha256: digest
+        })),
+        manifest.dependencies.installed.metadataFiles
+    );
 });
 
 test('class validator rejects hand-authored JSON that only imitates a clang-uml envelope', async () => {

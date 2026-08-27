@@ -1,0 +1,36 @@
+{
+    "schemaVersion":  1,
+    "normalization":  {
+                          "encoding":  "UTF-8",
+                          "lineEndings":  "LF",
+                          "pathSeparator":  "/",
+                          "rootTokens":  {
+                                             "${REPOSITORY_ROOT}":  ".",
+                                             "${BUILD_ROOT}":  "out/build/portfolio-clang-uml",
+                                             "${VCPKG_INSTALLED_ROOT}":  "out/build/portfolio-clang-uml/vcpkg_installed",
+                                             "${MSVC_COMPILER}":  "C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/bin/Hostx64/x64/cl.exe",
+                                             "${CMAKE}":  "C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/bin/cmake.exe",
+                                             "${NINJA}":  "C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/Ninja/ninja.exe",
+                                             "${VCPKG_TOOLCHAIN}":  "C:/Program Files/Microsoft Visual Studio/2022/Community/VC/vcpkg/scripts/buildsystems/vcpkg.cmake",
+                                             "${POWERSHELL}":  "external/powershell"
+                                         }
+                      },
+    "clangUml":  {
+                     "version":  "0.6.3",
+                     "fullVersion":  "clang-uml 0.6.3\nCopyright (C) 2021-2026 Bartek Kryza \u003cbkryza@gmail.com\u003e\nWindows, 32-bit\nBuilt against LLVM/Clang libraries version: 22.1.8\nUsing LLVM/Clang libraries version: clang version 22.1.8 (https://github.com/llvm/llvm-project.git ca7933e47d3a3451d81e72ac174dcb5aa28b59d1)",
+                     "llvmIdentity":  "clang version 22.1.8 (https://github.com/llvm/llvm-project.git ca7933e47d3a3451d81e72ac174dcb5aa28b59d1)"
+                 },
+    "cmakeVersion":  "cmake version 3.31.6-msvc6",
+    "ninjaVersion":  "1.12.1",
+    "msvcVersion":  "19.44.35228",
+    "compilerIdentity":  {
+                             "volumeSerialNumber":  "0xec51c6f3",
+                             "fileId":  "0x0000000000000000000200000005b13f",
+                             "sha256":  "88c8344236a27a6e727e0a8edc49aaa2690bdc7a9464b9d18cc7abe70a9f1c0d"
+                         },
+    "sourceDigests":  {
+                          "compileCommandsRawSha256":  "30c8113df2a0e088181d4cdfe0ea335d3e4c49fb958564fe7059457752058e37",
+                          "cmakeCacheRawSha256":  "dbba9982ca36b6d955cbed25c85a0384504adc7277c113a419e4ec737d2ed6f6",
+                          "vcpkgStatusRawSha256":  "8e3483cfcf179994fba1dcfc632325190401fde2404e333bcf5366b9d29e30f2"
+                      }
+}

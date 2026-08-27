@@ -16,6 +16,13 @@ import {
 
 const basisCommitSha = '884e5e70d68d9fcf9dfe5638d97e06623da154c2';
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const classEvidenceSnapshotPaths = [
+    'docs/diagrams/class/evidence/cmake-cache.json',
+    'docs/diagrams/class/evidence/compile-commands.json',
+    'docs/diagrams/class/evidence/tool-identities.json',
+    'docs/diagrams/class/evidence/vcpkg-metadata.json',
+    'docs/diagrams/class/evidence/vcpkg-status.json'
+];
 const requiredRuntimeLfsPaths = [
     'assets/runtime/characters/cyber-runner.dxam',
     'assets/runtime/environment/colormap.dds',
@@ -177,6 +184,11 @@ async function createValidClassProofFixture(document, root) {
     const targetManifest = path.join(root, manifestPath);
     await mkdir(path.dirname(targetManifest), { recursive: true });
     await writeFile(targetManifest, manifestBytes);
+    for (const relativePath of classEvidenceSnapshotPaths) {
+        const target = path.join(root, relativePath);
+        await mkdir(path.dirname(target), { recursive: true });
+        await writeFile(target, await readFile(path.join(repositoryRoot, relativePath)));
+    }
 
     return setVerifiedClassProof(document, {
         config: { path: configPath, sha256: normalizedTextSha256(config) },
@@ -185,6 +197,40 @@ async function createValidClassProofFixture(document, root) {
         path: manifestPath,
         sha256: sha256(manifestBytes)
     });
+}
+
+async function writeClassManifestFixture(root, item, manifest) {
+    const content = `${JSON.stringify(manifest, null, 2)}\n`;
+    await writeFile(path.join(root, 'docs/diagrams/class/manifest.json'), content, 'utf8');
+    item.proof.manifest.sha256 = sha256(content);
+}
+
+async function updateClassSnapshotFixture(root, item, snapshotPath, transform, updateManifest) {
+    const manifestPath = path.join(root, 'docs/diagrams/class/manifest.json');
+    const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
+    const absoluteSnapshotPath = path.join(root, snapshotPath);
+    const original = await readFile(absoluteSnapshotPath, 'utf8');
+    const updated = await transform(original, manifest);
+    await writeFile(absoluteSnapshotPath, updated, 'utf8');
+    const snapshot = manifest.snapshots.find((entry) => entry.path === snapshotPath);
+    assert.ok(snapshot, `fixture manifest snapshot is missing: ${snapshotPath}`);
+    snapshot.sha256 = sha256(updated);
+    if (updateManifest) {
+        await updateManifest(manifest, updated);
+    }
+    await writeClassManifestFixture(root, item, manifest);
+}
+
+function synchronizeInstalledMetadataManifest(manifest, metadata) {
+    const entries = metadata.files.map(({ path: relativePath, sha256: digest }) => ({
+        path: relativePath,
+        sha256: digest
+    }));
+    manifest.dependencies.installed.metadataFiles = entries;
+    manifest.dependencies.installed.metadataFileCount = entries.length;
+    manifest.dependencies.installed.metadataSetSha256 = sha256(
+        entries.map((entry) => `${entry.path}\0${entry.sha256}\n`).join('')
+    );
 }
 
 async function listFixtureFiles(root, directory = root) {
@@ -709,6 +755,238 @@ test('verified class diagrams reject raw JSON that no longer matches the generat
 
         assert.ok(errors.some((error) => error.includes('proof.manifest.diagrams.engine')));
     });
+});
+
+test('verified class diagrams require the exact committed generation snapshot set', async () => {
+    await withReleaseFixture(async (document, root) => {
+        await createValidClassProofFixture(document, root);
+        await rm(path.join(root, classEvidenceSnapshotPaths[0]));
+
+        const errors = await validateReleaseStatus(document, {
+            root,
+            verifyClassBasisCommit: false
+        });
+
+        assert.ok(
+            errors.some((error) => error.includes('evidence/cmake-cache.json') && error.includes('missing')),
+            errors.join('\n')
+        );
+    });
+
+    await withReleaseFixture(async (document, root) => {
+        await createValidClassProofFixture(document, root);
+        await writeFile(
+            path.join(root, 'docs/diagrams/class/evidence/manual-proof.txt'),
+            'manual proof\n',
+            'utf8'
+        );
+
+        const errors = await validateReleaseStatus(document, {
+            root,
+            verifyClassBasisCommit: false
+        });
+
+        assert.ok(
+            errors.some((error) => error.includes('evidence/manual-proof.txt') && error.includes('extra')),
+            errors.join('\n')
+        );
+    });
+});
+
+test('verified class diagrams reconstruct compile evidence after manifest hashes are recomputed', async () => {
+    await withReleaseFixture(async (document, root) => {
+        const { item } = await createValidClassProofFixture(document, root);
+        const snapshotPath = 'docs/diagrams/class/evidence/compile-commands.json';
+        await updateClassSnapshotFixture(root, item, snapshotPath, (original) => {
+            const snapshot = JSON.parse(original);
+            snapshot.entries[0].command = snapshot.entries[0].command.replace(
+                '${MSVC_COMPILER}',
+                'manual-cl.exe'
+            );
+            return `${JSON.stringify(snapshot, null, 2)}\n`;
+        });
+
+        const errors = await validateReleaseStatus(document, {
+            root,
+            verifyClassBasisCommit: false
+        });
+
+        assert.ok(
+            errors.some((error) => error.includes('compile-commands.json') && error.includes('compiler token')),
+            errors.join('\n')
+        );
+    });
+});
+
+test('verified class diagrams reconstruct normalized CMake and vcpkg roots', async () => {
+    await withReleaseFixture(async (document, root) => {
+        const { item } = await createValidClassProofFixture(document, root);
+        const snapshotPath = 'docs/diagrams/class/evidence/cmake-cache.json';
+        await updateClassSnapshotFixture(root, item, snapshotPath, (original) => {
+            const snapshot = JSON.parse(original);
+            snapshot.content = snapshot.content.replace(
+                'VCPKG_MANIFEST_DIR:PATH=${REPOSITORY_ROOT}',
+                'VCPKG_MANIFEST_DIR:PATH=${BUILD_ROOT}'
+            );
+            return `${JSON.stringify(snapshot, null, 2)}\n`;
+        });
+
+        const errors = await validateReleaseStatus(document, {
+            root,
+            verifyClassBasisCommit: false
+        });
+
+        assert.ok(
+            errors.some((error) => error.includes('VCPKG_MANIFEST_DIR')),
+            errors.join('\n')
+        );
+    });
+});
+
+test('verified class diagrams reject schema-valid forged opaque generation digests', async () => {
+    await withReleaseFixture(async (document, root) => {
+        const { item } = await createValidClassProofFixture(document, root);
+        const manifestPath = path.join(root, 'docs/diagrams/class/manifest.json');
+        const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
+        manifest.compilation.compileCommands.sha256 = 'a'.repeat(64);
+        manifest.compilation.cmakeCache.sha256 = 'b'.repeat(64);
+        manifest.dependencies.installed.status.sha256 = 'c'.repeat(64);
+        await writeClassManifestFixture(root, item, manifest);
+
+        const errors = await validateReleaseStatus(document, {
+            root,
+            verifyClassBasisCommit: false
+        });
+
+        assert.ok(
+            errors.some((error) => error.includes('tool-identities.json') && error.includes('sourceDigests')),
+            errors.join('\n')
+        );
+    });
+});
+
+test('verified class diagrams reject privacy-sensitive generation snapshot bytes', async () => {
+    await withReleaseFixture(async (document, root) => {
+        const { item } = await createValidClassProofFixture(document, root);
+        const snapshotPath = 'docs/diagrams/class/evidence/cmake-cache.json';
+        await updateClassSnapshotFixture(
+            root,
+            item,
+            snapshotPath,
+            (original) => {
+                const snapshot = JSON.parse(original);
+                snapshot.content += '\nPRIVATE_PATH:INTERNAL=C:/Users/alice/AppData/Local/Temp/build\n';
+                return `${JSON.stringify(snapshot, null, 2)}\n`;
+            }
+        );
+
+        const errors = await validateReleaseStatus(document, {
+            root,
+            verifyClassBasisCommit: false
+        });
+
+        assert.ok(
+            errors.some((error) => error.includes('cmake-cache.json') && error.includes('privacy-safe')),
+            errors.join('\n')
+        );
+    });
+});
+
+test('verified class diagrams bind compiler volume identity as well as file ID', async () => {
+    await withReleaseFixture(async (document, root) => {
+        const { item } = await createValidClassProofFixture(document, root);
+        const snapshotPath = 'docs/diagrams/class/evidence/tool-identities.json';
+        await updateClassSnapshotFixture(root, item, snapshotPath, (original) => {
+            const snapshot = JSON.parse(original);
+            snapshot.compilerIdentity.volumeSerialNumber = '0xdeadbeef';
+            return `${JSON.stringify(snapshot, null, 2)}\n`;
+        });
+
+        const errors = await validateReleaseStatus(document, {
+            root,
+            verifyClassBasisCommit: false
+        });
+
+        assert.ok(
+            errors.some((error) => error.includes('compilerIdentity.volumeSerialNumber')),
+            errors.join('\n')
+        );
+    });
+});
+
+test('verified class diagrams enforce vcpkg status, list, and ABI completeness', async () => {
+    const scenarios = [
+        {
+            label: 'missing list',
+            mutate(files) {
+                const index = files.findIndex((entry) => entry.path.endsWith('.list'));
+                files.splice(index, 1);
+            },
+            expected: 'missing installed list'
+        },
+        {
+            label: 'extra list',
+            mutate(files) {
+                const source = files.find((entry) => entry.path.endsWith('.list'));
+                files.push({
+                    ...source,
+                    path: 'vcpkg/info/manual-package_1.0.0_x64-windows.list'
+                });
+            },
+            expected: 'extra installed list'
+        },
+        {
+            label: 'missing ABI',
+            mutate(files) {
+                const index = files.findIndex((entry) => entry.path.endsWith('/vcpkg_abi_info.txt'));
+                files.splice(index, 1);
+            },
+            expected: 'missing ABI metadata'
+        },
+        {
+            label: 'extra ABI',
+            mutate(files) {
+                const source = files.find((entry) => entry.path.endsWith('/vcpkg_abi_info.txt'));
+                files.push({
+                    ...source,
+                    path: 'x64-windows/share/manual-package/vcpkg_abi_info.txt'
+                });
+            },
+            expected: 'extra ABI metadata'
+        }
+    ];
+
+    for (const scenario of scenarios) {
+        await withReleaseFixture(async (document, root) => {
+            const { item } = await createValidClassProofFixture(document, root);
+            const snapshotPath = 'docs/diagrams/class/evidence/vcpkg-metadata.json';
+            await updateClassSnapshotFixture(
+                root,
+                item,
+                snapshotPath,
+                (original) => {
+                    const metadata = JSON.parse(original);
+                    scenario.mutate(metadata.files);
+                    metadata.files.sort((left, right) => left.path.localeCompare(right.path, 'en'));
+                    return `${JSON.stringify(metadata, null, 2)}\n`;
+                },
+                (manifest, updated) => synchronizeInstalledMetadataManifest(
+                    manifest,
+                    JSON.parse(updated)
+                )
+            );
+
+            const errors = await validateReleaseStatus(document, {
+                root,
+                verifyClassBasisCommit: false
+            });
+
+            assert.ok(
+                errors.some((error) => error.includes(scenario.expected)),
+                `${scenario.label}:\n${errors.join('\n')}`
+            );
+        });
+    }
 });
 
 test('empty PDF and demo files cannot satisfy verified states', async () => {
