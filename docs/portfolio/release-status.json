@@ -95,9 +95,29 @@
     {
       "id": "class-diagrams",
       "label": "clang-uml AST 클래스 다이어그램",
-      "status": "missing",
-      "evidence": [],
-      "note": "clang-uml 0.6.3의 실제 AST JSON과 HTML이 아직 없다. 수동 class 목록으로 대체하지 않는다."
+      "status": "verified",
+      "evidence": [
+        "docs/diagrams/class/engine.json",
+        "docs/diagrams/class/network.json",
+        "docs/diagrams/class/engine.html",
+        "docs/diagrams/class/network.html"
+      ],
+      "proof": {
+        "tool": "clang-uml",
+        "toolVersion": "0.6.3",
+        "basisCommitSha": "884e5e70d68d9fcf9dfe5638d97e06623da154c2",
+        "outputs": {
+          "engine": {
+            "json": "docs/diagrams/class/engine.json",
+            "html": "docs/diagrams/class/engine.html"
+          },
+          "network": {
+            "json": "docs/diagrams/class/network.json",
+            "html": "docs/diagrams/class/network.html"
+          }
+        }
+      },
+      "note": "clang-uml 0.6.3 raw AST JSON에서 engine 9개 class와 5개 relationship, network 9개 class와 1개 relationship을 확인하고 deterministic HTML을 1280px와 768px dark browser에서 검수했다."
     },
     {
       "id": "portfolio-pdf",

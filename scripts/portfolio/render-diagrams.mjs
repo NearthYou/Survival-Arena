@@ -11,6 +11,19 @@ const EXPECTED_SOURCE_FILES = [
     'snapshot-data-flow.json',
     'system-architecture.json'
 ];
+const EXPECTED_CLASS_SOURCE_FILES = ['engine.json', 'network.json'];
+const CLASS_INDEX_ENTRIES = [
+    {
+        title: 'Engine AST 클래스 구조',
+        file: 'class/engine.html',
+        basisCommitSha: CANONICAL_BASIS_COMMIT_SHA
+    },
+    {
+        title: 'Network AST 클래스 구조',
+        file: 'class/network.html',
+        basisCommitSha: CANONICAL_BASIS_COMMIT_SHA
+    }
+];
 
 function escapeHtml(value) {
     return String(value)
@@ -364,8 +377,276 @@ export async function validateDiagram(diagram, options = {}) {
     return errors;
 }
 
+function flattenClassElements(elements) {
+    const flattened = [];
+    for (const element of elements ?? []) {
+        if (Array.isArray(element?.elements)) {
+            flattened.push(...flattenClassElements(element.elements));
+        } else {
+            flattened.push(element);
+        }
+    }
+    return flattened;
+}
+
+function classDiagramTitle(diagram) {
+    return diagram.name === 'engine' ? 'Engine AST 클래스 구조' : 'Network AST 클래스 구조';
+}
+
+function displayLlvmVersion(value) {
+    return String(value).replace(/\s+\(https?:\/\/[^)]+\)/gu, '');
+}
+
+function renderClassSvg(diagram) {
+    const classes = flattenClassElements(diagram.elements).filter((element) => element.type === 'class');
+    const columns = Math.min(3, classes.length);
+    const rows = Math.ceil(classes.length / columns);
+    const margin = 52;
+    const cardWidth = 258;
+    const cardHeight = 122;
+    const horizontalGap = 132;
+    const verticalGap = 78;
+    const width = margin * 2 + columns * cardWidth + (columns - 1) * horizontalGap;
+    const height = margin * 2 + rows * cardHeight + (rows - 1) * verticalGap;
+    const positions = new Map(classes.map((element, index) => [element.id, {
+        x: margin + (index % columns) * (cardWidth + horizontalGap),
+        y: margin + Math.floor(index / columns) * (cardHeight + verticalGap),
+        width: cardWidth,
+        height: cardHeight
+    }]));
+    const reciprocalPairs = new Set(diagram.relationships
+        .filter((relationship) => diagram.relationships.some((candidate) => (
+            candidate.source === relationship.destination
+            && candidate.destination === relationship.source
+        )))
+        .map((relationship) => [relationship.source, relationship.destination].sort().join(':')));
+
+    const relationships = diagram.relationships.map((relationship) => {
+        const from = positions.get(relationship.source);
+        const to = positions.get(relationship.destination);
+        const points = rectangleConnection(from, to);
+        const pairKey = [relationship.source, relationship.destination].sort().join(':');
+        const hasReciprocal = reciprocalPairs.has(pairKey);
+        const dx = points.x2 - points.x1;
+        const dy = points.y2 - points.y1;
+        const distance = Math.hypot(dx, dy) || 1;
+        const offset = hasReciprocal ? 18 : 0;
+        const offsetX = (-dy / distance) * offset;
+        const offsetY = (dx / distance) * offset;
+        const x1 = points.x1 + offsetX;
+        const y1 = points.y1 + offsetY;
+        const x2 = points.x2 + offsetX;
+        const y2 = points.y2 + offsetY;
+        const labelX = (x1 + x2) / 2;
+        const labelY = (y1 + y2) / 2 - 8;
+        const labelWidth = Math.max(86, relationship.type.length * 8 + 20);
+        return `      <g class="class-relationship" data-source="${escapeHtml(relationship.source)}" data-destination="${escapeHtml(relationship.destination)}">
+        <path d="M ${x1} ${y1} L ${x2} ${y2}" marker-end="url(#arrow)" />
+        <rect x="${labelX - labelWidth / 2}" y="${labelY - 14}" width="${labelWidth}" height="24" rx="8" />
+        <text x="${labelX}" y="${labelY + 3}">${escapeHtml(relationship.type)}</text>
+      </g>`;
+    }).join('\n');
+    const nodes = classes.map((element) => {
+        const position = positions.get(element.id);
+        const namespaceLabel = element.namespace || 'global namespace';
+        const counts = `${element.members.length} members / ${element.methods.length} methods`;
+        const sourceLabel = path.basename(element.source_location.file);
+        return `      <g class="class-node" data-class-id="${escapeHtml(element.id)}">
+        <rect x="${position.x}" y="${position.y}" width="${position.width}" height="${position.height}" rx="14" />
+        ${renderMultilineText(element.name, position.x + position.width / 2, position.y + 28, 'class-name', 28)}
+        ${renderMultilineText(namespaceLabel, position.x + position.width / 2, position.y + 58, 'class-namespace', 34)}
+        ${renderMultilineText(counts, position.x + position.width / 2, position.y + 83, 'class-counts', 34)}
+        ${renderMultilineText(sourceLabel, position.x + position.width / 2, position.y + 106, 'class-source', 34)}
+      </g>`;
+    }).join('\n');
+
+    return `<svg viewBox="0 0 ${width} ${height}" role="img" aria-labelledby="class-svg-title class-svg-description">
+      <title id="class-svg-title">${escapeHtml(classDiagramTitle(diagram))}</title>
+      <desc id="class-svg-description">clang-uml AST에서 추출한 클래스와 방향성 관계를 읽는 다이어그램</desc>
+      ${renderArrowMarker()}
+${relationships}
+${nodes}
+    </svg>`;
+}
+
+function renderClassTextFallback(diagram) {
+    const classes = flattenClassElements(diagram.elements).filter((element) => element.type === 'class');
+    const classById = new Map(classes.map((element) => [element.id, element]));
+    const classItems = classes.map((element) => `<li tabindex="0">
+            <strong>${escapeHtml(element.display_name)}</strong>
+            <span>${element.members.length} members / ${element.methods.length} methods</span>
+            <code>${escapeHtml(element.source_location.file)}</code>
+          </li>`).join('\n          ');
+    const relationshipItems = diagram.relationships.map((relationship) => {
+        const source = classById.get(relationship.source);
+        const destination = classById.get(relationship.destination);
+        return `<li tabindex="0"><code>${escapeHtml(source.display_name)}</code> → <code>${escapeHtml(destination.display_name)}</code>: ${escapeHtml(relationship.type)}</li>`;
+    }).join('\n          ');
+
+    return `<section class="text-fallback" aria-labelledby="class-text-title">
+      <h2 id="class-text-title">AST 텍스트 설명</h2>
+      <h3>클래스</h3>
+      <ul class="class-list">
+          ${classItems}
+      </ul>
+      <h3>관계 방향</h3>
+      <ol>
+          ${relationshipItems}
+      </ol>
+    </section>`;
+}
+
+export function renderClassDiagram(diagram) {
+    const classes = flattenClassElements(diagram.elements).filter((element) => element.type === 'class');
+    const uniqueSources = [...new Set(classes.map((element) => element.source_location.file))];
+    const sources = uniqueSources.map((source) => `<li><code>${escapeHtml(source)}</code></li>`).join('\n          ');
+    return `<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>${escapeHtml(classDiagramTitle(diagram))}</title>
+  <style>
+    :root { color-scheme: light dark; --page: #f6f8fb; --panel: #ffffff; --ink: #172033; --muted: #53627a; --line: #335eea; --node: #e9efff; --node-stroke: #2449bd; --focus: #d33a7c; }
+    @media (prefers-color-scheme: dark) { :root { --page: #111827; --panel: #192235; --ink: #f5f7ff; --muted: #b9c5d8; --line: #8eabff; --node: #26375d; --node-stroke: #a9bdff; --focus: #ff80b6; } }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--page); color: var(--ink); font-family: system-ui, sans-serif; line-height: 1.55; }
+    main { width: min(1180px, calc(100% - 32px)); margin: 0 auto; padding: 40px 0 64px; }
+    h1 { margin: 0 0 8px; font-size: clamp(1.7rem, 4vw, 2.5rem); }
+    h2 { margin-top: 0; }
+    .basis { color: var(--muted); overflow-wrap: anywhere; }
+    .diagram-frame, .text-fallback, .sources { margin-top: 24px; padding: clamp(16px, 3vw, 28px); border: 1px solid color-mix(in srgb, var(--muted) 35%, transparent); border-radius: 18px; background: var(--panel); }
+    .diagram-frame { overflow-x: auto; }
+    svg { display: block; width: 100%; min-width: 1040px; height: auto; color: var(--ink); }
+    .class-node rect { fill: var(--node); stroke: var(--node-stroke); stroke-width: 2; }
+    .class-node text { fill: var(--ink); text-anchor: middle; }
+    .class-name { font-size: 16px; font-weight: 800; }
+    .class-namespace, .class-counts, .class-source { fill: var(--muted) !important; font-size: 12px; }
+    .class-relationship path { fill: none; stroke: var(--line); stroke-width: 2.5; }
+    .class-relationship rect { fill: var(--panel); stroke: var(--line); stroke-width: 1.5; }
+    .class-relationship text { fill: var(--ink); text-anchor: middle; font-size: 12px; font-weight: 700; }
+    .arrow-head { fill: var(--line); }
+    li { margin: 8px 0; }
+    li:focus { outline: 3px solid var(--focus); outline-offset: 3px; }
+    code { overflow-wrap: anywhere; }
+    .class-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 12px; padding: 0; list-style: none; }
+    .class-list li { display: grid; gap: 3px; padding: 12px; border: 1px solid color-mix(in srgb, var(--muted) 25%, transparent); border-radius: 12px; }
+    .sources ul { padding-left: 20px; }
+    @media (max-width: 800px) { main { width: min(100% - 20px, 1180px); padding-top: 24px; } .diagram-frame, .text-fallback, .sources { padding: 16px; } }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>${escapeHtml(classDiagramTitle(diagram))}</h1>
+    <p class="basis">코드 기준 commit: <code>${CANONICAL_BASIS_COMMIT_SHA}</code></p>
+    <p class="basis">생성 도구: <code>clang-uml ${escapeHtml(diagram.metadata.clang_uml_version)}</code> / ${escapeHtml(displayLlvmVersion(diagram.metadata.llvm_version))}</p>
+    <div class="diagram-frame">
+      ${renderClassSvg(diagram)}
+    </div>
+    ${renderClassTextFallback(diagram)}
+    <section class="sources" aria-labelledby="class-sources-title">
+      <h2 id="class-sources-title">AST source</h2>
+      <ul>
+          ${sources}
+      </ul>
+    </section>
+  </main>
+</body>
+</html>
+`;
+}
+
+export async function validateClassDiagram(diagram, options = {}) {
+    const errors = [];
+    const root = path.resolve(options.root ?? process.cwd());
+    const verifyBasisCommit = options.verifyBasisCommit ?? true;
+    if (!diagram || typeof diagram !== 'object' || Array.isArray(diagram)) {
+        return ['class diagram must be an object'];
+    }
+    if (diagram.diagram_type !== 'class') {
+        errors.push('diagram_type must be class');
+    }
+    if (!EXPECTED_CLASS_SOURCE_FILES.includes(`${diagram.name}.json`)) {
+        errors.push('name must be engine or network');
+    }
+    if (diagram.metadata?.clang_uml_version !== '0.6.3') {
+        errors.push('metadata.clang_uml_version must be 0.6.3');
+    }
+    if (typeof diagram.metadata?.llvm_version !== 'string' || diagram.metadata.llvm_version.length === 0) {
+        errors.push('metadata.llvm_version must be a non-empty string');
+    }
+    if (typeof diagram.title !== 'string' || !diagram.title.includes(CANONICAL_BASIS_COMMIT_SHA)) {
+        errors.push('title must contain the canonical basis commit');
+    }
+    for (const field of ['schemaVersion', 'basisCommitSha', 'nodes', 'edges']) {
+        if (Object.hasOwn(diagram, field)) {
+            errors.push(`${field} is a transformed field; raw clang-uml JSON is required`);
+        }
+    }
+
+    const classes = flattenClassElements(diagram.elements).filter((element) => element?.type === 'class');
+    const ids = new Set();
+    if (classes.length === 0) {
+        errors.push('elements must contain at least one class');
+    }
+    for (const [index, element] of classes.entries()) {
+        if (typeof element.id !== 'string' || element.id.length === 0 || ids.has(element.id)) {
+            errors.push(`class[${index}] requires a unique string id`);
+        } else {
+            ids.add(element.id);
+        }
+        if (!Array.isArray(element.members) || !Array.isArray(element.methods)) {
+            errors.push(`class[${index}] must retain clang-uml members and methods arrays`);
+        }
+        const sourcePath = String(element.source_location?.file ?? '').replaceAll('\\', '/');
+        if (!sourcePath || path.isAbsolute(sourcePath) || /^(?:tests?|third_party)\//iu.test(sourcePath)) {
+            errors.push(`class[${index}] requires a production repository-relative source path`);
+            continue;
+        }
+        const resolvedPath = path.resolve(root, sourcePath);
+        if (!resolvedPath.startsWith(`${root}${path.sep}`)) {
+            errors.push(`class[${index}] source path escapes root: ${sourcePath}`);
+            continue;
+        }
+        try {
+            await access(resolvedPath);
+        } catch {
+            errors.push(`class[${index}] source is missing from current checkout: ${sourcePath}`);
+            continue;
+        }
+        if (verifyBasisCommit) {
+            const result = spawnSync('git', ['cat-file', '-e', `${CANONICAL_BASIS_COMMIT_SHA}:${sourcePath}`], {
+                cwd: root,
+                encoding: 'utf8'
+            });
+            if (result.status !== 0) {
+                errors.push(`class[${index}] source is missing from basis commit: ${sourcePath}`);
+            }
+        }
+    }
+
+    if (!Array.isArray(diagram.relationships) || diagram.relationships.length === 0) {
+        errors.push('relationships must not be empty');
+    }
+    for (const [index, relationship] of (diagram.relationships ?? []).entries()) {
+        if (!ids.has(relationship?.source) || !ids.has(relationship?.destination)) {
+            errors.push(`relationship[${index}] has an unknown endpoint`);
+        }
+        if (typeof relationship?.type !== 'string' || relationship.type.length === 0) {
+            errors.push(`relationship[${index}] type must be a non-empty string`);
+        }
+    }
+    return errors;
+}
+
 export function renderIndex(entries) {
-    const orderedEntries = [...entries].sort((left, right) => left.file.localeCompare(right.file, 'en'));
+    const combinedEntries = [...entries];
+    for (const classEntry of CLASS_INDEX_ENTRIES) {
+        if (!combinedEntries.some((entry) => entry.file === classEntry.file)) {
+            combinedEntries.push(classEntry);
+        }
+    }
+    const orderedEntries = combinedEntries.sort((left, right) => left.file.localeCompare(right.file, 'en'));
     const cards = orderedEntries.map((entry) => `      <li>
         <a href="${escapeHtml(entry.file)}">${escapeHtml(entry.title)}</a>
         <code>${escapeHtml(entry.basisCommitSha)}</code>
@@ -394,7 +675,7 @@ export function renderIndex(entries) {
 <body>
   <main>
     <h1>코드 근거 구조 다이어그램</h1>
-    <p>JSON 원본과 기준 commit의 source path를 검증한 네 개 구조 그림이다.</p>
+    <p>JSON 원본과 기준 commit의 source path를 검증한 네 개 구조 그림과 clang-uml AST 클래스 그림이다.</p>
     <ul>
 ${cards}
     </ul>
@@ -493,6 +774,50 @@ async function main() {
         console.log(`validated ${sourceFile}`);
     }
 
+    const classSourceDirectory = path.join(options.root, 'docs', 'diagrams', 'class');
+    let classSourceFiles;
+    try {
+        classSourceFiles = (await readdir(classSourceDirectory))
+            .filter((file) => file.endsWith('.json'))
+            .sort();
+    } catch (error) {
+        console.error(`failed to read class diagram sources: ${error.message}`);
+        process.exitCode = 1;
+        return;
+    }
+    if (classSourceFiles.length !== EXPECTED_CLASS_SOURCE_FILES.length
+        || classSourceFiles.some((file, index) => file !== EXPECTED_CLASS_SOURCE_FILES[index])) {
+        console.error(`expected class diagram source files: ${EXPECTED_CLASS_SOURCE_FILES.join(', ')}`);
+        process.exitCode = 1;
+        return;
+    }
+    for (const sourceFile of classSourceFiles) {
+        let diagram;
+        try {
+            diagram = JSON.parse(await readFile(path.join(classSourceDirectory, sourceFile), 'utf8'));
+        } catch (error) {
+            console.error(`${sourceFile}: failed to load class JSON: ${error.message}`);
+            process.exitCode = 1;
+            return;
+        }
+        const validationErrors = await validateClassDiagram(diagram, { root: options.root });
+        if (validationErrors.length > 0) {
+            console.error(`${sourceFile}:\n${validationErrors.join('\n')}`);
+            process.exitCode = 1;
+            return;
+        }
+        const outputFile = sourceFile.replace(/\.json$/u, '.html');
+        const outputError = await writeOrCheck(
+            path.join(classSourceDirectory, outputFile),
+            renderClassDiagram(diagram),
+            options.mode
+        );
+        if (outputError) {
+            outputErrors.push(outputError);
+        }
+        console.log(`validated class/${sourceFile}`);
+    }
+
     const indexPath = path.join(options.root, 'docs', 'diagrams', 'index.html');
     const indexError = await writeOrCheck(indexPath, renderIndex(entries), options.mode);
     if (indexError) {
@@ -503,7 +828,7 @@ async function main() {
         process.exitCode = 1;
         return;
     }
-    console.log(options.mode === 'write' ? 'wrote five HTML files' : 'five HTML files unchanged');
+    console.log(options.mode === 'write' ? 'wrote seven HTML files' : 'seven HTML files unchanged');
 }
 
 const isCli = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
