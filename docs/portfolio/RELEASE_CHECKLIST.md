@@ -10,8 +10,8 @@
 | 역사적 30분 soak | `verified` | [Windows 및 Linux 요약](../benchmarks/network-load/20260826-050345-01ae1278-interest-delta-impairment-soak30/RESULT.md)과 [Linux sanitizer 기록](../benchmarks/network-load/20260826-050345-01ae1278-interest-delta-impairment-soak30/LINUX_ASAN.md)이 있다. 두 환경의 evidence commit은 같지 않다. |
 | 코드 및 자산 라이선스 목록 | `verified` | [코드 라이선스](../../LICENSE), [외부 자산 목록](../../THIRD_PARTY_ASSETS.md), [LFS 규칙](../../.gitattributes), [dependency manifest](../../vcpkg.json)가 있다. |
 | LFS object 실제 가용성 | `verified` | 2026-08-28에 HEAD `0658869e5cbabe8479be201b1824177dc907888c`에서 세 runtime asset의 committed canonical pointer, object-store와 hydrated worktree SHA-256 및 size를 production verifier로 read-only 대조했다. `git lfs fsck`는 호출하지 않았다. |
-| 현재 문서 HEAD의 fresh Windows 및 Linux build | `partial` | 같은 HEAD의 Windows Debug build, CTest 582/582와 MSVC Release client 및 server build는 통과했다. Ubuntu 24.04 current-HEAD build는 Docker Desktop 4.81의 stale `dockerInference` socket으로 daemon이 종료되고 기존 Ubuntu WSL distro도 없어 실행하지 못했다. 문서 branch hosted CI도 없다. |
-| WARP 및 RTX 시각 산출물 | `partial` | [RTX 기준 기록](../devlog/2026-08-23-forward-baseline.md)과 WARP 자동 검증은 있지만 공개용 실제 화면 캡처 묶음은 없다. |
+| 현재 문서 HEAD의 fresh Windows 및 Linux build | `partial` | 같은 HEAD의 Windows Debug build, CTest 582/582와 MSVC Release client 및 server build는 통과했다. Ubuntu 24.04 current-HEAD build는 Docker Desktop 4.81의 stale `dockerInference` socket으로 daemon이 종료되고 기존 Ubuntu WSL distro도 없어 실행하지 못했다. 하나의 최종 공개 후보 HEAD에 결박된 저장소 안 Windows build 및 test 기록, Linux server build 및 test 기록과 hosted CI 증명이 모두 있어야 `verified`가 된다. |
+| WARP 및 RTX 시각 산출물 | `partial` | [RTX 기준 기록](../devlog/2026-08-23-forward-baseline.md)과 WARP 자동 검증은 있지만 공개용 실제 화면 캡처 묶음은 없다. `verified`에는 저장소 안의 WARP offscreen 결과 파일, RTX 캡처 파일과 날짜, 검토자 표기, 승인 판정 및 검토 메모가 필요하다. |
 | JSON 및 HTML 구조 다이어그램 네 개 | `verified` | [다이어그램 index](../diagrams/index.html)의 네 JSON 원본과 HTML이 기준 SHA 및 deterministic 생성 검사를 통과한다. |
 | clang-uml AST 클래스 다이어그램 | `verified` | clang-uml 0.6.3의 실제 AST JSON과 deterministic HTML을 기준 commit에서 생성했다. [generation manifest](../diagrams/class/manifest.json)와 snapshot 검증 결과는 engine class 9개 및 relationship 5개, network class 9개 및 relationship 1개다. |
 | 18쪽에서 22쪽 포트폴리오 PDF | `missing` | 렌더 및 링크 검수를 마친 PDF가 없다. |
@@ -36,7 +36,7 @@
 
 첫 CTest는 `PortfolioDiagrams.RendersDeterministically`가 invocation cwd에 의존해 581/582로 실패했다. validator root를 이미 계산한 repository root로 고정한 뒤 direct Node 15/15, focused CTest 1/1과 전체 582/582를 다시 통과했다.
 
-Ubuntu 24.04 build는 성공으로 기록하지 않는다. Docker Desktop 4.81은 0바이트 `C:\Users\siwon\AppData\Local\Docker\run\dockerInference` reparse point를 제거하지 못해 backend가 종료됐다. Docker process 0, exact parent, filename, length와 reparse attribute를 확인했지만 승인된 PowerShell 삭제는 실행 정책이 차단했고 same-directory rename과 exact patch 삭제도 OS error 1920으로 실패했다. `EnableDockerAI`를 `false`로 바꾼 단일-field 복구도 같은 오류를 재현해 즉시 `true`로 원복했으며 settings 파일 SHA-256은 원본 `30a8d70713ccd6864a4347483c005e9b5a06baa74f184e7a77ae338cb8e709f7`과 다시 일치한다. WSL에는 `docker-desktop`만 있고 Ubuntu distro는 없었다.
+Ubuntu 24.04 build는 성공으로 기록하지 않는다. Docker Desktop 4.81은 0바이트 `%LOCALAPPDATA%\Docker\run\dockerInference` reparse point를 제거하지 못해 backend가 종료됐다. Docker process 0, exact parent, filename, length와 reparse attribute를 확인했지만 승인된 PowerShell 삭제는 실행 정책이 차단했고 same-directory rename과 exact patch 삭제도 OS error 1920으로 실패했다. `EnableDockerAI`를 `false`로 바꾼 단일-field 복구도 같은 오류를 재현해 즉시 `true`로 원복했으며 settings 파일 SHA-256은 원본 `30a8d70713ccd6864a4347483c005e9b5a06baa74f184e7a77ae338cb8e709f7`과 다시 일치한다. WSL에는 `docker-desktop`만 있고 Ubuntu distro는 없었다.
 
 별도 public checkout에서 알려진 historical benchmark blob 8개의 `should have been pointers` 경고는 그대로 남는다. 이 경고 대상과 raw benchmark는 수정하지 않았고, 위 runtime asset 3개의 proof와 구분한다.
 
@@ -49,7 +49,7 @@ Ubuntu 24.04 build는 성공으로 기록하지 않는다. Docker Desktop 4.81�
 3. Docker 또는 독립 Ubuntu 24.04 환경을 복구한 뒤 최종 공개 후보 HEAD의 Windows 및 Linux build와 test, hosted CI를 새로 실행한다.
 4. 공개용 WARP 및 RTX 화면 캡처를 PDF와 영상 산출물에서 검수한다.
 5. AWS 외부 테스트를 선택하면 생성 전 account, 가격과 보안 그룹을 확인하고 종료 뒤 실제 resource와 잔여 비용을 검증한다.
-6. 저장소 공개 승인과 실제 visibility 확인 뒤에만 `v0.1.0`을 만든다.
+6. 저장소 공개 승인과 실제 visibility 확인 뒤에만 `v0.1.0`을 만들고, 태그 target이 위 build 및 CI 증명의 최종 공개 후보 commit과 같은지 확인한다.
 
 현재 알려진 기술 경계는 [통합 한계](LIMITATIONS.md)에 따로 유지한다. 전체 문서 계약은 저장소 루트에서 다음 명령으로 확인한다.
 

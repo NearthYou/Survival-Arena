@@ -12,7 +12,7 @@
 
 ## 자동 검증 범위
 
-`scripts/portfolio/evidence.mjs`는 case ID 중복, 기준 SHA 형식, checkout 밖 경로, 현재 checkout과 기준 commit에서의 원본 존재, 그리고 채택 수치의 `sourceText`가 evidence 원본에 남아 있는지를 확인한다. 사례 문서는 아직 뒤 작업에서 만들므로 `caseDocument`는 경로 안전성만 확인한다.
+`scripts/portfolio/evidence.mjs`는 case ID 중복, 고정 기준 SHA, checkout 밖 경로, 현재 checkout과 기준 commit에서의 원본 존재, 그리고 채택 수치의 `sourceText`가 evidence 원본에 남아 있는지를 확인한다. 각 `caseDocument`는 실제 경로가 저장소 안에 남는 regular file이어야 하며 8개 고정 절 제목을 각각 한 번 포함해야 한다. 또한 자신의 devlog, ADR과 채택 evidence를 Markdown link로 연결해야 한다.
 
 ## 자동으로 증명하지 못하는 것
 

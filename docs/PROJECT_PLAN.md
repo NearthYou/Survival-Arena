@@ -54,7 +54,7 @@ AWS resource는 아직 만들지 않았다. 서울 `t3.small`은 첫 측정 후�
 
 12주차 포트폴리오 기반 범위에서는 다섯 사례의 원본 근거, 네 구조 다이어그램, 통합 한계, 공개 상태 계약과 clang-uml 0.6.3 AST class diagram을 완료했다. class 결과는 기준 commit `884e5e70d68d9fcf9dfe5638d97e06623da154c2`에서 engine class 9개 및 relationship 5개, network class 9개 및 relationship 1개이며 generation manifest와 snapshot이 전체 verifier를 통과한다. 세 runtime asset도 HEAD `0658869e5cbabe8479be201b1824177dc907888c`에서 committed pointer, object-store와 hydrated worktree SHA-256 및 size가 일치했다.
 
-같은 HEAD의 current-worktree Windows Debug build와 CTest 582/582, MSVC Release client 및 server build는 통과했다. Ubuntu 24.04 current-HEAD build는 성공으로 기록하지 않는다. Docker Desktop 4.81이 stale `C:\Users\siwon\AppData\Local\Docker\run\dockerInference` reparse point를 제거하지 못해 backend가 종료됐고, 안전 gate 뒤 시도한 PowerShell 삭제는 실행 정책이 차단됐으며 rename과 exact patch 삭제도 OS error 1920으로 실패했다. `EnableDockerAI=false` 복구도 같은 오류를 재현해 `true`로 원복했고 settings SHA-256은 원본 `30a8d70713ccd6864a4347483c005e9b5a06baa74f184e7a77ae338cb8e709f7`과 일치한다. 기존 WSL에는 `docker-desktop`만 있고 Ubuntu distro는 없다.
+같은 HEAD의 current-worktree Windows Debug build와 CTest 582/582, MSVC Release client 및 server build는 통과했다. Ubuntu 24.04 current-HEAD build는 성공으로 기록하지 않는다. Docker Desktop 4.81이 stale `%LOCALAPPDATA%\Docker\run\dockerInference` reparse point를 제거하지 못해 backend가 종료됐고, 안전 gate 뒤 시도한 PowerShell 삭제는 실행 정책이 차단됐으며 rename과 exact patch 삭제도 OS error 1920으로 실패했다. `EnableDockerAI=false` 복구도 같은 오류를 재현해 `true`로 원복했고 settings SHA-256은 원본 `30a8d70713ccd6864a4347483c005e9b5a06baa74f184e7a77ae338cb8e709f7`과 일치한다. 기존 WSL에는 `docker-desktop`만 있고 Ubuntu distro는 없다.
 
 따라서 포트폴리오 기반 작업은 완료지만 12주차 전체는 진행 중이다. 18쪽에서 22쪽 PDF, 실제 데모 영상, 최종 공개 후보의 Ubuntu 24.04 및 hosted CI, AWS 외부 접속, 저장소 공개와 `v0.1.0`은 별도 gate로 남긴다.
 
