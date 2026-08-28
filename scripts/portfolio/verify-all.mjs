@@ -1255,7 +1255,7 @@ function validateBuildEnvironmentProof(environment, field, releaseCandidateCommi
     return errors;
 }
 
-async function validateCurrentHeadBuildProof(item, evidencePaths, options) {
+async function validateReleaseCandidateBuildProof(item, evidencePaths, options) {
     const errors = [];
     const proof = item.proof;
     const releaseCandidateCommitSha = proof?.releaseCandidateCommitSha;
@@ -1264,12 +1264,25 @@ async function validateCurrentHeadBuildProof(item, evidencePaths, options) {
         `${item.id}.proof.releaseCandidateCommitSha`
     ));
 
-    const headResult = runReadOnlyGit(options.root, ['rev-parse', '--verify', 'HEAD^{commit}']);
-    const currentHeadSha = String(headResult.stdout ?? '').trim();
-    if (headResult.status !== 0 || !/^[0-9a-f]{40}$/u.test(currentHeadSha)) {
-        errors.push(`${item.id}.proof.releaseCandidateCommitSha: current Git HEAD cannot be resolved`);
-    } else if (releaseCandidateCommitSha !== currentHeadSha) {
-        errors.push(`${item.id}.proof.releaseCandidateCommitSha: must equal current Git HEAD ${currentHeadSha}`);
+    if (/^[0-9a-f]{40}$/u.test(releaseCandidateCommitSha ?? '')) {
+        const candidateResult = runReadOnlyGit(
+            options.root,
+            ['rev-parse', '--verify', `${releaseCandidateCommitSha}^{commit}`]
+        );
+        const resolvedCandidateSha = String(candidateResult.stdout ?? '').trim();
+        if (candidateResult.status !== 0 || resolvedCandidateSha !== releaseCandidateCommitSha) {
+            errors.push(`${item.id}.proof.releaseCandidateCommitSha: release candidate commit cannot be resolved`);
+        } else {
+            const ancestorResult = runReadOnlyGit(
+                options.root,
+                ['merge-base', '--is-ancestor', releaseCandidateCommitSha, 'HEAD']
+            );
+            if (ancestorResult.status === 1) {
+                errors.push(`${item.id}.proof.releaseCandidateCommitSha: release candidate must be an ancestor of the proof record HEAD`);
+            } else if (ancestorResult.status !== 0) {
+                errors.push(`${item.id}.proof.releaseCandidateCommitSha: ancestry to the proof record HEAD cannot be verified`);
+            }
+        }
     }
 
     errors.push(...validateBuildEnvironmentProof(
@@ -1396,7 +1409,7 @@ async function validateVerifiedProof(item, evidencePaths, options) {
     }
 
     if (item.id === 'current-head-builds') {
-        return validateCurrentHeadBuildProof(item, evidencePaths, options);
+        return validateReleaseCandidateBuildProof(item, evidencePaths, options);
     }
     if (item.id === 'warp-rtx-visual-artifacts') {
         return validateVisualArtifactProof(item, evidencePaths, options);

@@ -690,7 +690,7 @@ test('current HEAD and visual gates reject state-only verified mutations', async
     });
 });
 
-test('current HEAD proof requires Windows, Linux server, and hosted CI on one HEAD', async () => {
+test('release candidate proof requires Windows, Linux server, and hosted CI on one commit', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'dxa-current-head-proof-'));
     try {
         await writeFile(path.join(root, 'evidence.md'), '# evidence\n', 'utf8');
@@ -737,6 +737,59 @@ test('current HEAD proof requires Windows, Linux server, and hosted CI on one HE
                 && error.includes('evidence path')
             )), `${environment}:\n${errors.join('\n')}`);
         }
+    } finally {
+        await rm(root, { recursive: true, force: true });
+    }
+});
+
+test('release candidate must belong to the proof record history', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'dxa-release-candidate-ancestor-'));
+    try {
+        await writeFile(path.join(root, 'evidence.md'), '# evidence\n', 'utf8');
+        runFixtureGit(root, ['init']);
+        runFixtureGit(root, ['config', 'user.email', 'fixture@example.com']);
+        runFixtureGit(root, ['config', 'user.name', 'Fixture']);
+        runFixtureGit(root, ['add', 'evidence.md']);
+        runFixtureGit(root, ['commit', '-m', 'proof history']);
+        const treeSha = runFixtureGit(root, ['rev-parse', 'HEAD^{tree}']).stdout.trim();
+        const unrelatedCandidateSha = runFixtureGit(
+            root,
+            ['commit-tree', treeSha, '-m', 'unrelated release candidate']
+        ).stdout.trim();
+
+        const document = createReleaseDocument();
+        const item = document.items.find((candidate) => candidate.id === 'current-head-builds');
+        item.status = 'verified';
+        item.proof = {
+            releaseCandidateCommitSha: unrelatedCandidateSha,
+            windows: {
+                commitSha: unrelatedCandidateSha,
+                buildPassed: true,
+                testsPassed: true,
+                checkedAt: '2026-08-28T12:00:00+09:00',
+                evidencePath: 'evidence.md'
+            },
+            linuxServer: {
+                commitSha: unrelatedCandidateSha,
+                buildPassed: true,
+                testsPassed: true,
+                checkedAt: '2026-08-28T12:00:00+09:00',
+                evidencePath: 'evidence.md'
+            },
+            hostedCi: {
+                commitSha: unrelatedCandidateSha,
+                status: 'success',
+                runUrl: 'https://example.com/actions/runs/1',
+                checkedAt: '2026-08-28T12:00:00+09:00'
+            }
+        };
+
+        const errors = await validateReleaseStatus(document, { root });
+
+        assert.ok(errors.some((error) => (
+            error.includes('current-head-builds.proof.releaseCandidateCommitSha')
+            && error.includes('ancestor of the proof record HEAD')
+        )), errors.join('\n'));
     } finally {
         await rm(root, { recursive: true, force: true });
     }
@@ -1745,7 +1798,146 @@ test('v0.1.0 requires an actual local tag and every publication prerequisite', a
     });
 });
 
-test('v0.1.0 target must equal the verified release-candidate HEAD', async () => {
+test('clean proof commit can verify an earlier tagged release candidate', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'dxa-release-candidate-proof-'));
+    try {
+        runFixtureGit(repositoryRoot, ['clone', '--no-hardlinks', '--quiet', repositoryRoot, root]);
+        runFixtureGit(root, ['config', 'user.email', 'fixture@example.com']);
+        runFixtureGit(root, ['config', 'user.name', 'Fixture']);
+
+        const releaseCandidateCommitSha = runFixtureGit(root, ['rev-parse', 'HEAD']).stdout.trim();
+        runFixtureGit(root, ['tag', 'v0.1.0', releaseCandidateCommitSha]);
+
+        const document = await loadReleaseStatus(path.join(root, 'docs/portfolio/release-status.json'));
+        const checkedAt = '2026-08-28T12:00:00+09:00';
+        const proofPaths = {
+            windows: 'docs/portfolio/proofs/windows-build.md',
+            linux: 'docs/portfolio/proofs/linux-server-build.md',
+            warp: 'docs/portfolio/proofs/warp-offscreen.txt',
+            rtx: 'docs/portfolio/proofs/rtx-frame.png',
+            pdf: 'docs/portfolio/DX11-Survival-Arena-portfolio.pdf',
+            video: 'docs/portfolio/demo.mp4',
+            external: 'docs/portfolio/proofs/external-release-check.md'
+        };
+        for (const [label, relativePath] of Object.entries(proofPaths)) {
+            const absolutePath = path.join(root, relativePath);
+            await mkdir(path.dirname(absolutePath), { recursive: true });
+            await writeFile(absolutePath, `${label} proof\n`, 'utf8');
+        }
+
+        const builds = document.items.find((item) => item.id === 'current-head-builds');
+        builds.status = 'verified';
+        builds.evidence = [proofPaths.windows, proofPaths.linux];
+        builds.proof = {
+            releaseCandidateCommitSha,
+            windows: {
+                commitSha: releaseCandidateCommitSha,
+                buildPassed: true,
+                testsPassed: true,
+                checkedAt,
+                evidencePath: proofPaths.windows
+            },
+            linuxServer: {
+                commitSha: releaseCandidateCommitSha,
+                buildPassed: true,
+                testsPassed: true,
+                checkedAt,
+                evidencePath: proofPaths.linux
+            },
+            hostedCi: {
+                commitSha: releaseCandidateCommitSha,
+                status: 'success',
+                runUrl: 'https://example.com/actions/runs/1',
+                checkedAt
+            }
+        };
+
+        const visuals = document.items.find((item) => item.id === 'warp-rtx-visual-artifacts');
+        visuals.status = 'verified';
+        visuals.evidence = [proofPaths.warp, proofPaths.rtx];
+        visuals.proof = {
+            warp: {
+                resultPath: proofPaths.warp,
+                offscreen: true,
+                status: 'passed',
+                checkedAt
+            },
+            rtx: {
+                artifactPaths: [proofPaths.rtx],
+                review: {
+                    checkedAt,
+                    reviewer: 'fixture reviewer',
+                    verdict: 'approved',
+                    notes: 'fixture visual review'
+                }
+            }
+        };
+
+        const pdf = document.items.find((item) => item.id === 'portfolio-pdf');
+        pdf.status = 'verified';
+        pdf.evidence = [proofPaths.pdf];
+        pdf.proof = { path: proofPaths.pdf, pageCount: 20, rendered: true, linksChecked: true };
+
+        const video = document.items.find((item) => item.id === 'demo-video');
+        video.status = 'verified';
+        video.evidence = [proofPaths.video];
+        video.proof = {
+            path: proofPaths.video,
+            durationSeconds: 180,
+            playbackChecked: true,
+            localDemoChecked: true
+        };
+
+        const aws = document.items.find((item) => item.id === 'aws-external-test');
+        aws.status = 'verified';
+        aws.evidence = [proofPaths.external];
+        aws.resourceState = {
+            created: true,
+            externalTestVerified: true,
+            cleanupVerified: true,
+            checkedAt
+        };
+
+        const visibility = document.items.find((item) => item.id === 'repository-visibility');
+        visibility.status = 'verified';
+        visibility.evidence = [proofPaths.external];
+        visibility.externalVerification = {
+            visibility: 'public',
+            checkedAt,
+            url: 'https://example.com/repository'
+        };
+
+        const tag = document.items.find((item) => item.id === 'v0.1.0');
+        tag.status = 'verified';
+        tag.evidence = [proofPaths.external];
+        tag.proof = { tag: 'v0.1.0', targetCommitSha: releaseCandidateCommitSha };
+
+        await writeFile(
+            path.join(root, 'docs/portfolio/release-status.json'),
+            `${JSON.stringify(document, null, 2)}\n`,
+            'utf8'
+        );
+        runFixtureGit(root, ['add', 'docs/portfolio/release-status.json', ...Object.values(proofPaths)]);
+        runFixtureGit(root, ['commit', '-m', 'release proof record']);
+
+        const proofRecordCommitSha = runFixtureGit(root, ['rev-parse', 'HEAD']).stdout.trim();
+        assert.notEqual(proofRecordCommitSha, releaseCandidateCommitSha);
+        assert.equal(
+            runFixtureGit(root, ['merge-base', '--is-ancestor', releaseCandidateCommitSha, proofRecordCommitSha]).status,
+            0
+        );
+        assert.equal(runFixtureGit(root, ['status', '--porcelain=v1', '--untracked-files=all']).stdout, '');
+
+        const committedDocument = await loadReleaseStatus(path.join(root, 'docs/portfolio/release-status.json'));
+        const errors = await validateReleaseStatus(committedDocument, { root });
+
+        assert.deepEqual(errors, []);
+    } finally {
+        await rm(root, { recursive: true, force: true });
+    }
+});
+
+test('v0.1.0 target must equal the verified release-candidate commit', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'dxa-tag-target-proof-'));
     try {
         await writeFile(path.join(root, 'evidence.md'), '# first\n', 'utf8');

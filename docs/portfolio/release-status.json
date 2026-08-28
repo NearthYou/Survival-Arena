@@ -59,7 +59,7 @@
     },
     {
       "id": "current-head-builds",
-      "label": "현재 문서 HEAD의 fresh Windows 및 Linux build",
+      "label": "최종 출시 후보 commit의 fresh Windows 및 Linux build",
       "status": "partial",
       "evidence": [
         ".github/workflows/ci.yml",
@@ -73,7 +73,7 @@
         "windows": "success",
         "ubuntu": "success"
       },
-      "note": "HEAD 0658869e5cbabe8479be201b1824177dc907888c의 Windows Debug build와 CTest 582/582, MSVC Release client 및 server build는 통과했다. Ubuntu 24.04 current-HEAD build는 Docker Desktop 4.81의 stale dockerInference socket과 Ubuntu WSL distro 부재로 실행하지 못했고, 이후 문서 커밋을 포함한 hosted CI도 없다."
+      "note": "검증 당시 HEAD 0658869e5cbabe8479be201b1824177dc907888c의 Windows Debug build와 CTest 582/582, MSVC Release client 및 server build는 통과했다. Ubuntu 24.04 build는 Docker Desktop 4.81의 stale dockerInference socket과 Ubuntu WSL distro 부재로 실행하지 못했고, 하나의 최종 출시 후보 commit에 결박된 hosted CI 증명도 없다."
     },
     {
       "id": "warp-rtx-visual-artifacts",

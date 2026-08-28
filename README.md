@@ -16,7 +16,7 @@ Windows WARP 수직 테스트에서는 DX11 client와 bot 23개가 60 tick에 �
 - [현재 구현과 검증의 한계](docs/portfolio/LIMITATIONS.md)
 - [공개 준비 체크리스트](docs/portfolio/RELEASE_CHECKLIST.md)
 
-공개 준비 상태는 역사적 검증, 현재 문서 HEAD, 누락 산출물과 외부 승인을 분리해 기록한다. PDF, 실제 데모 영상, AWS 외부 접속, 저장소 공개와 `v0.1.0`은 아직 완료하지 않았다.
+공개 준비 상태는 역사적 검증, 최종 출시 후보 commit, 후속 증명 기록, 누락 산출물과 외부 승인을 분리해 기록한다. PDF, 실제 데모 영상, AWS 외부 접속, 저장소 공개와 `v0.1.0`은 아직 완료하지 않았다.
 
 ## 원칙
 
