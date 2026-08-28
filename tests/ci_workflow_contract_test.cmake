@@ -21,3 +21,11 @@ if(NOT ACTUAL_PUSH_BLOCK STREQUAL EXPECTED_PUSH_BLOCK)
     message(FATAL_ERROR
         "feature branch push duplicates pull_request CI; push must target main only")
 endif()
+
+set(EXPECTED_CHECKOUT_BLOCK
+    "      - uses: actions/checkout@v4\n        with:\n          fetch-depth: 0\n          lfs: true\n")
+string(FIND "${WORKFLOW_CONTENT}" "${EXPECTED_CHECKOUT_BLOCK}" CHECKOUT_BLOCK_AT)
+if(CHECKOUT_BLOCK_AT EQUAL -1)
+    message(FATAL_ERROR
+        "checkout must fetch full Git history for canonical portfolio basis validation")
+endif()
