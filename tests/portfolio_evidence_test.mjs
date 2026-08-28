@@ -17,10 +17,12 @@ import {
 const basisCommitSha = '884e5e70d68d9fcf9dfe5638d97e06623da154c2';
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const generatorScriptPath = path.join(repositoryRoot, 'scripts/portfolio/generate-class-diagrams.ps1');
-const powershellExecutable = path.join(
-    process.env.SystemRoot ?? 'C:\\Windows',
-    'System32/WindowsPowerShell/v1.0/powershell.exe'
-);
+const powershellExecutable = process.platform === 'win32'
+    ? path.join(
+        process.env.SystemRoot ?? 'C:\\Windows',
+        'System32/WindowsPowerShell/v1.0/powershell.exe'
+    )
+    : 'pwsh';
 const classEvidenceSnapshotPaths = [
     'docs/diagrams/class/evidence/cmake-cache.json',
     'docs/diagrams/class/evidence/compile-commands.json',
