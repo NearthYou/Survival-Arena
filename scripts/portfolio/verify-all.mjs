@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { lstat, readFile, readdir, realpath, stat } from 'node:fs/promises';
 import path from 'node:path';
+import { isDeepStrictEqual } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 
@@ -44,6 +45,7 @@ const REQUIRED_CLASS_DIAGRAM_PATHS = [
 ];
 const CLASS_GENERATION_MANIFEST_PATH = 'docs/diagrams/class/manifest.json';
 const CLASS_GENERATION_EVIDENCE_DIRECTORY = 'docs/diagrams/class/evidence';
+const RELEASE_STATUS_PATH = 'docs/portfolio/release-status.json';
 const REQUIRED_CLASS_GENERATION_SNAPSHOTS = [
     `${CLASS_GENERATION_EVIDENCE_DIRECTORY}/cmake-cache.json`,
     `${CLASS_GENERATION_EVIDENCE_DIRECTORY}/compile-commands.json`,
@@ -1255,6 +1257,51 @@ function validateBuildEnvironmentProof(environment, field, releaseCandidateCommi
     return errors;
 }
 
+function validatePathCommittedInProofHead(relativePath, field, options) {
+    const pathResult = resolveRepositoryPath(options.root, relativePath);
+    if (pathResult.error) {
+        return [`${field}: ${pathResult.error}`];
+    }
+    const repositoryPath = toPosixPath(path.relative(options.root, pathResult.resolvedPath));
+    const committedResult = runReadOnlyGit(
+        options.root,
+        ['cat-file', '-e', `HEAD:${repositoryPath}`]
+    );
+    if (committedResult.status !== 0) {
+        return [`${field}: ${repositoryPath} must exist in proof record HEAD`];
+    }
+    const statusResult = runReadOnlyGit(
+        options.root,
+        ['status', '--porcelain=v1', '--untracked-files=all', '--', repositoryPath]
+    );
+    if (statusResult.status !== 0) {
+        return [`${field}: Git status against proof record HEAD cannot be verified`];
+    }
+    if (String(statusResult.stdout ?? '').trim().length > 0) {
+        return [`${field}: ${repositoryPath} must be unchanged in proof record HEAD`];
+    }
+    return [];
+}
+
+async function validateProofRecordDocument(document, field, options) {
+    const pathErrors = validatePathCommittedInProofHead(RELEASE_STATUS_PATH, field, options);
+    if (pathErrors.length > 0) {
+        return pathErrors;
+    }
+    try {
+        const committedDocument = JSON.parse(await readFile(
+            path.join(options.root, RELEASE_STATUS_PATH),
+            'utf8'
+        ));
+        if (!isDeepStrictEqual(committedDocument, document)) {
+            return [`${field}: supplied release status must match the committed proof record`];
+        }
+    } catch (error) {
+        return [`${field}: committed proof record cannot be read (${error.message})`];
+    }
+    return [];
+}
+
 async function validateReleaseCandidateBuildProof(item, evidencePaths, options) {
     const errors = [];
     const proof = item.proof;
@@ -1285,6 +1332,12 @@ async function validateReleaseCandidateBuildProof(item, evidencePaths, options) 
         }
     }
 
+    errors.push(...await validateProofRecordDocument(
+        options.document,
+        `${item.id}.proof.recordPath`,
+        options
+    ));
+
     errors.push(...validateBuildEnvironmentProof(
         proof?.windows,
         `${item.id}.proof.windows`,
@@ -1297,6 +1350,13 @@ async function validateReleaseCandidateBuildProof(item, evidencePaths, options) 
         evidencePaths,
         options
     ));
+    if (typeof proof?.windows?.evidencePath === 'string') {
+        errors.push(...validatePathCommittedInProofHead(
+            proof.windows.evidencePath,
+            `${item.id}.proof.windows.evidencePath`,
+            options
+        ));
+    }
     errors.push(...validateBuildEnvironmentProof(
         proof?.linuxServer,
         `${item.id}.proof.linuxServer`,
@@ -1309,6 +1369,13 @@ async function validateReleaseCandidateBuildProof(item, evidencePaths, options) 
         evidencePaths,
         options
     ));
+    if (typeof proof?.linuxServer?.evidencePath === 'string') {
+        errors.push(...validatePathCommittedInProofHead(
+            proof.linuxServer.evidencePath,
+            `${item.id}.proof.linuxServer.evidencePath`,
+            options
+        ));
+    }
     errors.push(...validateReleaseCandidateSha(
         proof?.hostedCi?.commitSha,
         `${item.id}.proof.hostedCi.commitSha`,
@@ -1566,6 +1633,7 @@ export async function validateReleaseStatus(document, options = {}) {
         const proofErrors = await validateVerifiedProof(item, evidencePaths, {
             root,
             realRoot,
+            document,
             items: document.items,
             verifyClassBasisCommit: options.verifyClassBasisCommit
         });

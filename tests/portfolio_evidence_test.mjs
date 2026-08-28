@@ -795,6 +795,86 @@ test('release candidate must belong to the proof record history', async () => {
     }
 });
 
+test('release candidate build proof rejects dirty status and evidence files', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'dxa-release-candidate-dirty-proof-'));
+    try {
+        await writeFile(path.join(root, 'evidence.md'), '# candidate evidence\n', 'utf8');
+        runFixtureGit(root, ['init']);
+        runFixtureGit(root, ['config', 'user.email', 'fixture@example.com']);
+        runFixtureGit(root, ['config', 'user.name', 'Fixture']);
+        runFixtureGit(root, ['add', 'evidence.md']);
+        runFixtureGit(root, ['commit', '-m', 'release candidate']);
+        const releaseCandidateCommitSha = runFixtureGit(root, ['rev-parse', 'HEAD']).stdout.trim();
+
+        const document = createReleaseDocument();
+        const item = document.items.find((candidate) => candidate.id === 'current-head-builds');
+        item.status = 'verified';
+        item.proof = {
+            releaseCandidateCommitSha,
+            windows: {
+                commitSha: releaseCandidateCommitSha,
+                buildPassed: true,
+                testsPassed: true,
+                checkedAt: '2026-08-28T12:00:00+09:00',
+                evidencePath: 'evidence.md'
+            },
+            linuxServer: {
+                commitSha: releaseCandidateCommitSha,
+                buildPassed: true,
+                testsPassed: true,
+                checkedAt: '2026-08-28T12:00:00+09:00',
+                evidencePath: 'evidence.md'
+            },
+            hostedCi: {
+                commitSha: releaseCandidateCommitSha,
+                status: 'success',
+                runUrl: 'https://example.com/actions/runs/1',
+                checkedAt: '2026-08-28T12:00:00+09:00'
+            }
+        };
+
+        const statusPath = path.join(root, 'docs/portfolio/release-status.json');
+        await mkdir(path.dirname(statusPath), { recursive: true });
+        await writeFile(statusPath, `${JSON.stringify(document, null, 2)}\n`, 'utf8');
+        runFixtureGit(root, ['add', 'docs/portfolio/release-status.json']);
+        runFixtureGit(root, ['commit', '-m', 'proof record']);
+        const committedDocument = await loadReleaseStatus(statusPath);
+
+        document.items.find((candidate) => candidate.id === 'current-head-builds').note = 'uncommitted note';
+        await writeFile(statusPath, `${JSON.stringify(document, null, 2)}\n`, 'utf8');
+        await writeFile(path.join(root, 'evidence.md'), '# uncommitted evidence\n', 'utf8');
+        assert.notEqual(runFixtureGit(root, ['status', '--porcelain=v1']).stdout, '');
+
+        const dirtyDocument = await loadReleaseStatus(statusPath);
+        const errors = await validateReleaseStatus(dirtyDocument, { root });
+
+        assert.ok(errors.some((error) => (
+            error.includes('current-head-builds.proof.recordPath')
+            && error.includes('unchanged in proof record HEAD')
+        )), errors.join('\n'));
+        for (const environment of ['windows', 'linuxServer']) {
+            assert.ok(errors.some((error) => (
+                error.includes(`current-head-builds.proof.${environment}.evidencePath`)
+                && error.includes('unchanged in proof record HEAD')
+            )), `${environment}:\n${errors.join('\n')}`);
+        }
+
+        await writeFile(statusPath, `${JSON.stringify(committedDocument, null, 2)}\n`, 'utf8');
+        await writeFile(path.join(root, 'evidence.md'), '# candidate evidence\n', 'utf8');
+        assert.equal(runFixtureGit(root, ['status', '--porcelain=v1']).stdout, '');
+
+        const memoryOnlyDocument = structuredClone(committedDocument);
+        memoryOnlyDocument.items.find((candidate) => candidate.id === 'current-head-builds').note = 'memory only';
+        const memoryOnlyErrors = await validateReleaseStatus(memoryOnlyDocument, { root });
+        assert.ok(memoryOnlyErrors.some((error) => (
+            error.includes('current-head-builds.proof.recordPath')
+            && error.includes('must match the committed proof record')
+        )), memoryOnlyErrors.join('\n'));
+    } finally {
+        await rm(root, { recursive: true, force: true });
+    }
+});
+
 test('WARP and RTX proof requires contained files and explicit visual review data', async () => {
     await withReleaseFixture(async (document, root) => {
         const item = document.items.find((candidate) => candidate.id === 'warp-rtx-visual-artifacts');
@@ -1801,7 +1881,11 @@ test('v0.1.0 requires an actual local tag and every publication prerequisite', a
 test('clean proof commit can verify an earlier tagged release candidate', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'dxa-release-candidate-proof-'));
     try {
-        runFixtureGit(repositoryRoot, ['clone', '--no-hardlinks', '--quiet', repositoryRoot, root]);
+        runFixtureGit(repositoryRoot, ['clone', '--no-hardlinks', '--no-tags', '--quiet', repositoryRoot, root]);
+        assert.notEqual(
+            runFixtureGit(root, ['show-ref', '--verify', '--quiet', 'refs/tags/v0.1.0'], { allowFailure: true }).status,
+            0
+        );
         runFixtureGit(root, ['config', 'user.email', 'fixture@example.com']);
         runFixtureGit(root, ['config', 'user.name', 'Fixture']);
 
