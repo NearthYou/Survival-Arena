@@ -1884,6 +1884,10 @@ test('clean proof commit can verify an earlier tagged release candidate', async 
     const root = await mkdtemp(path.join(tmpdir(), 'dxa-release-candidate-proof-'));
     try {
         runFixtureGit(repositoryRoot, ['clone', '--no-hardlinks', '--no-tags', '--quiet', repositoryRoot, root]);
+        const baselineStatus = runFixtureGit(
+            root,
+            ['status', '--porcelain=v1', '--untracked-files=all']
+        ).stdout;
         assert.notEqual(
             runFixtureGit(root, ['show-ref', '--verify', '--quiet', 'refs/tags/v0.1.0'], { allowFailure: true }).status,
             0
@@ -1905,6 +1909,10 @@ test('clean proof commit can verify an earlier tagged release candidate', async 
             video: 'docs/portfolio/demo.mp4',
             external: 'docs/portfolio/proofs/external-release-check.md'
         };
+        const proofRecordPaths = [
+            'docs/portfolio/release-status.json',
+            ...Object.values(proofPaths)
+        ];
         for (const [label, relativePath] of Object.entries(proofPaths)) {
             const absolutePath = path.join(root, relativePath);
             await mkdir(path.dirname(absolutePath), { recursive: true });
@@ -2003,7 +2011,7 @@ test('clean proof commit can verify an earlier tagged release candidate', async 
             `${JSON.stringify(document, null, 2)}\n`,
             'utf8'
         );
-        runFixtureGit(root, ['add', 'docs/portfolio/release-status.json', ...Object.values(proofPaths)]);
+        runFixtureGit(root, ['add', ...proofRecordPaths]);
         runFixtureGit(root, ['commit', '-m', 'release proof record']);
 
         const proofRecordCommitSha = runFixtureGit(root, ['rev-parse', 'HEAD']).stdout.trim();
@@ -2012,7 +2020,20 @@ test('clean proof commit can verify an earlier tagged release candidate', async 
             runFixtureGit(root, ['merge-base', '--is-ancestor', releaseCandidateCommitSha, proofRecordCommitSha]).status,
             0
         );
-        assert.equal(runFixtureGit(root, ['status', '--porcelain=v1', '--untracked-files=all']).stdout, '');
+        assert.equal(
+            runFixtureGit(root, ['status', '--porcelain=v1', '--untracked-files=all']).stdout,
+            baselineStatus
+        );
+        const trackedProofPaths = runFixtureGit(root, ['ls-files', '--', ...proofRecordPaths])
+            .stdout.trim().split(/\r?\n/u).filter(Boolean).sort();
+        assert.deepEqual(trackedProofPaths, [...proofRecordPaths].sort());
+        assert.equal(
+            runFixtureGit(
+                root,
+                ['status', '--porcelain=v1', '--untracked-files=all', '--', ...proofRecordPaths]
+            ).stdout,
+            ''
+        );
 
         const committedDocument = await loadReleaseStatus(path.join(root, 'docs/portfolio/release-status.json'));
         const errors = await validateReleaseStatus(committedDocument, { root });
