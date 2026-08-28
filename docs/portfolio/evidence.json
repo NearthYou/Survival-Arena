@@ -1,0 +1,115 @@
+{
+  "schemaVersion": 1,
+  "basisCommitSha": "884e5e70d68d9fcf9dfe5638d97e06623da154c2",
+  "cases": [
+    {
+      "id": "gpu-query-pool",
+      "question": "비동기 DX11 timestamp query가 실제 RTX 실행에서 누락되지 않게 하려면 풀의 경계를 무엇으로 잡아야 하는가?",
+      "devlog": "docs/devlog/2026-08-23-forward-baseline.md",
+      "adr": "docs/adr/0002-asynchronous-frame-benchmark.md",
+      "evidence": [
+        "docs/benchmarks/forward-baseline/20260823-033736-80988ef7-seed20260823/RESULT.md"
+      ],
+      "excludedEvidence": [
+        {
+          "path": "docs/benchmarks/forward-baseline/20260823-032931-36163138-seed20260823/FAILED.md",
+          "reason": "600개 중 302개 GPU timestamp가 비어 포워드 기준선 수치로 채택하지 않았다."
+        }
+      ],
+      "metrics": [
+        { "name": "gpu_p95", "value": 3.885056, "unit": "ms", "sourceText": "3.885056ms" },
+        { "name": "draw_calls", "value": 2240, "unit": "calls/frame", "sourceText": "2,240 draw calls" },
+        { "name": "gpu_timestamp_samples", "value": 600, "unit": "frames", "sourceText": "GPU timestamp는 600개 모두 해석됐다." }
+      ],
+      "limits": [
+        "짧은 렌더 기준선이므로 메모리 누수 판정에는 사용하지 않는다.",
+        "게임 로직, 서버 통신, UI, 그림자와 투명 패스는 포함하지 않는다."
+      ],
+      "caseDocument": "docs/portfolio/cases/01-gpu-query-pool.md"
+    },
+    {
+      "id": "hybrid-deferred",
+      "question": "같은 seed와 카메라 경로에서 hybrid deferred가 포워드 기준선의 GPU 시간을 얼마나 줄이는가?",
+      "devlog": "docs/devlog/2026-08-23-hybrid-deferred.md",
+      "adr": "docs/adr/0003-hybrid-deferred-rendering.md",
+      "evidence": [
+        "docs/benchmarks/hybrid-deferred/20260823-145749-54a54e5c-seed20260823/RESULT.md"
+      ],
+      "metrics": [
+        { "name": "gpu_total_p95_reduction", "value": 44.016869, "unit": "percent", "sourceText": "GPU total P95 44.016869%" }
+      ],
+      "limits": [
+        "prototype mesh 중심의 synthetic stress scene이다.",
+        "pass별 P95는 서로 다른 frame에서 나올 수 있어 합산하지 않는다."
+      ],
+      "caseDocument": "docs/portfolio/cases/02-hybrid-deferred.md"
+    },
+    {
+      "id": "spatial-query",
+      "question": "Nav grid가 linear 탐색과 같은 결과를 유지하면서 후보 수를 줄이는가?",
+      "devlog": "docs/devlog/2026-08-23-spatial-navigation-ai.md",
+      "adr": "docs/adr/0004-spatial-navigation-and-behavior-tree.md",
+      "evidence": [
+        "docs/benchmarks/spatial-navigation/20260823-182453-5d318dea-seed20260823/RESULT.md"
+      ],
+      "excludedEvidence": [
+        {
+          "path": "docs/benchmarks/spatial-navigation/20260823-180321-e1d0ef0f-seed20260823/RESULT.md",
+          "reason": "nav_grid와 nav_linear의 후보 계수 단위가 달라 대표 수치로 채택하지 않았다."
+        }
+      ],
+      "metrics": [
+        { "name": "nav_grid_candidate_reduction", "value": 99.694942, "unit": "percent", "sourceText": "순회 후보 수는 99.694942% 줄었다." },
+        { "name": "nav_grid_result_mismatch", "value": 0, "unit": "mismatches", "sourceText": "| Nav linear와 grid | `8995d4e2c5340501` | 0 |" }
+      ],
+      "limits": [
+        "후보 수와 시간은 synthetic benchmark의 중앙값이며 실제 온라인 경기 전체 시간을 뜻하지 않는다.",
+        "behavior tree 시간은 FSM보다 증가했으므로 탐색 최적화와 같은 성공 수치로 묶지 않는다."
+      ],
+      "caseDocument": "docs/portfolio/cases/03-spatial-query.md"
+    },
+    {
+      "id": "offline-match-duration",
+      "question": "24명 참가자와 중립 AI 100마리의 authoritative offline 경기가 고정 tick으로 끝까지 재현되는가?",
+      "devlog": "docs/devlog/2026-08-24-offline-match-loop.md",
+      "adr": "docs/adr/0005-authoritative-offline-match.md",
+      "evidence": [
+        "docs/benchmarks/offline-match/20260824-023134-1ede6a23-seed20260823/RESULT.md"
+      ],
+      "metrics": [
+        { "name": "match_end_tick", "value": 16147, "unit": "ticks", "sourceText": "| 종료 tick | 16,147 |" },
+        { "name": "simulation_duration", "value": 538.233, "unit": "seconds", "sourceText": "538.233초" },
+        { "name": "repeat_mismatch", "value": 0, "unit": "mismatches", "sourceText": "repeat mismatch는 0건" },
+        { "name": "release_tick_p95", "value": 0.2292, "unit": "ms", "sourceText": "0.2292ms" }
+      ],
+      "limits": [
+        "실제 RTX visible play와 network 비용은 이 원본에서 검증하지 않는다.",
+        "tick 시간은 OfflineMatch::Step()만 측정하고 외부 actor, snapshot, event drain과 파일 쓰기는 제외한다."
+      ],
+      "caseDocument": "docs/portfolio/cases/04-offline-match-duration.md"
+    },
+    {
+      "id": "network-replication",
+      "question": "acked interest-delta replication이 24인 경기의 수신량을 줄이면서 impairment 아래에서도 경기를 완료하는가?",
+      "devlog": "docs/devlog/2026-08-25-24-player-network-load.md",
+      "adr": "docs/adr/0008-acked-interest-replication.md",
+      "evidence": [
+        "docs/benchmarks/network-load/20260826-01ae1278-COMPARISON.md"
+      ],
+      "metrics": [
+        { "name": "full_state_receive_rate", "value": 66.216564, "unit": "KiB/s", "sourceText": "66.216564" },
+        { "name": "interest_delta_receive_rate", "value": 4.123043, "unit": "KiB/s", "sourceText": "4.123043" },
+        { "name": "datagram_drop", "value": 12579, "unit": "datagrams", "sourceText": "datagram drop: 12579" },
+        { "name": "keyframe_request", "value": 3875, "unit": "requests", "sourceText": "keyframe request: 3875" },
+        { "name": "protocol_error", "value": 0, "unit": "errors", "sourceText": "protocol error: 0" },
+        { "name": "shaped_queue_overflow", "value": 0, "unit": "overflows", "sourceText": "shaped queue overflow: 0" }
+      ],
+      "limits": [
+        "자동 그래픽 검증은 Microsoft Basic Render Driver WARP이며 RTX hardware 수치를 이 비교에 섞지 않는다.",
+        "Windows 성능 evidence와 Linux sanitizer evidence의 commit이 다르다.",
+        "외부 cloud 수치가 아니다."
+      ],
+      "caseDocument": "docs/portfolio/cases/05-network-replication.md"
+    }
+  ]
+}

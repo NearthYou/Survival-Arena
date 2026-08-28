@@ -39,17 +39,26 @@ C++20과 DirectX 11로 쿼터뷰 생존 아레나를 만든다. 한 명은 DX11 
 - 완료: 8주차 로비와 방 흐름
 - 완료: 9주차 권위형 게임 서버와 클라이언트 보정
 - 완료: 10주차 24인 부하와 관심 영역 최적화
-- 진행 중: 11주차 Linux 서버 패키징과 외부 접속
+- 완료: 11주차 local Linux 서버 패키징과 Compose worker pool
+- 미실행: 11주차 AWS 외부 접속
+- 완료: 12주차 포트폴리오 기반 문서와 검증 계약
+- 진행 중: 12주차 PDF, 데모 영상과 최종 공개 검증
 
 10주차는 DX11 WARP client 1개와 bot session 23개의 production 경기, 네 replication mode 비교, 100ms RTT와 2% loss 및 10ms jitter 경기, Windows 2324.07초 soak를 완료했다. Ubuntu 24.04에서는 GCC `-Werror` build 뒤 ASan과 UBSan 24인 headless 경기를 1800초 동안 1817회 실행했다.
 
 full-state 평균 수신량은 66.216564KiB/s로 64KiB/s 목표를 넘었다. 최종 interest-delta는 4.123043KiB/s였고 server tick P95는 1.8002ms였다. 기준선 목표 미달과 delta encode P95 증가를 포함한 원본 비교는 [24인 replication 비교](benchmarks/network-load/20260826-01ae1278-COMPARISON.md)에 있다.
 
-11주차 local 범위에서는 Ubuntu 24.04 GCC 13 Release `-Werror` server image와 lobby 1개 및 game worker 2개의 Compose 구성을 완료했다. 세 container health, worker control connection 2개, WorkerId 1과 2 registration 및 cleanup을 실제 Docker에서 확인했다. worker control 7001/TCP는 host에 publish하지 않는다.
+11주차 local packaging 범위에서는 Ubuntu 24.04 GCC 13 Release `-Werror` server image와 lobby 1개 및 game worker 2개의 Compose 구성을 완료했다. 세 container health, worker control connection 2개, WorkerId 1과 2 registration 및 해당 local Compose project cleanup을 실제 Docker에서 확인했다. worker control 7001/TCP는 host에 publish하지 않는다.
 
 AWS resource는 아직 만들지 않았다. 서울 `t3.small`은 첫 측정 후보이며, account와 현재 가격, public IPv4 및 EBS 비용, SSH 원본 `/32`와 종료 시각을 확인한 뒤에만 외부 접속 측정을 시작한다. 이 확인 전에는 11주차 전체를 완료로 바꾸지 않는다.
 
-이 branch의 GitHub hosted CI는 PR 생성 뒤 확인한다. hosted runner가 billing 문제로 할당되지 않으면 local Windows와 Docker Linux 통과를 hosted CI 통과로 바꾸어 표현하지 않는다.
+12주차 포트폴리오 기반 범위에서는 다섯 사례의 원본 근거, 네 구조 다이어그램, 통합 한계, 공개 상태 계약과 clang-uml 0.6.3 AST class diagram을 완료했다. class 결과는 기준 commit `884e5e70d68d9fcf9dfe5638d97e06623da154c2`에서 engine class 9개 및 relationship 5개, network class 9개 및 relationship 1개이며 generation manifest와 snapshot이 전체 verifier를 통과한다. 세 runtime asset도 HEAD `0658869e5cbabe8479be201b1824177dc907888c`에서 committed pointer, object-store와 hydrated worktree SHA-256 및 size가 일치했다.
+
+같은 HEAD의 current-worktree Windows Debug build와 CTest 582/582, MSVC Release client 및 server build는 통과했다. Ubuntu 24.04 current-HEAD build는 성공으로 기록하지 않는다. Docker Desktop 4.81이 stale `%LOCALAPPDATA%\Docker\run\dockerInference` reparse point를 제거하지 못해 backend가 종료됐고, 안전 gate 뒤 시도한 PowerShell 삭제는 실행 정책이 차단됐으며 rename과 exact patch 삭제도 OS error 1920으로 실패했다. `EnableDockerAI=false` 복구도 같은 오류를 재현해 `true`로 원복했고 settings SHA-256은 원본 `30a8d70713ccd6864a4347483c005e9b5a06baa74f184e7a77ae338cb8e709f7`과 일치한다. 기존 WSL에는 `docker-desktop`만 있고 Ubuntu distro는 없다.
+
+따라서 포트폴리오 기반 작업은 완료지만 12주차 전체는 진행 중이다. 18쪽에서 22쪽 PDF, 실제 데모 영상, 최종 공개 후보의 Ubuntu 24.04 및 hosted CI, AWS 외부 접속, 저장소 공개와 `v0.1.0`은 별도 gate로 남긴다.
+
+PR #11의 head `e2aba12c670b288b596169b8115b1fef77d54068`은 GitHub Actions run `32935640972`에서 Windows와 Ubuntu job이 성공한 뒤 `884e5e70d68d9fcf9dfe5638d97e06623da154c2`로 main에 병합됐다. 이후 문서 커밋을 포함한 현재 branch HEAD는 hosted CI를 실행하지 않았다. 과거 runner billing 문구는 당시 미실행을 local 및 Docker 결과와 구분하기 위한 기록이며 현재 확인된 성공 run을 부정하지 않는다.
 
 ## 완료 판정
 

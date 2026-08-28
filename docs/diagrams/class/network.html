@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Network AST 클래스 구조</title>
+  <style>
+    :root { color-scheme: light dark; --page: #f6f8fb; --panel: #ffffff; --ink: #172033; --muted: #53627a; --line: #335eea; --node: #e9efff; --node-stroke: #2449bd; --focus: #d33a7c; }
+    @media (prefers-color-scheme: dark) { :root { --page: #111827; --panel: #192235; --ink: #f5f7ff; --muted: #b9c5d8; --line: #8eabff; --node: #26375d; --node-stroke: #a9bdff; --focus: #ff80b6; } }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--page); color: var(--ink); font-family: system-ui, sans-serif; line-height: 1.55; }
+    main { width: min(1180px, calc(100% - 32px)); margin: 0 auto; padding: 40px 0 64px; }
+    h1 { margin: 0 0 8px; font-size: clamp(1.7rem, 4vw, 2.5rem); }
+    h2 { margin-top: 0; }
+    .basis { color: var(--muted); overflow-wrap: anywhere; }
+    .diagram-frame, .text-fallback, .sources { margin-top: 24px; padding: clamp(16px, 3vw, 28px); border: 1px solid color-mix(in srgb, var(--muted) 35%, transparent); border-radius: 18px; background: var(--panel); }
+    .diagram-frame { overflow-x: auto; }
+    svg { display: block; width: 100%; min-width: 1040px; height: auto; color: var(--ink); }
+    .class-node rect { fill: var(--node); stroke: var(--node-stroke); stroke-width: 2; }
+    .class-node text { fill: var(--ink); text-anchor: middle; }
+    .class-name { font-size: 16px; font-weight: 800; }
+    .class-namespace, .class-counts, .class-source { fill: var(--muted) !important; font-size: 12px; }
+    .class-relationship path { fill: none; stroke: var(--line); stroke-width: 2.5; }
+    .class-relationship rect { fill: var(--panel); stroke: var(--line); stroke-width: 1.5; }
+    .class-relationship text { fill: var(--ink); text-anchor: middle; font-size: 12px; font-weight: 700; }
+    .arrow-head { fill: var(--line); }
+    li { margin: 8px 0; }
+    li:focus { outline: 3px solid var(--focus); outline-offset: 3px; }
+    code { overflow-wrap: anywhere; }
+    .class-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 12px; padding: 0; list-style: none; }
+    .class-list li { display: grid; gap: 3px; padding: 12px; border: 1px solid color-mix(in srgb, var(--muted) 25%, transparent); border-radius: 12px; }
+    .sources ul { padding-left: 20px; }
+    @media (max-width: 800px) { main { width: min(100% - 20px, 1180px); padding-top: 24px; } .diagram-frame, .text-fallback, .sources { padding: 16px; } }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Network AST 클래스 구조</h1>
+    <p class="basis">코드 기준 commit: <code>884e5e70d68d9fcf9dfe5638d97e06623da154c2</code></p>
+    <p class="basis">생성 도구: <code>clang-uml 0.6.3</code> / clang version 22.1.8</p>
+    <div class="diagram-frame">
+      <svg viewBox="0 0 1142 626" role="img" aria-labelledby="class-svg-title class-svg-description">
+      <title id="class-svg-title">Network AST 클래스 구조</title>
+      <desc id="class-svg-description">clang-uml AST에서 추출한 클래스와 방향성 관계를 읽는 다이어그램</desc>
+      <defs>
+        <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z" class="arrow-head" />
+        </marker>
+      </defs>
+      <g class="class-relationship" data-source="12956272206729960380" data-destination="12928480845458019475">
+        <path d="M 181 252 L 181 174" marker-end="url(#arrow)" />
+        <rect x="131" y="191" width="100" height="24" rx="8" />
+        <text x="181" y="208">dependency</text>
+      </g>
+      <g class="class-node" data-class-id="12928480845458019475">
+        <rect x="52" y="52" width="258" height="122" rx="14" />
+        <text class="class-name"><tspan x="181" y="80">LobbyService</tspan></text>
+        <text class="class-namespace"><tspan x="181" y="110">dxa::lobby</tspan></text>
+        <text class="class-counts"><tspan x="181" y="135">16 members / 22 methods</tspan></text>
+        <text class="class-source"><tspan x="181" y="158">LobbyService.hpp</tspan></text>
+      </g>
+      <g class="class-node" data-class-id="13105915741285263589">
+        <rect x="442" y="52" width="258" height="122" rx="14" />
+        <text class="class-name"><tspan x="571" y="80">WorkerRegistry</tspan></text>
+        <text class="class-namespace"><tspan x="571" y="110">dxa::lobby</tspan></text>
+        <text class="class-counts"><tspan x="571" y="135">4 members / 9 methods</tspan></text>
+        <text class="class-source"><tspan x="571" y="158">WorkerRegistry.hpp</tspan></text>
+      </g>
+      <g class="class-node" data-class-id="14738624978456159528">
+        <rect x="832" y="52" width="258" height="122" rx="14" />
+        <text class="class-name"><tspan x="961" y="80">WorkerControlServer</tspan></text>
+        <text class="class-namespace"><tspan x="961" y="110">dxa::lobby</tspan></text>
+        <text class="class-counts"><tspan x="961" y="135">1 members / 8 methods</tspan></text>
+        <text class="class-source"><tspan x="961" y="158">WorkerControlServer.hpp</tspan></text>
+      </g>
+      <g class="class-node" data-class-id="12956272206729960380">
+        <rect x="52" y="252" width="258" height="122" rx="14" />
+        <text class="class-name"><tspan x="181" y="280">LobbyTcpServer</tspan></text>
+        <text class="class-namespace"><tspan x="181" y="310">dxa::lobby</tspan></text>
+        <text class="class-counts"><tspan x="181" y="335">1 members / 8 methods</tspan></text>
+        <text class="class-source"><tspan x="181" y="358">LobbyTcpServer.hpp</tspan></text>
+      </g>
+      <g class="class-node" data-class-id="131652050193806117">
+        <rect x="442" y="252" width="258" height="122" rx="14" />
+        <text class="class-name"><tspan x="571" y="280">SnapshotReplicator</tspan></text>
+        <text class="class-namespace"><tspan x="571" y="310">dxa::game_server</tspan></text>
+        <text class="class-counts"><tspan x="571" y="335">1 members / 11 methods</tspan></text>
+        <text class="class-source"><tspan x="571" y="358">SnapshotReplicator.hpp</tspan></text>
+      </g>
+      <g class="class-node" data-class-id="17972332769293460244">
+        <rect x="832" y="252" width="258" height="122" rx="14" />
+        <text class="class-name"><tspan x="961" y="280">AuthoritativeMatch</tspan></text>
+        <text class="class-namespace"><tspan x="961" y="310">dxa::game_server</tspan></text>
+        <text class="class-counts"><tspan x="961" y="335">1 members / 15 methods</tspan></text>
+        <text class="class-source"><tspan x="961" y="358">AuthoritativeMatch.hpp</tspan></text>
+      </g>
+      <g class="class-node" data-class-id="11771602924749086105">
+        <rect x="52" y="452" width="258" height="122" rx="14" />
+        <text class="class-name"><tspan x="181" y="480">GameServer</tspan></text>
+        <text class="class-namespace"><tspan x="181" y="510">dxa::game_server</tspan></text>
+        <text class="class-counts"><tspan x="181" y="535">1 members / 12 methods</tspan></text>
+        <text class="class-source"><tspan x="181" y="558">GameServer.hpp</tspan></text>
+      </g>
+      <g class="class-node" data-class-id="11318795128436679790">
+        <rect x="442" y="452" width="258" height="122" rx="14" />
+        <text class="class-name"><tspan x="571" y="480">GameSession</tspan></text>
+        <text class="class-namespace"><tspan x="571" y="510">dxa::game_client</tspan></text>
+        <text class="class-counts"><tspan x="571" y="535">3 members / 14 methods</tspan></text>
+        <text class="class-source"><tspan x="571" y="558">GameSession.hpp</tspan></text>
+      </g>
+      <g class="class-node" data-class-id="17582378394971583985">
+        <rect x="832" y="452" width="258" height="122" rx="14" />
+        <text class="class-name"><tspan x="961" y="480">SnapshotReassembler</tspan></text>
+        <text class="class-namespace"><tspan x="961" y="510">dxa::game_client</tspan></text>
+        <text class="class-counts"><tspan x="961" y="535">1 members / 9 methods</tspan></text>
+        <text class="class-source"><tspan x="961" y="558">SnapshotReassembler.hpp</tspan></text>
+      </g>
+    </svg>
+    </div>
+    <section class="text-fallback" aria-labelledby="class-text-title">
+      <h2 id="class-text-title">AST 텍스트 설명</h2>
+      <h3>클래스</h3>
+      <ul class="class-list">
+          <li tabindex="0">
+            <strong>dxa::lobby::LobbyService</strong>
+            <span>16 members / 22 methods</span>
+            <code>apps/lobby_server/include/dxa/lobby/LobbyService.hpp</code>
+          </li>
+          <li tabindex="0">
+            <strong>dxa::lobby::WorkerRegistry</strong>
+            <span>4 members / 9 methods</span>
+            <code>apps/lobby_server/include/dxa/lobby/WorkerRegistry.hpp</code>
+          </li>
+          <li tabindex="0">
+            <strong>dxa::lobby::WorkerControlServer</strong>
+            <span>1 members / 8 methods</span>
+            <code>apps/lobby_server/include/dxa/lobby/WorkerControlServer.hpp</code>
+          </li>
+          <li tabindex="0">
+            <strong>dxa::lobby::LobbyTcpServer</strong>
+            <span>1 members / 8 methods</span>
+            <code>apps/lobby_server/include/dxa/lobby/LobbyTcpServer.hpp</code>
+          </li>
+          <li tabindex="0">
+            <strong>dxa::game_server::SnapshotReplicator</strong>
+            <span>1 members / 11 methods</span>
+            <code>apps/game_server/include/dxa/game_server/SnapshotReplicator.hpp</code>
+          </li>
+          <li tabindex="0">
+            <strong>dxa::game_server::AuthoritativeMatch</strong>
+            <span>1 members / 15 methods</span>
+            <code>apps/game_server/include/dxa/game_server/AuthoritativeMatch.hpp</code>
+          </li>
+          <li tabindex="0">
+            <strong>dxa::game_server::GameServer</strong>
+            <span>1 members / 12 methods</span>
+            <code>apps/game_server/include/dxa/game_server/GameServer.hpp</code>
+          </li>
+          <li tabindex="0">
+            <strong>dxa::game_client::GameSession</strong>
+            <span>3 members / 14 methods</span>
+            <code>apps/game_client/include/dxa/game_client/GameSession.hpp</code>
+          </li>
+          <li tabindex="0">
+            <strong>dxa::game_client::SnapshotReassembler</strong>
+            <span>1 members / 9 methods</span>
+            <code>apps/game_client/include/dxa/game_client/SnapshotReassembler.hpp</code>
+          </li>
+      </ul>
+      <h3>관계 방향</h3>
+      <ol>
+          <li tabindex="0"><code>dxa::lobby::LobbyTcpServer</code> → <code>dxa::lobby::LobbyService</code>: dependency</li>
+      </ol>
+    </section>
+    <section class="sources" aria-labelledby="class-sources-title">
+      <h2 id="class-sources-title">AST source</h2>
+      <ul>
+          <li><code>apps/lobby_server/include/dxa/lobby/LobbyService.hpp</code></li>
+          <li><code>apps/lobby_server/include/dxa/lobby/WorkerRegistry.hpp</code></li>
+          <li><code>apps/lobby_server/include/dxa/lobby/WorkerControlServer.hpp</code></li>
+          <li><code>apps/lobby_server/include/dxa/lobby/LobbyTcpServer.hpp</code></li>
+          <li><code>apps/game_server/include/dxa/game_server/SnapshotReplicator.hpp</code></li>
+          <li><code>apps/game_server/include/dxa/game_server/AuthoritativeMatch.hpp</code></li>
+          <li><code>apps/game_server/include/dxa/game_server/GameServer.hpp</code></li>
+          <li><code>apps/game_client/include/dxa/game_client/GameSession.hpp</code></li>
+          <li><code>apps/game_client/include/dxa/game_client/SnapshotReassembler.hpp</code></li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>

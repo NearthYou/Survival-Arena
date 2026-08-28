@@ -1,0 +1,46 @@
+compilation_database_dir: out/build/portfolio-clang-uml
+output_directory: out/portfolio/clang-uml
+relative_to: .
+generate_metadata: true
+generate_method_arguments: none
+generate_packages: false
+remove_compile_flags:
+  - /WX
+
+diagrams:
+  engine:
+    type: class
+    title: "Engine AST class diagram | code basis 884e5e70d68d9fcf9dfe5638d97e06623da154c2"
+    include_relations_also_as_members: false
+    glob:
+      - engine/src/**/*.cpp
+      - r: '.*engine_resource_pool_test\.cpp$'
+    include:
+      elements:
+        - dxa::engine::EngineApp
+        - r: 'dxa::engine::.*RuntimeScene.*'
+        - r: 'dxa::engine::.*Renderer'
+        - r: 'dxa::engine::Resource.*'
+
+  network:
+    type: class
+    title: "Network AST class diagram | code basis 884e5e70d68d9fcf9dfe5638d97e06623da154c2"
+    include_relations_also_as_members: false
+    glob:
+      - apps/lobby_server/src/**/*.cpp
+      - apps/game_server/src/**/*.cpp
+      - apps/game_client/src/**/*.cpp
+    include:
+      elements:
+        - dxa::lobby::LobbyService
+        - dxa::lobby::WorkerRegistry
+        - dxa::lobby::LobbyTcpServer
+        - dxa::lobby::WorkerControlServer
+        - r: 'dxa::lobby::.*::State'
+        - dxa::game_server::GameServer
+        - dxa::game_server::AuthoritativeMatch
+        - dxa::game_server::SnapshotReplicator
+        - r: 'dxa::game_server::.*::(State|Impl)'
+        - dxa::game_client::GameSession
+        - dxa::game_client::SnapshotReassembler
+        - r: 'dxa::game_client::.*::Impl'

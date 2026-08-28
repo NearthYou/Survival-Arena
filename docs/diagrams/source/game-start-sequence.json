@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "basisCommitSha": "884e5e70d68d9fcf9dfe5638d97e06623da154c2",
+  "title": "게임 시작 시퀀스",
+  "kind": "sequence",
+  "sources": [
+    { "label": "로비 시작과 티켓 발급", "path": "apps/lobby_server/src/LobbyService.cpp" },
+    { "label": "워커 선택과 예약 상태", "path": "apps/lobby_server/src/WorkerRegistry.cpp" },
+    { "label": "게임 서버 예약과 세션 수락", "path": "apps/game_server/src/GameServer.cpp" },
+    { "label": "권위 매치 인증과 시작", "path": "apps/game_server/src/AuthoritativeMatch.cpp" },
+    { "label": "게임 클라이언트 접속", "path": "apps/game_client/src/GameSession.cpp" }
+  ],
+  "nodes": [
+    { "id": "host", "label": "Host" },
+    { "id": "lobby", "label": "Lobby" },
+    { "id": "worker-registry", "label": "Worker Registry" },
+    { "id": "game-server", "label": "Game Server" },
+    { "id": "game-client", "label": "Game Client" }
+  ],
+  "steps": [
+    { "from": "host", "to": "lobby", "label": "호스트가 준비 완료된 방의 시작을 요청한다." },
+    { "from": "lobby", "to": "worker-registry", "label": "로비가 참가자 티켓과 함께 매치 예약을 요청한다." },
+    { "from": "worker-registry", "to": "game-server", "label": "레지스트리가 선택한 유휴 워커에 예약을 전달한다." },
+    { "from": "game-server", "to": "worker-registry", "label": "게임 서버가 권위 매치를 만들고 예약 준비를 알린다." },
+    { "from": "worker-registry", "to": "lobby", "label": "레지스트리가 워커 endpoint를 예약 완료 이벤트로 돌려준다." },
+    { "from": "lobby", "to": "host", "label": "로비가 매치 티켓과 TCP 및 UDP endpoint를 발급한다." },
+    { "from": "host", "to": "game-client", "label": "호스트 흐름이 발급 정보를 게임 세션에 넘긴다." },
+    { "from": "game-client", "to": "game-server", "label": "게임 클라이언트가 티켓으로 TCP 인증을 요청한다." },
+    { "from": "game-server", "to": "game-client", "label": "게임 서버가 actor와 tick rate를 포함한 welcome을 보낸다." },
+    { "from": "game-client", "to": "game-server", "label": "게임 클라이언트가 UDP token으로 datagram 경로를 bind한다." },
+    { "from": "game-server", "to": "game-client", "label": "인증 참가자가 준비되면 권위 매치와 스냅샷 전송이 시작된다." }
+  ]
+}

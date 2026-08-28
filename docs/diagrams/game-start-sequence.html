@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>게임 시작 시퀀스</title>
+  <style>
+    :root { color-scheme: light dark; --page: #f6f8fb; --panel: #ffffff; --ink: #172033; --muted: #53627a; --line: #335eea; --node: #e9efff; --node-stroke: #2449bd; --focus: #d33a7c; }
+    @media (prefers-color-scheme: dark) { :root { --page: #111827; --panel: #192235; --ink: #f5f7ff; --muted: #b9c5d8; --line: #8eabff; --node: #26375d; --node-stroke: #a9bdff; --focus: #ff80b6; } }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--page); color: var(--ink); font-family: system-ui, sans-serif; line-height: 1.55; }
+    main { width: min(1180px, calc(100% - 32px)); margin: 0 auto; padding: 40px 0 64px; }
+    h1 { margin: 0 0 8px; font-size: clamp(1.7rem, 4vw, 2.5rem); }
+    h2 { margin-top: 0; }
+    .basis { color: var(--muted); overflow-wrap: anywhere; }
+    .diagram-frame, .text-fallback, .sources { margin-top: 24px; padding: clamp(16px, 3vw, 28px); border: 1px solid color-mix(in srgb, var(--muted) 35%, transparent); border-radius: 18px; background: var(--panel); }
+    .diagram-frame { overflow-x: auto; }
+    svg { display: block; width: 100%; min-width: 900px; height: auto; color: var(--ink); }
+    .node rect, .participant rect { fill: var(--node); stroke: var(--node-stroke); stroke-width: 2; }
+    .node text, .participant text { fill: var(--ink); text-anchor: middle; font-size: 17px; font-weight: 700; }
+    .connection line { stroke: var(--line); stroke-width: 2.5; }
+    .arrow-head { fill: var(--line); }
+    .connection-label { fill: var(--ink); stroke: var(--panel); stroke-width: 5px; paint-order: stroke; text-anchor: middle; font-size: 14px; font-weight: 600; }
+    .connection-marker rect { fill: var(--panel); stroke: var(--line); stroke-width: 2; }
+    .connection-marker text { fill: var(--ink); text-anchor: middle; font-size: 13px; font-weight: 800; }
+    .lifeline { stroke: var(--muted); stroke-width: 1.5; stroke-dasharray: 7 7; }
+    li { margin: 8px 0; }
+    li:focus { outline: 3px solid var(--focus); outline-offset: 3px; }
+    code { overflow-wrap: anywhere; }
+    .sources ul { padding-left: 20px; }
+    .sources li { display: grid; gap: 2px; }
+    @media (max-width: 800px) { main { width: min(100% - 20px, 1180px); padding-top: 24px; } .diagram-frame, .text-fallback, .sources { padding: 16px; } }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>게임 시작 시퀀스</h1>
+    <p class="basis">코드 기준 commit: <code>884e5e70d68d9fcf9dfe5638d97e06623da154c2</code></p>
+    <div class="diagram-frame">
+      <svg viewBox="0 0 1080 1216" role="img" aria-labelledby="diagram-svg-title diagram-svg-description">
+      <title id="diagram-svg-title">게임 시작 시퀀스</title>
+      <desc id="diagram-svg-description">참여자 사이의 호출 순서를 위에서 아래로 읽는 시퀀스 다이어그램</desc>
+      <defs>
+        <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z" class="arrow-head" />
+        </marker>
+      </defs>
+      <g class="participant">
+        <rect x="20" y="32" width="160" height="56" rx="14" />
+        <text class="participant-label"><tspan x="100" y="65">Host</tspan></text>
+        <line x1="100" y1="88" x2="100" y2="1188" class="lifeline" />
+      </g>
+      <g class="participant">
+        <rect x="240" y="32" width="160" height="56" rx="14" />
+        <text class="participant-label"><tspan x="320" y="65">Lobby</tspan></text>
+        <line x1="320" y1="88" x2="320" y2="1188" class="lifeline" />
+      </g>
+      <g class="participant">
+        <rect x="460" y="32" width="160" height="56" rx="14" />
+        <text class="participant-label"><tspan x="540" y="65">Worker Registry</tspan></text>
+        <line x1="540" y1="88" x2="540" y2="1188" class="lifeline" />
+      </g>
+      <g class="participant">
+        <rect x="680" y="32" width="160" height="56" rx="14" />
+        <text class="participant-label"><tspan x="760" y="65">Game Server</tspan></text>
+        <line x1="760" y1="88" x2="760" y2="1188" class="lifeline" />
+      </g>
+      <g class="participant">
+        <rect x="900" y="32" width="160" height="56" rx="14" />
+        <text class="participant-label"><tspan x="980" y="65">Game Client</tspan></text>
+        <line x1="980" y1="88" x2="980" y2="1188" class="lifeline" />
+      </g>
+      <g class="connection">
+        <line x1="100" y1="146" x2="320" y2="146" marker-end="url(#arrow)" />
+        <text class="connection-label"><tspan x="210" y="119.5">1. 호스트가 준비 완료된 방의 시작을</tspan><tspan x="210" y="136.5">요청한다.</tspan></text>
+      </g>
+      <g class="connection">
+        <line x1="320" y1="240" x2="540" y2="240" marker-end="url(#arrow)" />
+        <text class="connection-label"><tspan x="430" y="213.5">2. 로비가 참가자 티켓과 함께 매치</tspan><tspan x="430" y="230.5">예약을 요청한다.</tspan></text>
+      </g>
+      <g class="connection">
+        <line x1="540" y1="334" x2="760" y2="334" marker-end="url(#arrow)" />
+        <text class="connection-label"><tspan x="650" y="307.5">3. 레지스트리가 선택한 유휴 워커에</tspan><tspan x="650" y="324.5">예약을 전달한다.</tspan></text>
+      </g>
+      <g class="connection">
+        <line x1="760" y1="428" x2="540" y2="428" marker-end="url(#arrow)" />
+        <text class="connection-label"><tspan x="650" y="401.5">4. 게임 서버가 권위 매치를 만들고</tspan><tspan x="650" y="418.5">예약 준비를 알린다.</tspan></text>
+      </g>
+      <g class="connection">
+        <line x1="540" y1="522" x2="320" y2="522" marker-end="url(#arrow)" />
+        <text class="connection-label"><tspan x="430" y="495.5">5. 레지스트리가 워커 endpoint를</tspan><tspan x="430" y="512.5">예약 완료 이벤트로 돌려준다.</tspan></text>
+      </g>
+      <g class="connection">
+        <line x1="320" y1="616" x2="100" y2="616" marker-end="url(#arrow)" />
+        <text class="connection-label"><tspan x="210" y="589.5">6. 로비가 매치 티켓과 TCP 및</tspan><tspan x="210" y="606.5">UDP endpoint를 발급한다.</tspan></text>
+      </g>
+      <g class="connection">
+        <line x1="100" y1="710" x2="980" y2="710" marker-end="url(#arrow)" />
+        <text class="connection-label"><tspan x="540" y="683.5">7. 호스트 흐름이 발급 정보를 게임</tspan><tspan x="540" y="700.5">세션에 넘긴다.</tspan></text>
+      </g>
+      <g class="connection">
+        <line x1="980" y1="804" x2="760" y2="804" marker-end="url(#arrow)" />
+        <text class="connection-label"><tspan x="870" y="777.5">8. 게임 클라이언트가 티켓으로 TCP</tspan><tspan x="870" y="794.5">인증을 요청한다.</tspan></text>
+      </g>
+      <g class="connection">
+        <line x1="760" y1="898" x2="980" y2="898" marker-end="url(#arrow)" />
+        <text class="connection-label"><tspan x="870" y="863">9. 게임 서버가 actor와 tick</tspan><tspan x="870" y="880">rate를 포함한 welcome을</tspan><tspan x="870" y="897">보낸다.</tspan></text>
+      </g>
+      <g class="connection">
+        <line x1="980" y1="992" x2="760" y2="992" marker-end="url(#arrow)" />
+        <text class="connection-label"><tspan x="870" y="957">10. 게임 클라이언트가 UDP</tspan><tspan x="870" y="974">token으로 datagram 경로를</tspan><tspan x="870" y="991">bind한다.</tspan></text>
+      </g>
+      <g class="connection">
+        <line x1="760" y1="1086" x2="980" y2="1086" marker-end="url(#arrow)" />
+        <text class="connection-label"><tspan x="870" y="1059.5">11. 인증 참가자가 준비되면 권위</tspan><tspan x="870" y="1076.5">매치와 스냅샷 전송이 시작된다.</tspan></text>
+      </g>
+    </svg>
+    </div>
+    <section class="text-fallback" aria-labelledby="text-fallback-title">
+      <h2 id="text-fallback-title">텍스트 설명</h2>
+      <h3>구성 요소</h3>
+      <ul>
+          <li tabindex="0"><strong>Host</strong> <code>host</code></li>
+          <li tabindex="0"><strong>Lobby</strong> <code>lobby</code></li>
+          <li tabindex="0"><strong>Worker Registry</strong> <code>worker-registry</code></li>
+          <li tabindex="0"><strong>Game Server</strong> <code>game-server</code></li>
+          <li tabindex="0"><strong>Game Client</strong> <code>game-client</code></li>
+      </ul>
+      <h3>호출 순서</h3>
+      <ol>
+          <li tabindex="0">1. <code>host</code> → <code>lobby</code>: 호스트가 준비 완료된 방의 시작을 요청한다.</li>
+          <li tabindex="0">2. <code>lobby</code> → <code>worker-registry</code>: 로비가 참가자 티켓과 함께 매치 예약을 요청한다.</li>
+          <li tabindex="0">3. <code>worker-registry</code> → <code>game-server</code>: 레지스트리가 선택한 유휴 워커에 예약을 전달한다.</li>
+          <li tabindex="0">4. <code>game-server</code> → <code>worker-registry</code>: 게임 서버가 권위 매치를 만들고 예약 준비를 알린다.</li>
+          <li tabindex="0">5. <code>worker-registry</code> → <code>lobby</code>: 레지스트리가 워커 endpoint를 예약 완료 이벤트로 돌려준다.</li>
+          <li tabindex="0">6. <code>lobby</code> → <code>host</code>: 로비가 매치 티켓과 TCP 및 UDP endpoint를 발급한다.</li>
+          <li tabindex="0">7. <code>host</code> → <code>game-client</code>: 호스트 흐름이 발급 정보를 게임 세션에 넘긴다.</li>
+          <li tabindex="0">8. <code>game-client</code> → <code>game-server</code>: 게임 클라이언트가 티켓으로 TCP 인증을 요청한다.</li>
+          <li tabindex="0">9. <code>game-server</code> → <code>game-client</code>: 게임 서버가 actor와 tick rate를 포함한 welcome을 보낸다.</li>
+          <li tabindex="0">10. <code>game-client</code> → <code>game-server</code>: 게임 클라이언트가 UDP token으로 datagram 경로를 bind한다.</li>
+          <li tabindex="0">11. <code>game-server</code> → <code>game-client</code>: 인증 참가자가 준비되면 권위 매치와 스냅샷 전송이 시작된다.</li>
+      </ol>
+    </section>
+    <section class="sources" aria-labelledby="sources-title">
+      <h2 id="sources-title">코드 근거</h2>
+      <ul>
+          <li><span>로비 시작과 티켓 발급</span><code>apps/lobby_server/src/LobbyService.cpp</code></li>
+          <li><span>워커 선택과 예약 상태</span><code>apps/lobby_server/src/WorkerRegistry.cpp</code></li>
+          <li><span>게임 서버 예약과 세션 수락</span><code>apps/game_server/src/GameServer.cpp</code></li>
+          <li><span>권위 매치 인증과 시작</span><code>apps/game_server/src/AuthoritativeMatch.cpp</code></li>
+          <li><span>게임 클라이언트 접속</span><code>apps/game_client/src/GameSession.cpp</code></li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>

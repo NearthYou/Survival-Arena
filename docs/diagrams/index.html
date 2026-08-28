@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>코드 근거 구조 다이어그램</title>
+  <style>
+    :root { color-scheme: light dark; --page: #f6f8fb; --panel: #ffffff; --ink: #172033; --muted: #53627a; --accent: #2449bd; --focus: #d33a7c; }
+    @media (prefers-color-scheme: dark) { :root { --page: #111827; --panel: #192235; --ink: #f5f7ff; --muted: #b9c5d8; --accent: #a9bdff; --focus: #ff80b6; } }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--page); color: var(--ink); font-family: system-ui, sans-serif; line-height: 1.55; }
+    main { width: min(960px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0 72px; }
+    h1 { margin: 0; font-size: clamp(1.8rem, 5vw, 2.8rem); }
+    p { color: var(--muted); }
+    ul { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 18px; padding: 0; margin-top: 32px; list-style: none; }
+    li { display: grid; gap: 12px; min-width: 0; padding: 24px; border: 1px solid color-mix(in srgb, var(--muted) 35%, transparent); border-radius: 18px; background: var(--panel); }
+    a { color: var(--accent); font-size: 1.2rem; font-weight: 750; }
+    a:focus { outline: 3px solid var(--focus); outline-offset: 4px; }
+    code { color: var(--muted); overflow-wrap: anywhere; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>코드 근거 구조 다이어그램</h1>
+    <p>JSON 원본과 기준 commit의 source path를 검증한 네 개 구조 그림과 clang-uml AST 클래스 그림이다.</p>
+    <ul>
+      <li>
+        <a href="class/engine.html">Engine AST 클래스 구조</a>
+        <code>884e5e70d68d9fcf9dfe5638d97e06623da154c2</code>
+      </li>
+      <li>
+        <a href="class/network.html">Network AST 클래스 구조</a>
+        <code>884e5e70d68d9fcf9dfe5638d97e06623da154c2</code>
+      </li>
+      <li>
+        <a href="game-start-sequence.html">게임 시작 시퀀스</a>
+        <code>884e5e70d68d9fcf9dfe5638d97e06623da154c2</code>
+      </li>
+      <li>
+        <a href="room-lifecycle.html">방 생명주기</a>
+        <code>884e5e70d68d9fcf9dfe5638d97e06623da154c2</code>
+      </li>
+      <li>
+        <a href="snapshot-data-flow.html">스냅샷 데이터 흐름</a>
+        <code>884e5e70d68d9fcf9dfe5638d97e06623da154c2</code>
+      </li>
+      <li>
+        <a href="system-architecture.html">시스템 구조와 코드 경계</a>
+        <code>884e5e70d68d9fcf9dfe5638d97e06623da154c2</code>
+      </li>
+    </ul>
+  </main>
+</body>
+</html>
