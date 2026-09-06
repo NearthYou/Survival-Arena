@@ -39,8 +39,10 @@ add_subdirectory(apps/offline_match_demo)
 add_subdirectory(apps/offline_match_benchmark)
 add_subdirectory(apps/simulation_benchmark)
 add_subdirectory(apps/asset_tool)
+include(ReferenceGame)
 
 if(DXA_BUILD_TESTS)
     add_subdirectory(tests)
+    include(ReferenceGameTests)
 endif()
 
