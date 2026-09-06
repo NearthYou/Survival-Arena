@@ -1,12 +1,66 @@
 # DX11 Survival Arena
 
-C++20과 DirectX 11로 만드는 쿼터뷰 생존 아레나 포트폴리오다. 렌더링 엔진과 게임 클라이언트를 중심에 두고, 24인 방과 권위형 게임 서버를 같은 저장소에서 검증한다.
+C++20과 DirectX 11 렌더러, 게임 클라이언트, 24인 권위형 서버를 검증하는 프로젝트다. 게임을 직접 실행할 때는 레퍼런스 저장소의 Client와 Engine을 함께 빌드하는 원본 실행 경로를 사용한다.
 
-현재 단계는 11주차 Linux server image와 단일 host worker pool까지 구현된 상태다. lobby가 capacity 1 worker에 경기를 예약하고 ready 응답을 받은 뒤에만 참가자 ticket을 전달한다. 실제 DX11 client 1개와 같은 `GameSession`을 사용하는 play bot 23개가 game TCP 인증, UDP bind, 30Hz input, 15Hz snapshot과 경기 결과까지 진행한다.
+원본 게임 코드와 자산은 외부 의존성이다. 이 저장소에는 실행 준비, 요청된 수정과 검증 도구를 두며, 원본 게임을 직접 작성한 결과로 소개하지 않는다.
 
-Windows WARP 수직 테스트에서는 DX11 client와 bot 23개가 60 tick에 같은 결과를 확인한다. 이 fixture는 production 성능 수치로 사용하지 않는다. 공식 Release 한 경기에서 full-state 평균 수신량은 66.216564KiB/s로 64KiB/s 목표를 넘었고, ACK 기반 interest-delta는 4.123043KiB/s였다. 같은 seed의 네 mode는 winner 4, tick 17,430 결과를 유지했다.
+## 원본 게임 실행
 
-100ms RTT, 2% loss와 10ms jitter를 적용한 production 경기에서는 datagram 12,579개가 drop되고 keyframe 요청 3,875회가 발생했지만 protocol error와 queue overflow 없이 끝났다. Windows soak는 네 경기와 실제 match 시간 2,324.07초, Linux ASan과 UBSan은 24인 headless 경기 1,817회를 기록했다. 진행 상태와 검증 결과는 [프로젝트 계획](docs/PROJECT_PLAN.md)과 [24인 network 기록](docs/devlog/2026-08-25-24-player-network-load.md)에 남긴다.
+Windows SDK, Visual Studio 2022 Community C++ 도구, PowerShell 7, Git LFS가 필요하며 CMake 3.25 이상을 PATH에서 실행할 수 있어야 한다. 원본 저장소와 Resources를 준비한 뒤 아래 두 경로를 자신의 경로로 바꾼다. 출력 폴더는 이 저장소와 원본 저장소 밖에 둔다.
+
+```powershell
+./scripts/bootstrap.ps1
+
+$referenceSource = 'C:/path/to/DirectX11-Engine-Client'
+$referenceRuntime = 'C:/path/to/reference-runtime'
+
+cmake --preset windows-msvc-debug `
+  "-DDXA_REFERENCE_SOURCE_ROOT=$referenceSource" `
+  "-DDXA_REFERENCE_RUNTIME_ROOT=$referenceRuntime"
+cmake --build --preset windows-msvc-debug --target dxa_reference_game
+cmake --build --preset windows-msvc-debug --target play_reference_game
+```
+
+`dxa_reference_game`은 고정 원본 커밋 `01b820a3ebcfd473a898dec1f5bc67c4ac77261e`에서 외부 실행판을 만들고 무결성을 확인한다. `play_reference_game`은 검사를 거쳐 게임 창을 연다. 기존 출력은 덮어쓰지 않으며, 다른 수정 조합은 별도 출력으로 만든다.
+
+캐릭터 선택 유지, 스킨 클릭과 시작 처리 분리, 이동 및 애니메이션, 제작 준비, BGM/SFX 설정을 보정했다. 충돌 디버그 도형은 기본으로 숨기고 F3으로 켜거나 끈다. 충돌 판정과 스킬 수치는 바꾸지 않는다.
+
+원본 출처, 적용한 수정과 검증의 한계는 [원본 게임 실행 안내](docs/implementation/reference-game-runtime.md)에 정리했다.
+
+## 실행 경로 구분
+
+| 목적 | 대상 | 범위 |
+| --- | --- | --- |
+| 원본 게임 플레이 | `play_reference_game` | 외부 원본 Client와 Engine 실행 |
+| 렌더러와 서버 검증 | `dxa_client`, lobby, game server, benchmark | 이 저장소의 공개 엔진 및 네트워크 구현 |
+| 별도 gameplay 실험 | 미병합 개발 브랜치 | 미완료이며 원본 실행 경로가 아님 |
+
+실험용 gameplay 구현은 이번 원본 실행 경로 병합에서 제외한다. 과거 자동 테스트 통과를 원본 화면과의 일치로 해석하지 않는다. 남은 문제와 미승인 결과는 [실험용 클라이언트 상태](docs/implementation/experimental-client-status.md)에 기록한다.
+
+## 원본 경로 검증
+
+원본 빌드를 끝낸 뒤 다음 명령을 실행한다.
+
+```powershell
+ctest --test-dir out/build/windows-msvc-vs-debug -C Debug `
+  -R "^Reference(Oracle|Game)" --output-on-failure
+```
+
+원본 출력이 구성된 로컬 환경에서는 13개 검증을 실행한다. 원본 저장소가 없는 공개 CI에서는 독립 fixture 5개만 등록한다. 원본 스냅샷이 필요한 나머지 8개와 실제 플레이 확인은 공개 CI 통과로 대신하지 않는다.
+
+## 공개 엔진과 서버 빌드
+
+원본 경로를 구성하지 않아도 공개 타깃을 빌드할 수 있다.
+
+```powershell
+./scripts/bootstrap.ps1
+./scripts/build.ps1
+./scripts/test.ps1
+```
+
+서버 부분은 Linux image와 단일 host worker pool까지 구현했다. lobby가 capacity 1 worker에 경기를 예약하고 ready 응답을 받은 뒤에만 ticket을 전달한다. DX11 client 1개와 같은 `GameSession`을 사용하는 play bot 23개가 TCP 인증, UDP bind, 30Hz input, 15Hz snapshot과 경기 결과까지 진행한다.
+
+기존 Release 측정에서 full-state 평균 수신량은 66.216564KiB/s로 64KiB/s 목표를 넘었고, interest-delta는 4.123043KiB/s였다. 100ms RTT, 2% loss와 10ms jitter 조건에서는 protocol error와 queue overflow 없이 경기가 끝났다. Windows soak와 Linux ASan/UBSan 결과를 포함한 당시 조건은 [프로젝트 계획](docs/PROJECT_PLAN.md)과 [24인 network 기록](docs/devlog/2026-08-25-24-player-network-load.md)에 있다. 이 수치를 원본 게임 실행판의 성능으로 사용하지 않는다.
 
 ## 포트폴리오 문서
 
@@ -16,27 +70,14 @@ Windows WARP 수직 테스트에서는 DX11 client와 bot 23개가 60 tick에 �
 - [현재 구현과 검증의 한계](docs/portfolio/LIMITATIONS.md)
 - [공개 준비 체크리스트](docs/portfolio/RELEASE_CHECKLIST.md)
 
-공개 준비 상태는 역사적 검증, 최종 출시 후보 commit, 후속 증명 기록, 누락 산출물과 외부 승인을 분리해 기록한다. PDF, 실제 데모 영상, AWS 외부 접속, 저장소 공개와 `v0.1.0`은 아직 완료하지 않았다.
+기존 공개 준비 문서는 당시 검증과 출시 후보를 기록한 자료다. 현재 원본 실행 경로의 검증과 구분하며, 이번 작업은 PDF, 데모 영상, AWS 배포나 `v0.1.0` 출시를 포함하지 않는다.
 
 ## 원칙
 
-- 다른 프로젝트의 코드와 리소스를 복사하지 않는다.
-- 단순한 기준 구현을 먼저 측정하고, 개선 전후 수치가 확인된 경우에만 최적화 사례로 기록한다.
-- 클라이언트와 서버가 공유하는 코드는 플랫폼 중립 모듈에 둔다.
+- 원본 게임의 코드, 자산과 실행 파일은 공개 저장소에 넣지 않는다.
+- 직접 작성한 공개 엔진 및 서버 코드와 외부 원본 게임의 기여를 구분한다.
+- 성능 수치는 측정 조건과 결과를 함께 기록한다.
 - 커밋 본문에 변경 이유와 검증 명령을 남긴다.
-
-## 로컬 준비
-
-필요한 기본 환경은 Visual Studio 2022 C++ 도구, Windows SDK, Git LFS다. 저장소 루트에서 다음 명령으로 구성한다.
-
-```powershell
-./scripts/bootstrap.ps1
-./scripts/build.ps1
-./scripts/test.ps1
-```
-
-Linux headless target은 Ubuntu 24.04 GCC `-Werror`, ASan과 UBSan Docker 검증을 통과했다. 배포 image는 같은 고정 vcpkg baseline으로 GCC 13 Release `-Werror` build를 수행한다.
-
 ## Linux lobby와 game worker 2개 실행
 
 Docker Desktop이 실행 중이면 다음 smoke runner가 image build, lobby 1개와 game worker 2개의 health 및 registration, cleanup을 한 번에 확인한다.
