@@ -7,6 +7,34 @@
   },
   "configurePresets": [
     {
+      "name": "windows-game-debug",
+      "displayName": "Repository game - VS2022 x64 Debug",
+      "generator": "Visual Studio 17 2022",
+      "architecture": "x64",
+      "binaryDir": "${sourceDir}/out/build/game-msvc-debug",
+      "cacheVariables": {
+        "DXA_BUILD_GAME": "ON",
+        "DXA_BUILD_SUPPORT_TARGETS": "OFF",
+        "DXA_BUILD_LEGACY_CLIENT": "OFF",
+        "DXA_BUILD_TESTS": "ON",
+        "DXA_GAME_CONFIGURATION": "Debug"
+      },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      }
+    },
+    {
+      "name": "windows-game-release",
+      "displayName": "Repository game - VS2022 x64 Release",
+      "inherits": "windows-game-debug",
+      "binaryDir": "${sourceDir}/out/build/game-msvc-release",
+      "cacheVariables": {
+        "DXA_GAME_CONFIGURATION": "Release"
+      }
+    },
+    {
       "name": "windows-msvc-debug",
       "displayName": "Windows MSVC Debug",
       "generator": "Visual Studio 17 2022",
@@ -14,7 +42,10 @@
       "binaryDir": "${sourceDir}/out/build/windows-msvc-vs-debug",
       "cacheVariables": {
         "DXA_BUILD_TESTS": "ON",
-        "DXA_WARNINGS_AS_ERRORS": "ON"
+        "DXA_WARNINGS_AS_ERRORS": "ON",
+        "DXA_BUILD_GAME": "OFF",
+        "DXA_BUILD_SUPPORT_TARGETS": "ON",
+        "DXA_BUILD_LEGACY_CLIENT": "OFF"
       },
       "condition": {
         "type": "equals",
@@ -30,7 +61,10 @@
       "binaryDir": "${sourceDir}/out/build/windows-msvc-vs-release",
       "cacheVariables": {
         "DXA_BUILD_TESTS": "OFF",
-        "DXA_WARNINGS_AS_ERRORS": "ON"
+        "DXA_WARNINGS_AS_ERRORS": "ON",
+        "DXA_BUILD_GAME": "OFF",
+        "DXA_BUILD_SUPPORT_TARGETS": "ON",
+        "DXA_BUILD_LEGACY_CLIENT": "OFF"
       },
       "condition": {
         "type": "equals",
@@ -53,6 +87,15 @@
         "lhs": "${hostSystemName}",
         "rhs": "Linux"
       }
+    },
+    {
+      "name": "legacy-windows-msvc-debug",
+      "displayName": "Legacy renderer and network checks",
+      "inherits": "windows-msvc-debug",
+      "binaryDir": "${sourceDir}/out/build/legacy-msvc-debug",
+      "cacheVariables": {
+        "DXA_BUILD_LEGACY_CLIENT": "ON"
+      }
     }
   ],
   "buildPresets": [
@@ -69,6 +112,21 @@
     {
       "name": "linux-gcc-debug",
       "configurePreset": "linux-gcc-debug"
+    },
+    {
+      "name": "windows-game-debug",
+      "configurePreset": "windows-game-debug",
+      "configuration": "Debug"
+    },
+    {
+      "name": "legacy-windows-msvc-debug",
+      "configurePreset": "legacy-windows-msvc-debug",
+      "configuration": "Debug"
+    },
+    {
+      "name": "windows-game-release",
+      "configurePreset": "windows-game-release",
+      "configuration": "Release"
     }
   ],
   "testPresets": [
@@ -83,6 +141,30 @@
     {
       "name": "linux-gcc-debug",
       "configurePreset": "linux-gcc-debug",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "windows-game-debug",
+      "configurePreset": "windows-game-debug",
+      "configuration": "Debug",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "legacy-windows-msvc-debug",
+      "configurePreset": "legacy-windows-msvc-debug",
+      "configuration": "Debug",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "windows-game-release",
+      "configurePreset": "windows-game-release",
+      "configuration": "Release",
       "output": {
         "outputOnFailure": true
       }

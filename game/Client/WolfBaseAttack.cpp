@@ -1,0 +1,90 @@
+#include "pch.h"
+#include "WolfBaseAttack.h"
+
+#include "MonsterStateMachine.h"
+
+#include "Player.h"
+#include "Monster.h"
+#include "Wolf.h"
+
+WolfBaseAttack::WolfBaseAttack()
+{
+
+}
+
+void WolfBaseAttack::Start()
+{
+	m_navAgent = m_owner->GetNavMeshAgent();
+	m_animStateMachine = m_owner->GetAnimationStateMachine();
+}
+
+void WolfBaseAttack::Update()
+{
+    if (!m_isAttacking || !m_target || !m_owner)
+        return;
+
+    Vec3 otherObjPos = m_target->GetTransform()->GetPosition();
+    Vec3 wolfPos = m_owner->GetTransform()->GetPosition();
+    CalcDir(otherObjPos, wolfPos);
+
+    m_attackTimer += DT;
+
+    // 공격 타이밍에 데미지 처리
+    if (!m_isAttackComplete && m_attackTimer >= m_attackDuration)
+    {
+        m_attackTimer = 0.f;
+
+        // 데미지 처리
+        static_pointer_cast<Player>(m_target)->Damaged(
+            static_pointer_cast<Monster>(m_owner),
+            static_pointer_cast<Monster>(m_owner)->GetMonsterStatus().adPower
+        );
+
+        cout << "몬스터 공격 데미지 적용" << endl;
+
+        // 애니메이션 상태 전환은 WolfAttackState에서 처리
+    }
+
+}
+
+void WolfBaseAttack::StartAttack()
+{
+    SetActive(true);
+    m_isAttacking = true;
+    m_isAttackComplete = false;
+    m_attackTimer = 0.0f;
+}
+
+void WolfBaseAttack::StopAttack()
+{  
+    SetActive(false);
+    m_isAttacking = false;
+    m_attackTimer = 0.0f;
+}
+
+void WolfBaseAttack::UpdateAttackLogic()
+{
+}
+
+void WolfBaseAttack::CheckAttackDistance()
+{
+
+}
+
+void WolfBaseAttack::PlayAttackAnimation()
+{
+
+}
+
+void WolfBaseAttack::CalcDir(Vec3 otherPos, Vec3 wolfPos)
+{
+    Vec3 dir = otherPos - wolfPos;
+    dir.Normalize();
+
+    // 회전 계산 및 적용
+    float targetYaw = atan2(dir.x, dir.z) + 3.141592f;
+    Vec3 currentRotation = m_owner->GetTransform()->GetLocalRotation();
+    Vec3 newRotation = Vec3(currentRotation.x, (targetYaw * 180.0f / 3.14159f), currentRotation.z);
+
+    m_owner->GetTransform()->SetLocalRotation(newRotation);
+}

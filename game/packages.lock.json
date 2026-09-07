@@ -1,0 +1,16 @@
+{
+  "schema": "dxa-game-packages-v1",
+  "upstream_commit": "01b820a3ebcfd473a898dec1f5bc67c4ac77261e",
+  "sdk": {
+    "kind": "sdk",
+    "manifest_sha256": "cb68932325b25e755d8641f19d1e1a0a56d988e76d4f90b6520da896f2e5ae97",
+    "files": 114,
+    "bytes": 35655520
+  },
+  "assets": {
+    "kind": "assets",
+    "manifest_sha256": "dac9a216291b7740d88d6ac35f791da4a6bae8addd9d7fb3dfae7d0808e6c4f8",
+    "files": 3004,
+    "bytes": 1748139242
+  }
+}

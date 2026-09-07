@@ -23,6 +23,8 @@ int expectedCharacter = 0;
 float observationStart = 0.f;
 bool unchangedCountdown = false;
 bool explicitStart = false;
+bool timeoutStart = false;
+float gameStartElapsed = -1.f;
 bool finished = false;
 
 inline void Finish(bool passed, const char* reason, const char* actual = "none")
@@ -35,7 +37,8 @@ inline void Finish(bool passed, const char* reason, const char* actual = "none")
         << "\",\"expected_character\":" << expectedCharacter
         << ",\"card_clicks\":" << cardClicks << ",\"skin_clicks\":" << skinClicks
         << ",\"unchanged_countdown\":" << unchangedCountdown
-        << ",\"explicit_start\":" << explicitStart << "}\n";
+        << ",\"explicit_start\":" << explicitStart
+        << ",\"timeout_start\":" << timeoutStart << ",\"start_elapsed\":" << gameStartElapsed << "}\n";
     output.close();
     ReferenceQueueFrame(passed ? L"oracle-selection-gameplay.bmp" : L"oracle-selection-failure.bmp");
     PostQuitMessage(passed ? 0 : 1);
@@ -104,10 +107,11 @@ inline void UpdateSelection(const std::shared_ptr<ScrollView>& cards,
                                      const std::shared_ptr<ScrollView>& skins,
                                      const std::shared_ptr<Button>& start,
                                      const int& selected, const float& elapsed,
-                                     int finalCharacter)
+                                     int finalCharacter, bool waitForTimeout = false)
 {
     if (finished || ++frames < 30) return;
     expectedCharacter = finalCharacter;
+    timeoutStart = waitForTimeout;
     // Separate actions across frames so the original deferred UI lifecycle runs.
     switch (phase)
     {
@@ -135,6 +139,20 @@ inline void UpdateSelection(const std::shared_ptr<ScrollView>& cards,
         }
         break;
     case 6:
+#if defined(DXA_GAME_RECORD_CLIP)
+        {
+            static int lastAppearance = -1;
+            const auto buttons = Buttons(skins);
+            const int appearance = (std::min)(static_cast<int>(buttons.size()) - 1,
+                static_cast<int>(elapsed - observationStart));
+            if (appearance >= 0 && appearance != lastAppearance)
+            {
+                buttons[appearance]->InvokeOnClicked();
+                lastAppearance = appearance;
+                ++skinClicks;
+            }
+        }
+#endif
         // The old wrong callback would already have left this scene by now.
         if (elapsed - observationStart >= 12.f)
         {
@@ -149,6 +167,7 @@ inline void UpdateSelection(const std::shared_ptr<ScrollView>& cards,
         }
         break;
     case 7:
+        if (timeoutStart) { ++phase; break; }
         if (!start) { Finish(false, "Quick start button was not found"); return; }
         start->InvokeOnClicked();
         start->InvokeOnClicked();
@@ -182,7 +201,17 @@ inline void UpdateGameplay(const std::shared_ptr<Wolf>& wolf)
             const bool nicky = std::dynamic_pointer_cast<Nicky>(object) != nullptr;
             const char* actual = bianca ? "Bianca" : nicky ? "Nicky" : "unknown";
             const bool correct = expectedCharacter == 1 ? bianca : nicky;
-            Finish(phase == 8 && unchangedCountdown && explicitStart && correct,
+#if defined(DXA_GAME_PROBE)
+            const auto tint = object->GetModelAnimator()->GetDisplayTint();
+            const auto expectedTint = ArenaAppearance::Tint(expectedCharacter == 1 ? 4 : 5);
+            if (tint != expectedTint || tint == ArenaAppearance::Tint(0))
+            {
+                Finish(false, "Selected appearance was not applied to the gameplay renderer", actual);
+                return;
+            }
+#endif
+            const bool startWasObserved = timeoutStart ? !explicitStart && gameStartElapsed >= 55.f : explicitStart;
+            Finish(phase == 8 && unchangedCountdown && startWasObserved && correct,
                    correct ? "Registered selection buttons retained actor and countdown" : "Wrong gameplay actor",
                    actual);
             return;
@@ -202,9 +231,9 @@ inline void ReferenceSelectionUiProbe(const std::shared_ptr<ScrollView>& cards,
                                      const std::shared_ptr<ScrollView>& skins,
                                      const std::shared_ptr<Button>& start,
                                      const int& selected, const float& elapsed,
-                                     int finalCharacter)
+                                     int finalCharacter, bool waitForTimeout = false)
 {
-    reference_selection_probe::Current().UpdateSelection(cards, skins, start, selected, elapsed, finalCharacter);
+    reference_selection_probe::Current().UpdateSelection(cards, skins, start, selected, elapsed, finalCharacter, waitForTimeout);
 }
 
 inline void ReferenceSelectionGameProbe(const std::shared_ptr<Wolf>& wolf)

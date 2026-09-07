@@ -3,7 +3,8 @@ param([Parameter(Mandatory)][string]$RepositoryRoot,
       [Parameter(Mandatory)][string]$SourceFile,
       [Parameter(Mandatory)][string]$CMakeExecutable,
       [switch]$ApplyPatch,
-      [switch]$ApplySkinPatch)
+      [switch]$ApplySkinPatch,
+      [switch]$CheckAppearance)
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $source = [Text.Encoding]::GetEncoding(949).GetString([IO.File]::ReadAllBytes($SourceFile))
@@ -36,7 +37,9 @@ struct Sound { void PlaySound(const wstring&, int, float) {} } sound;
 const vector<wstring> charcaterSelectVoice{L"default", L"Bianca", L"Nicky"};
 struct LumiaIsland {
     int selected = -1;
+    int appearance = -1;
     void SetSelectedCharacter(int value) { selected = value; }
+    void SetAppearance(int value) { appearance = value; }
 };
 struct Scenes {
     shared_ptr<LumiaIsland> current;
@@ -51,6 +54,7 @@ struct ClickEvent {
 struct Button { ClickEvent OnClick; };
 struct CharacterSelectScene {
     int m_selectCharIdx = 0;
+    int m_selectedAppearance = 0;
     float m_selectElapsedTime = 0;
     int previewSkin = -1;
     void OnCharacterImageButtonClicked(int);
@@ -72,6 +76,7 @@ int main() {
         for (float elapsed : {0.f, 12.75f, 46.f}) {
             selection.m_selectElapsedTime = elapsed;
             for (int skin : {2, 0, 1, 2}) {
+                selection.m_selectedAppearance = skin;
                 auto button = selection.CreateSkinButton(skin);
                 button->OnClick.Invoke();
                 button->OnClick.Invoke();
@@ -80,6 +85,9 @@ int main() {
                 require(selection.m_selectElapsedTime == elapsed, "Skin click triggered quick start");
                 selection.StartLumiaIsland();
                 require(scenes.current->selected == character - 1, "Skin click changed the timed-start actor");
+#if defined(ARENA_APPEARANCE)
+                require(scenes.current->appearance == skin, "Confirmed appearance did not reach the game scene");
+#endif
             }
         }
         selection.m_selectElapsedTime = 12.75f;
@@ -124,7 +132,8 @@ int main() {
 $temporary = Join-Path ([IO.Path]::GetTempPath()) ('rcs-' + [Guid]::NewGuid().ToString('N').Substring(0, 8))
 New-Item -ItemType Directory -Path $temporary | Out-Null
 try {
-    [IO.File]::WriteAllText((Join-Path $temporary 'main.cpp'), $fixture + "`n" + ($methods -join "`n") + "`n" + $skinBinding + "`n" + $checks)
+    $appearanceDefine = if ($CheckAppearance) { "#define ARENA_APPEARANCE 1`n" } else { '' }
+    [IO.File]::WriteAllText((Join-Path $temporary 'main.cpp'), $appearanceDefine + $fixture + "`n" + ($methods -join "`n") + "`n" + $skinBinding + "`n" + $checks)
     [IO.File]::WriteAllText((Join-Path $temporary 'CMakeLists.txt'), "cmake_minimum_required(VERSION 3.25)`nproject(CharacterSelection LANGUAGES CXX)`nadd_executable(character_selection main.cpp)`ntarget_compile_options(character_selection PRIVATE /utf-8)`n")
     $build = Join-Path $temporary 'build'
     & $CMakeExecutable -S $temporary -B $build -G 'Visual Studio 17 2022' -A x64 | Out-Null

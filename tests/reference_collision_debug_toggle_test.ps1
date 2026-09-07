@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param([Parameter(Mandatory)][string]$RepositoryRoot,
-      [Parameter(Mandatory)][string]$CMakeExecutable)
+      [Parameter(Mandatory)][string]$CMakeExecutable,
+      [string]$SourceFile)
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $patcher = Join-Path $RepositoryRoot 'scripts/reference_game_patches.ps1'
@@ -66,6 +67,12 @@ int main() {
 }
 '@
 $patched = Add-ReferenceCollisionDebugToggle $fixture
+if ($SourceFile) {
+    $source = [Text.Encoding]::GetEncoding(949).GetString([IO.File]::ReadAllBytes($SourceFile))
+    $method = [regex]::Matches($source, '(?ms)^void LumiaIsland::LateUpdate\(\)\s*\{.*?^\}')
+    if ($method.Count -ne 1) { throw 'Unexpected imported collision display method' }
+    $patched = [regex]::Replace($fixture, '(?ms)^void LumiaIsland::LateUpdate\(\)\s*\{.*?^\}', $method[0].Value)
+}
 $message = ''
 try { Add-ReferenceCollisionDebugToggle 'unrecognized scene implementation' | Out-Null } catch { $message = $_.Exception.Message }
 if (-not $message.Contains('Unexpected collision debug hook site')) { throw 'Unknown source layout was accepted' }

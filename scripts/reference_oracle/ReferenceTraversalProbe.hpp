@@ -17,6 +17,9 @@
 #include <cfloat>
 #include <cmath>
 #include <fstream>
+#if defined(DXA_GAME_SOAK_SECONDS)
+#include "ReferenceSoakInput.hpp"
+#endif
 
 // Test observer only. The private build supplies synthetic input to the original
 // consumers; this code never moves actors, assigns stats or deals damage.
@@ -42,7 +45,13 @@ inline void ReferenceTraversalProbe(const std::shared_ptr<Wolf>& wolf)
     static bool bossAttack = false, bossSkill = false, bossIncoming = false, bossDeath = false;
     auto& input = ReferenceProbeInput();
     input.keys.fill(false);
-    if (finished) return;
+    if (finished)
+    {
+#if defined(DXA_GAME_SOAK_SECONDS)
+        ReferenceSoakInput();
+#endif
+        return;
+    }
     elapsed += DT;
     const auto player = InventoryManager::GetInstance()->GetPlayer();
     const auto finish = [&](bool passed, const char* reason) {
@@ -60,7 +69,11 @@ inline void ReferenceTraversalProbe(const std::shared_ptr<Wolf>& wolf)
                << ",\"player_level\":" << (player ? player->GetStatus().level : -1) << "}";
         output.flush(); trace.flush();
         ReferenceQueueFrame(passed ? L"oracle-traversal-final.bmp" : L"oracle-traversal-failed.bmp");
+#if defined(DXA_GAME_SOAK_SECONDS)
+        if (!passed) PostQuitMessage(1);
+#else
         PostQuitMessage(passed ? 0 : 1);
+#endif
     };
     if (elapsed > 160) { finish(false, "traversal game-time deadline"); return; }
     if (!player || elapsed < 2 || InventoryManager::GetInstance()->GetInventorySlots().size() != 10) return;
@@ -251,6 +264,16 @@ inline void ReferenceTraversalProbe(const std::shared_ptr<Wolf>& wolf)
         ReferenceQueueFrame(capture.c_str());
         advance(0);
     }
+#if defined(DXA_GAME_RECORD_VIDEO)
+    // Show the game's existing F3 collision view during the boss explanation.
+    static bool bossCollisionView = false;
+    if (bossReached && !bossCollisionView)
+    {
+        input.keys[VK_F3] = true;
+        bossCollisionView = true;
+        ReferenceQueueFrame(L"oracle-alpha-collision-view.bmp");
+    }
+#endif
     trace << elapsed << ',' << stage << ',' << kills << ',' << static_cast<int>(state) << ',' << std::string(animation.begin(), animation.end())
           << ',' << player->GetStatus().hp << ',' << player->GetStatus().level << ',' << (target ? target->GetMonsterStatus().hp : -1)
           << ',' << position.x << ',' << position.y << ',' << position.z << ',' << static_cast<int>(player->GetNavMeshAgent()->GetState())

@@ -1,0 +1,43 @@
+{
+  "duration_seconds": 180.0018221,
+  "warmup_seconds": 45.0,
+  "frames": 16192,
+  "non_presented_frames": 0,
+  "frame_statistics_valid": true,
+  "average_fps": 119.93736650282979,
+  "one_percent_low_fps": 101.64726291528869,
+  "frame_ms_p50": 8.3033,
+  "frame_ms_p95": 8.9663,
+  "frame_ms_p99": 9.278326999999999,
+  "frame_ms_max": 40.3147,
+  "working_set_peak_bytes": 2245136384,
+  "private_peak_bytes": 4172500992,
+  "private_start_bytes": 4086697984,
+  "private_end_bytes": 4153774080,
+  "private_growth_bytes": 67076096,
+  "handle_growth": -12,
+  "conditions": {
+    "adapter": "NVIDIA GeForce RTX 3050 Ti Laptop GPU",
+    "vendor_id": "4318",
+    "device_id": "9696",
+    "width": "1920",
+    "height": "1080",
+    "present_sync_interval": "1"
+  },
+  "date": "2026-09-07",
+  "configuration": "Release x64",
+  "input": "automated traversal followed by movement and Q/W/E",
+  "capture_clip": false,
+  "cpu": "AMD Ryzen 7 6800HS Creator Edition",
+  "ram_bytes": 16312639488,
+  "executable_sha256": "AF73DCCB858E58C1FF77AC2AC648F10740F9747818A048BECF391AF81BA96563",
+  "play_state": {
+    "seconds_after_combat": 116.604,
+    "walked": 592.228,
+    "player_hp": 2425,
+    "stamina": 210,
+    "q_casts": 9,
+    "w_casts": 6,
+    "e_casts": 9
+  }
+}

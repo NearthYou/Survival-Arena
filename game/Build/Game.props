@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <!-- Imported after the upstream settings. No output is written into game/. -->
+  <PropertyGroup>
+    <IntDir>$(DxaGameBuildRoot)\obj\$(MSBuildProjectName)\</IntDir>
+    <OutDir Condition="'$(MSBuildProjectName)'=='Engine'">$(DxaGameBuildRoot)\lib\</OutDir>
+    <OutDir Condition="'$(MSBuildProjectName)'=='Client'">$(DxaGameBuildRoot)\runtime\Binaries\</OutDir>
+    <TargetName Condition="'$(MSBuildProjectName)'=='Engine'">dxa_game_engine</TargetName>
+    <TargetName Condition="'$(MSBuildProjectName)'=='Client'">dxa_game</TargetName>
+    <TargetName Condition="'$(MSBuildProjectName)'=='Client' and '$(DxaGameProbe)'!=''">dxa_game_probe</TargetName>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>$(DxaGameBuildRoot)\include;$(DxaGameBuildRoot)\include\Engine;$(DxaGameSdkRoot)\Include</AdditionalIncludeDirectories>
+      <AdditionalOptions>/MP4 %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalIncludeDirectories Condition="'$(DxaGameProbe)'!=''">$(DxaGameBuildRoot)\include;$(DxaGameBuildRoot)\include\Engine;$(DxaGameSdkRoot)\Include;$(MSBuildThisFileDirectory)..\..\scripts\reference_oracle</AdditionalIncludeDirectories>
+      <ForcedIncludeFiles Condition="'$(DxaGameProbe)'!=''">$(DxaGameBuildRoot)\include\GameProbeConfig.h</ForcedIncludeFiles>
+    </ClCompile>
+    <Link>
+      <AdditionalLibraryDirectories>$(DxaGameSdkRoot)\Lib</AdditionalLibraryDirectories>
+      <AdditionalDependencies Condition="'$(MSBuildProjectName)'=='Client'">$(DxaGameBuildRoot)\lib\dxa_game_engine.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <ProgramDatabaseFile>$(OutDir)$(TargetName).pdb</ProgramDatabaseFile>
+    </Link>
+    <Lib>
+      <AdditionalLibraryDirectories>$(DxaGameSdkRoot)\Lib</AdditionalLibraryDirectories>
+    </Lib>
+    <PreBuildEvent><Command /></PreBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(MSBuildProjectName)'=='Client'">
+    <Manifest>
+      <AdditionalManifestFiles>$(MSBuildThisFileDirectory)Arena.manifest;%(AdditionalManifestFiles)</AdditionalManifestFiles>
+    </Manifest>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)'=='Release'">
+    <ClCompile>
+      <Optimization>MaxSpeed</Optimization>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+    </ClCompile>
+    <FxCompile>
+      <DisableOptimizations>false</DisableOptimizations>
+      <EnableDebuggingInformation>false</EnableDebuggingInformation>
+      <OptimizationLevel>Level3</OptimizationLevel>
+    </FxCompile>
+  </ItemDefinitionGroup>
+  <Target Name="ValidateDxaGameBuild" BeforeTargets="PrepareForBuild">
+    <Error Condition="'$(Platform)'!='x64' or ('$(Configuration)'!='Debug' and '$(Configuration)'!='Release')" Text="The source port supports VS2022 x64 Debug or Release." />
+    <Error Condition="'$(DxaGameBuildRoot)'=='' or '$(DxaGameSdkRoot)'==''" Text="Configure the repository game CMake target with DXA_GAME_SDK_ROOT and DXA_GAME_ASSET_ROOT first." />
+    <Error Condition="!Exists('$(DxaGameBuildRoot)\include\GameContentHash.h')" Text="The independent game runtime has not been verified and staged." />
+  </Target>
+  <Target Name="ExportDxaEngineHeaders" BeforeTargets="ClCompile" Condition="'$(MSBuildProjectName)'=='Engine'">
+    <ItemGroup><DxaEngineHeader Include="$(MSBuildProjectDirectory)\*.h;$(MSBuildProjectDirectory)\*.inl" /></ItemGroup>
+    <MakeDir Directories="$(DxaGameBuildRoot)\include\Engine" />
+    <Copy SourceFiles="@(DxaEngineHeader)" DestinationFolder="$(DxaGameBuildRoot)\include\Engine" SkipUnchangedFiles="true" />
+  </Target>
+</Project>

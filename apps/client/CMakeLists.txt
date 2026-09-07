@@ -29,7 +29,7 @@ target_link_libraries(
 )
 dxa_enable_project_warnings(dxa_client_network)
 
-if(WIN32)
+if(WIN32 AND DXA_BUILD_LEGACY_CLIENT)
     find_package(spdlog CONFIG REQUIRED)
 
     add_executable(dxa_client src/main.cpp)

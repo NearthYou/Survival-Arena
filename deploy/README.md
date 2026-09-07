@@ -90,4 +90,4 @@ port를 바꾸면 `deploy/.env`의 값을 바꾼다. Compose는 container bind p
 
 container는 UID 10001, read-only root filesystem, capability 제거와 `no-new-privileges`로 실행한다. healthcheck는 연결을 만들지 않고 `/proc/net`의 listening socket을 확인한다.
 
-현재 game TCP와 UDP payload는 암호화되지 않았고 worker control에는 상호 인증이 없다. 이 구성은 짧은 포트폴리오 검증용이며 장기 공개 운영용이 아니다. AWS에서 실행하기 전에는 [AWS 비용 및 보안 확인표](AWS_PRECHECK.md)를 먼저 확정한다.
+현재 게임 TCP와 UDP 데이터는 암호화되지 않았고, 워커 제어 연결에는 상호 인증이 없다. 로컬 테스트용 구성이며 외부에 공개하려면 인증과 암호화를 추가해야 한다.
