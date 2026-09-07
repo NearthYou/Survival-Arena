@@ -2,6 +2,8 @@
 
 C++ / DirectX 11 기반의 탑다운 생존 게임입니다.
 
+[플레이 영상](https://www.youtube.com/watch?v=01ZIZZD__zk)
+
 ## 주요 기능
 
 | 기능 | 구현 내용 |
