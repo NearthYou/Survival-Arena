@@ -1,7 +1,9 @@
 [CmdletBinding()]
 param(
-    [ValidateSet('windows-msvc-debug', 'windows-msvc-release')]
-    [string]$Preset = 'windows-msvc-debug'
+    [ValidateSet('windows-game-debug', 'windows-game-release', 'windows-msvc-debug', 'windows-msvc-release', 'legacy-windows-msvc-debug')]
+    [string]$Preset = 'windows-game-debug',
+    [string]$SdkRoot = $env:DXA_GAME_SDK_ROOT,
+    [string]$AssetRoot = $env:DXA_GAME_ASSET_ROOT
 )
 
 $ErrorActionPreference = 'Stop'
@@ -20,6 +22,14 @@ if ([string]::IsNullOrWhiteSpace($visualStudioRoot)) {
 }
 
 $cmake = Join-Path $visualStudioRoot 'Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe'
+if ($Preset -in @('windows-game-debug','windows-game-release')) {
+    Push-Location -LiteralPath $repositoryRoot
+    try {
+        & $cmake --preset $Preset "-DDXA_GAME_SDK_ROOT=$SdkRoot" "-DDXA_GAME_ASSET_ROOT=$AssetRoot"
+        if ($LASTEXITCODE -ne 0) { throw "Game configuration failed ($LASTEXITCODE)" }
+    } finally { Pop-Location }
+    return
+}
 $vcpkgRoot = Join-Path $visualStudioRoot 'VC\vcpkg'
 $toolchain = Join-Path $vcpkgRoot 'scripts\buildsystems\vcpkg.cmake'
 

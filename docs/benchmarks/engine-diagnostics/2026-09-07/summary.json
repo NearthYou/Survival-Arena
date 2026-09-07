@@ -1,0 +1,199 @@
+{
+  "schema": "game-diagnostics-v1",
+  "date": "2026-09-07",
+  "resolution": "1920x1080",
+  "configuration": "Release|x64",
+  "vsync": false,
+  "capture_enabled": false,
+  "executable_sha256": "cc27e23f62fa8711857b5988e052da9f553d3a8754f6365a178b112516f405ce",
+  "source_tree_sha256": "a85c2a9a9438f352d20872642f7cdf0a5457786b194b2a6fb11f17164a13faae",
+  "nav_triangles": 709,
+  "static_model_indices": 5403,
+  "static_model_shader_pass": 1,
+  "render": [
+    {
+      "objects": 0,
+      "mode": "instanced",
+      "samples": 1870,
+      "average_fps": 311.5814802899554,
+      "average_frame_ms": 3.2094333689839574,
+      "frame_ms_p95": 3.6839099999999996,
+      "draw_calls_median": 214.0,
+      "submitted_elements_median": 1047927.0
+    },
+    {
+      "objects": 128,
+      "mode": "instanced",
+      "samples": 2953,
+      "average_fps": 245.59784370249704,
+      "average_frame_ms": 4.071696986115814,
+      "frame_ms_p95": 8.754880000000082,
+      "draw_calls_median": 214.0,
+      "submitted_elements_median": 2431095.0
+    },
+    {
+      "objects": 128,
+      "mode": "individual",
+      "samples": 2706,
+      "average_fps": 225.3551304543874,
+      "average_frame_ms": 4.437440576496674,
+      "frame_ms_p95": 5.082875,
+      "draw_calls_median": 470.0,
+      "submitted_elements_median": 2431095.0
+    },
+    {
+      "objects": 512,
+      "mode": "instanced",
+      "samples": 710,
+      "average_fps": 118.17140896020562,
+      "average_frame_ms": 8.4622838028169,
+      "frame_ms_p95": 8.99478,
+      "draw_calls_median": 214.0,
+      "submitted_elements_median": 6580599.0
+    },
+    {
+      "objects": 512,
+      "mode": "individual",
+      "samples": 537,
+      "average_fps": 89.46949537555172,
+      "average_frame_ms": 11.176993854748602,
+      "frame_ms_p95": 13.09696,
+      "draw_calls_median": 1238.0,
+      "submitted_elements_median": 6580599.0
+    },
+    {
+      "objects": 1024,
+      "mode": "instanced",
+      "samples": 539,
+      "average_fps": 89.62751271313888,
+      "average_frame_ms": 11.157288311688312,
+      "frame_ms_p95": 11.67049,
+      "draw_calls_median": 214.0,
+      "submitted_elements_median": 12113271.0
+    },
+    {
+      "objects": 1024,
+      "mode": "individual",
+      "samples": 311,
+      "average_fps": 51.6676661286584,
+      "average_frame_ms": 19.354464308681674,
+      "frame_ms_p95": 20.3768,
+      "draw_calls_median": 2262.0,
+      "submitted_elements_median": 12113271.0
+    }
+  ],
+  "navigation": [
+    {
+      "query": 0,
+      "samples": 100,
+      "median_ms": 0.0303,
+      "p95_ms": 0.059019999999999996,
+      "expanded_nodes": 17,
+      "points": 3,
+      "length_world_units": 15.6205,
+      "direct_distance_world_units": 15.6205
+    },
+    {
+      "query": 1,
+      "samples": 100,
+      "median_ms": 0.0338,
+      "p95_ms": 0.034304999999999995,
+      "expanded_nodes": 9,
+      "points": 3,
+      "length_world_units": 11.3775,
+      "direct_distance_world_units": 11.3775
+    },
+    {
+      "query": 2,
+      "samples": 100,
+      "median_ms": 0.0891,
+      "p95_ms": 0.15669,
+      "expanded_nodes": 114,
+      "points": 4,
+      "length_world_units": 55.1139,
+      "direct_distance_world_units": 54.2111
+    },
+    {
+      "query": 3,
+      "samples": 100,
+      "median_ms": 0.0962,
+      "p95_ms": 0.189475,
+      "expanded_nodes": 120,
+      "points": 4,
+      "length_world_units": 57.2951,
+      "direct_distance_world_units": 54.7741
+    },
+    {
+      "query": 4,
+      "samples": 100,
+      "median_ms": 0.10955,
+      "p95_ms": 0.22079499999999996,
+      "expanded_nodes": 70,
+      "points": 4,
+      "length_world_units": 63.3769,
+      "direct_distance_world_units": 57.8283
+    },
+    {
+      "query": 5,
+      "samples": 100,
+      "median_ms": 0.96055,
+      "p95_ms": 1.313965,
+      "expanded_nodes": 527,
+      "points": 7,
+      "length_world_units": 176.416,
+      "direct_distance_world_units": 144.92
+    }
+  ],
+  "quadtree": [
+    {
+      "objects": 128,
+      "samples": 15,
+      "all_pair_tests": 8128,
+      "tree_pair_tests": 1016,
+      "candidate_reduction_percent": 87.5,
+      "all_pairs_median_ms": 0.1343,
+      "tree_build_median_ms": 1.0813,
+      "tree_collision_median_ms": 0.2474,
+      "tree_rebuild_and_collision_median_ms": 1.3276,
+      "overlap_pairs": 16,
+      "overlap_sets_equal": true
+    },
+    {
+      "objects": 512,
+      "samples": 15,
+      "all_pair_tests": 130816,
+      "tree_pair_tests": 5888,
+      "candidate_reduction_percent": 95.49902152641879,
+      "all_pairs_median_ms": 2.3055,
+      "tree_build_median_ms": 5.279,
+      "tree_collision_median_ms": 1.6185,
+      "tree_rebuild_and_collision_median_ms": 6.921,
+      "overlap_pairs": 62,
+      "overlap_sets_equal": true
+    },
+    {
+      "objects": 1024,
+      "samples": 15,
+      "all_pair_tests": 523776,
+      "tree_pair_tests": 11836,
+      "candidate_reduction_percent": 97.74025537634408,
+      "all_pairs_median_ms": 9.2841,
+      "tree_build_median_ms": 11.9806,
+      "tree_collision_median_ms": 3.7321,
+      "tree_rebuild_and_collision_median_ms": 15.6793,
+      "overlap_pairs": 128,
+      "overlap_sets_equal": true
+    }
+  ],
+  "input_sha256": {
+    "diagnostics-render.csv": "d56fd2d1b1be082293cb2e8b07c6d0738d353ccbf5c49d75f66744bc7ec77ef9",
+    "diagnostics-paths.csv": "a48000b4231340dce091c7c6d7d2c952168f59d72ea61af216dc013acc45d812",
+    "diagnostics-quadtree.csv": "4d4cd01f48acb8c84bafbc6a83acb7eb7e0c4089fabdb3e30ed4193e2b8f6afc",
+    "diagnostics.json": "0f633e0064bba853c95454f85387c8ccc545ea26a21fe17343c4c56012a38587"
+  },
+  "conditions": {
+    "render": "Same opaque cemetery prop, material, shader pass, transforms and resolution; 8 seconds per phase, first 2 seconds excluded. Actors frozen in this diagnostic scene.",
+    "navigation": "Six fixed routes on the actual game NavMesh, 5 warmup calls then 100 timed calls each. The six routes were sampled for NavMesh membership at 0.25 world-unit intervals.",
+    "quadtree": "Same sphere collider set with intentional overlaps, 2 warmups then 15 comparisons. All-pairs uses i<j; tree time includes its normal duplicate suppression and collision state bookkeeping. Rebuild cost reported separately."
+  }
+}

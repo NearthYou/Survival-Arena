@@ -1,0 +1,508 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="AI.h" />
+    <ClInclude Include="Alpha.h" />
+    <ClInclude Include="AlphaAnimAppearState.h" />
+    <ClInclude Include="AlphaAnimAttackState.h" />
+    <ClInclude Include="AlphaAnimSkillState.h" />
+    <ClInclude Include="AlphaAnimTraceState.h" />
+    <ClInclude Include="AlphaAppearState.h" />
+    <ClInclude Include="AlphaAnimDeathState.h" />
+    <ClInclude Include="AlphaAnimDyingState.h" />
+    <ClInclude Include="AlphaAttackState.h" />
+    <ClInclude Include="AlphaBaseAttack.h" />
+    <ClInclude Include="AlphaDeathState.h" />
+    <ClInclude Include="AlphaDyingState.h" />
+    <ClInclude Include="AlphaAnimWaitState.h" />
+    <ClInclude Include="AlphaAnimWalkState.h" />
+    <ClInclude Include="AlphaSkill.h" />
+    <ClInclude Include="AlphaTrace.h" />
+    <ClInclude Include="AlphaTraceState.h" />
+    <ClInclude Include="AlphaWaitState.h" />
+    <ClInclude Include="AlphaWalkState.h" />
+    <ClInclude Include="BaseAttackState.h" />
+    <ClInclude Include="BaseSkill.h" />
+    <ClInclude Include="Bianca.h" />
+    <ClInclude Include="BiancaAnimBaseAttackState.h" />
+    <ClInclude Include="BiancaAnimCraftState.h" />
+    <ClInclude Include="BiancaBaseAttack.h" />
+    <ClInclude Include="BiancaBaseAttackState.h" />
+    <ClInclude Include="BiancaCamera.h" />
+    <ClInclude Include="BiancaCraftState.h" />
+    <ClInclude Include="BiancaESkill.h" />
+    <ClInclude Include="BiancaESkillCircle.h" />
+    <ClInclude Include="BiancaAnimEState.h" />
+    <ClInclude Include="BiancaEState.h" />
+    <ClInclude Include="BiancaQCone.h" />
+    <ClInclude Include="BiancaQProjectile.h" />
+    <ClInclude Include="BiancaQSkill.h" />
+    <ClInclude Include="BiancaAnimQState.h" />
+    <ClInclude Include="BiancaQState.h" />
+    <ClInclude Include="BiancaRSkill.h" />
+    <ClInclude Include="BiancaAnimRState.h" />
+    <ClInclude Include="BiancaAnimRunState.h" />
+    <ClInclude Include="BiancaRState.h" />
+    <ClInclude Include="BiancaRunState.h" />
+    <ClInclude Include="BiancaTest.h" />
+    <ClInclude Include="BiancaAnimWaitState.h" />
+    <ClInclude Include="BiancaWaitState.h" />
+    <ClInclude Include="BiancaWSkill.h" />
+    <ClInclude Include="BiancaAnimWState.h" />
+    <ClInclude Include="BiancaWState.h" />
+    <ClInclude Include="BillboardDemo.h" />
+    <ClInclude Include="ButtonDemo.h" />
+    <ClInclude Include="CameraScript.h" />
+    <ClInclude Include="CharacterSelectScene.h" />
+    <ClInclude Include="Client_Define.h" />
+    <ClInclude Include="CraftGagePanelUI.h" />
+    <ClInclude Include="CraftListPanelUI.h" />
+    <ClInclude Include="Cursor.h" />
+    <ClInclude Include="DayPanelUI.h" />
+    <ClInclude Include="Define.h" />
+    <ClInclude Include="EquipableItem.h" />
+    <ClInclude Include="EquipmentPanelUI.h" />
+    <ClInclude Include="FogOfWar.h" />
+    <ClInclude Include="GameHUDPanelUI.h" />
+    <ClInclude Include="GroupBufferDemo.h" />
+    <ClInclude Include="IBasePanelUI.h" />
+    <ClInclude Include="IngredientItem.h" />
+    <ClInclude Include="InventoryManager.h" />
+    <ClInclude Include="InventoryPanelUI.h" />
+    <ClInclude Include="ItemBox.h" />
+    <ClInclude Include="ItemManager.h" />
+    <ClInclude Include="ItemSlot.h" />
+    <ClInclude Include="HealthBar.h" />
+    <ClInclude Include="Loader.h" />
+    <ClInclude Include="LumiaIsland.h" />
+    <ClInclude Include="Main.h" />
+    <ClInclude Include="Monster.h" />
+    <ClInclude Include="MonsterBehaviour.h" />
+    <ClInclude Include="MonsterInterface.h" />
+    <ClInclude Include="Nicky.h" />
+    <ClInclude Include="NickyAnimBaseAttackState.h" />
+    <ClInclude Include="NickyAnimCounterState.h" />
+    <ClInclude Include="NickyAnimCraftState.h" />
+    <ClInclude Include="NickyBaseAttack.h" />
+    <ClInclude Include="NickyBaseAttackState.h" />
+    <ClInclude Include="NickyCounter.h" />
+    <ClInclude Include="NickyCounterState.h" />
+    <ClInclude Include="NickyCraftState.h" />
+    <ClInclude Include="NickyERange.h" />
+    <ClInclude Include="NickyESkill.h" />
+    <ClInclude Include="NickyAnimEState.h" />
+    <ClInclude Include="NickyEState.h" />
+    <ClInclude Include="NickyQSkill.h" />
+    <ClInclude Include="NickyAnimQState.h" />
+    <ClInclude Include="NickyQState.h" />
+    <ClInclude Include="NickyREffect.h" />
+    <ClInclude Include="NickyRSkill.h" />
+    <ClInclude Include="NickyAnimRState.h" />
+    <ClInclude Include="NickyAnimRunState.h" />
+    <ClInclude Include="NickyAnimWaitState.h" />
+    <ClInclude Include="NickyRState.h" />
+    <ClInclude Include="NickyRunState.h" />
+    <ClInclude Include="NickyWaitState.h" />
+    <ClInclude Include="NickyWSkill.h" />
+    <ClInclude Include="NickyAnimWState.h" />
+    <ClInclude Include="NickyWState.h" />
+    <ClInclude Include="OrthoGraphicDemo.h" />
+    <ClInclude Include="ParticleDemo.h" />
+    <ClInclude Include="pch.h" />
+    <ClInclude Include="Player.h" />
+    <ClInclude Include="PlayerInterface.h" />
+    <ClInclude Include="PlayerMonoBehaviour.h" />
+    <ClInclude Include="PlayerOutlineEffect.h" />
+    <ClInclude Include="PlayerStatusPanelUI.h" />
+    <ClInclude Include="RawBufferDemo.h" />
+    <ClInclude Include="Recipe.h" />
+    <ClInclude Include="RecipeManager.h" />
+    <ClInclude Include="resource.h" />
+    <ClInclude Include="SceneDemo.h" />
+    <ClInclude Include="SkillDecalIndicator.h" />
+    <ClInclude Include="SkillLevelUpPanelUI.h" />
+    <ClInclude Include="SkillObject.h" />
+    <ClInclude Include="SnowBillboardDemo.h" />
+    <ClInclude Include="StartScene.h" />
+    <ClInclude Include="StructuredDemo.h" />
+    <ClInclude Include="TextureBufferDemo.h" />
+    <ClInclude Include="TimePanelUI.h" />
+    <ClInclude Include="UIManager.h" />
+    <ClInclude Include="UIResourceManager.h" />
+    <ClInclude Include="UITestDemo.h" />
+    <ClInclude Include="ViewportDemo.h" />
+    <ClInclude Include="Wolf.h" />
+    <ClInclude Include="WolfAnimAppearState.h" />
+    <ClInclude Include="WolfAnimAttackState.h" />
+    <ClInclude Include="WolfAnimDeathState.h" />
+    <ClInclude Include="WolfAnimDyingState.h" />
+    <ClInclude Include="WolfAnimRunState.h" />
+    <ClInclude Include="WolfAnimTraceState.h" />
+    <ClInclude Include="WolfAnimWaitState.h" />
+    <ClInclude Include="WolfAppearState.h" />
+    <ClInclude Include="WolfAttackState.h" />
+    <ClInclude Include="WolfBaseAttack.h" />
+    <ClInclude Include="WolfDeathState.h" />
+    <ClInclude Include="WolfDyingState.h" />
+    <ClInclude Include="WolfRunState.h" />
+    <ClInclude Include="WolfTrace.h" />
+    <ClInclude Include="WolfTraceState.h" />
+    <ClInclude Include="WolfWaitState.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="AI.cpp" />
+    <ClCompile Include="Alpha.cpp" />
+    <ClCompile Include="AlphaAnimAppearState.cpp" />
+    <ClCompile Include="AlphaAnimAttackState.cpp" />
+    <ClCompile Include="AlphaAnimSkillState.cpp" />
+    <ClCompile Include="AlphaAnimTraceState.cpp" />
+    <ClCompile Include="AlphaAppearState.cpp" />
+    <ClCompile Include="AlphaAnimDeathState.cpp" />
+    <ClCompile Include="AlphaAnimDyingState.cpp" />
+    <ClCompile Include="AlphaAttackState.cpp" />
+    <ClCompile Include="AlphaBaseAttack.cpp" />
+    <ClCompile Include="AlphaDeathState.cpp" />
+    <ClCompile Include="AlphaDyingState.cpp" />
+    <ClCompile Include="AlphaAnimWaitState.cpp" />
+    <ClCompile Include="AlphaAnimWalkState.cpp" />
+    <ClCompile Include="AlphaSkill.cpp" />
+    <ClCompile Include="AlphaTrace.cpp" />
+    <ClCompile Include="AlphaTraceState.cpp" />
+    <ClCompile Include="AlphaWaitState.cpp" />
+    <ClCompile Include="AlphaWalkState.cpp" />
+    <ClCompile Include="BaseAttackState.cpp" />
+    <ClCompile Include="BaseSkill.cpp" />
+    <ClCompile Include="Bianca.cpp" />
+    <ClCompile Include="BiancaAnimBaseAttackState.cpp" />
+    <ClCompile Include="BiancaAnimCraftState.cpp" />
+    <ClCompile Include="BiancaBaseAttack.cpp" />
+    <ClCompile Include="BiancaBaseAttackState.cpp" />
+    <ClCompile Include="BiancaCamera.cpp" />
+    <ClCompile Include="BiancaCraftState.cpp" />
+    <ClCompile Include="BiancaESkill.cpp" />
+    <ClCompile Include="BiancaESkillCircle.cpp" />
+    <ClCompile Include="BiancaAnimEState.cpp" />
+    <ClCompile Include="BiancaEState.cpp" />
+    <ClCompile Include="BiancaQCone.cpp" />
+    <ClCompile Include="BiancaQProjectile.cpp" />
+    <ClCompile Include="BiancaQSkill.cpp" />
+    <ClCompile Include="BiancaAnimQState.cpp" />
+    <ClCompile Include="BiancaQState.cpp" />
+    <ClCompile Include="BiancaRSkill.cpp" />
+    <ClCompile Include="BiancaAnimRState.cpp" />
+    <ClCompile Include="BiancaAnimRunState.cpp" />
+    <ClCompile Include="BiancaRState.cpp" />
+    <ClCompile Include="BiancaRunState.cpp" />
+    <ClCompile Include="BiancaTest.cpp" />
+    <ClCompile Include="BiancaAnimWaitState.cpp" />
+    <ClCompile Include="BiancaWaitState.cpp" />
+    <ClCompile Include="BiancaWSkill.cpp" />
+    <ClCompile Include="BiancaAnimWState.cpp" />
+    <ClCompile Include="BiancaWState.cpp" />
+    <ClCompile Include="BillboardDemo.cpp" />
+    <ClCompile Include="ButtonDemo.cpp" />
+    <ClCompile Include="CameraScript.cpp" />
+    <ClCompile Include="CharacterSelectScene.cpp" />
+    <ClCompile Include="CraftGagePanelUI.cpp" />
+    <ClCompile Include="CraftListPanelUI.cpp" />
+    <ClCompile Include="Cursor.cpp" />
+    <ClCompile Include="DayPanelUI.cpp" />
+    <ClCompile Include="EquipableItem.cpp" />
+    <ClCompile Include="EquipmentPanelUI.cpp" />
+    <ClCompile Include="FogOfWar.cpp" />
+    <ClCompile Include="GameHUDPanelUI.cpp" />
+    <ClCompile Include="GroupBufferDemo.cpp" />
+    <ClCompile Include="IBasePanelUI.cpp" />
+    <ClCompile Include="IngredientItem.cpp" />
+    <ClCompile Include="InventoryManager.cpp" />
+    <ClCompile Include="InventoryPanelUI.cpp" />
+    <ClCompile Include="ItemBox.cpp" />
+    <ClCompile Include="ItemManager.cpp" />
+    <ClCompile Include="ItemSlot.cpp" />
+    <ClCompile Include="HealthBar.cpp" />
+    <ClCompile Include="Loader.cpp" />
+    <ClCompile Include="LumiaIsland.cpp" />
+    <ClCompile Include="Main.cpp" />
+    <ClCompile Include="Monster.cpp" />
+    <ClCompile Include="MonsterBehaviour.cpp" />
+    <ClCompile Include="MonsterInterface.cpp" />
+    <ClCompile Include="Nicky.cpp" />
+    <ClCompile Include="NickyAnimBaseAttackState.cpp" />
+    <ClCompile Include="NickyAnimCounterState.cpp" />
+    <ClCompile Include="NickyAnimCraftState.cpp" />
+    <ClCompile Include="NickyBaseAttack.cpp" />
+    <ClCompile Include="NickyBaseAttackState.cpp" />
+    <ClCompile Include="NickyCounter.cpp" />
+    <ClCompile Include="NickyCounterState.cpp" />
+    <ClCompile Include="NickyCraftState.cpp" />
+    <ClCompile Include="NickyERange.cpp" />
+    <ClCompile Include="NickyESkill.cpp" />
+    <ClCompile Include="NickyAnimEState.cpp" />
+    <ClCompile Include="NickyEState.cpp" />
+    <ClCompile Include="NickyQSkill.cpp" />
+    <ClCompile Include="NickyAnimQState.cpp" />
+    <ClCompile Include="NickyQState.cpp" />
+    <ClCompile Include="NickyREffect.cpp" />
+    <ClCompile Include="NickyRSkill.cpp" />
+    <ClCompile Include="NickyAnimRState.cpp" />
+    <ClCompile Include="NickyAnimRunState.cpp" />
+    <ClCompile Include="NickyAnimWaitState.cpp" />
+    <ClCompile Include="NickyRState.cpp" />
+    <ClCompile Include="NickyRunState.cpp" />
+    <ClCompile Include="NickyWaitState.cpp" />
+    <ClCompile Include="NickyWSkill.cpp" />
+    <ClCompile Include="NickyAnimWState.cpp" />
+    <ClCompile Include="NickyWState.cpp" />
+    <ClCompile Include="OrthoGraphicDemo.cpp" />
+    <ClCompile Include="ParticleDemo.cpp" />
+    <ClCompile Include="pch.cpp">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="Player.cpp" />
+    <ClCompile Include="PlayerInterface.cpp" />
+    <ClCompile Include="PlayerMonoBehaviour.cpp" />
+    <ClCompile Include="PlayerOutlineEffect.cpp" />
+    <ClCompile Include="PlayerStatusPanelUI.cpp" />
+    <ClCompile Include="RawBufferDemo.cpp" />
+    <ClCompile Include="Recipe.cpp" />
+    <ClCompile Include="RecipeManager.cpp" />
+    <ClCompile Include="SceneDemo.cpp" />
+    <ClCompile Include="SkillDecalIndicator.cpp" />
+    <ClCompile Include="SkillLevelUpPanelUI.cpp" />
+    <ClCompile Include="SkillObject.cpp" />
+    <ClCompile Include="SnowBillboardDemo.cpp" />
+    <ClCompile Include="StartScene.cpp" />
+    <ClCompile Include="StructuredDemo.cpp" />
+    <ClCompile Include="TextureBufferDemo.cpp" />
+    <ClCompile Include="TimePanelUI.cpp" />
+    <ClCompile Include="UIManager.cpp" />
+    <ClCompile Include="UIResourceManager.cpp" />
+    <ClCompile Include="UITestDemo.cpp" />
+    <ClCompile Include="ViewportDemo.cpp" />
+    <ClCompile Include="Wolf.cpp" />
+    <ClCompile Include="WolfAnimAppearState.cpp" />
+    <ClCompile Include="WolfAnimAttackState.cpp" />
+    <ClCompile Include="WolfAnimDeathState.cpp" />
+    <ClCompile Include="WolfAnimDyingState.cpp" />
+    <ClCompile Include="WolfAnimRunState.cpp" />
+    <ClCompile Include="WolfAnimTraceState.cpp" />
+    <ClCompile Include="WolfAnimWaitState.cpp" />
+    <ClCompile Include="WolfAppearState.cpp" />
+    <ClCompile Include="WolfAttackState.cpp" />
+    <ClCompile Include="WolfBaseAttack.cpp" />
+    <ClCompile Include="WolfDeathState.cpp" />
+    <ClCompile Include="WolfDyingState.cpp" />
+    <ClCompile Include="WolfRunState.cpp" />
+    <ClCompile Include="WolfTrace.cpp" />
+    <ClCompile Include="WolfTraceState.cpp" />
+    <ClCompile Include="WolfWaitState.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <FxCompile Include="..\Shaders\00. DeferredLighting.fx" />
+    <FxCompile Include="..\Shaders\00. GBuffer.fx" />
+    <FxCompile Include="..\Shaders\00. Global.fx" />
+    <FxCompile Include="..\Shaders\00. Light.fx" />
+    <FxCompile Include="..\Shaders\00. Render.fx" />
+    <FxCompile Include="..\Shaders\23. RenderDemo.fx" />
+    <FxCompile Include="..\Shaders\24. RawBufferDemo.fx" />
+    <FxCompile Include="..\Shaders\25. GroupBufferDemo.fx" />
+    <FxCompile Include="..\Shaders\26. TextureBufferDemo.fx" />
+    <FxCompile Include="..\Shaders\27. StructuredDemo.fx" />
+    <FxCompile Include="..\Shaders\28. BillboardDemo.fx" />
+    <FxCompile Include="..\Shaders\BiancaEShader.fx" />
+    <FxCompile Include="..\Shaders\GatherBillboard.fx" />
+    <FxCompile Include="..\Shaders\SnowBillboard.fx" />
+    <FxCompile Include="..\Shaders\DebugTexture.fx" />
+    <FxCompile Include="..\Shaders\FOW.fx" />
+    <FxCompile Include="..\Shaders\ImageShader.fx" />
+    <FxCompile Include="..\Shaders\OutlinePostProcess.fx" />
+    <FxCompile Include="..\Shaders\ParticleSystem.fx" />
+    <FxCompile Include="..\Shaders\SkillDecal.fx" />
+    <FxCompile Include="..\Shaders\Sky.fx" />
+    <FxCompile Include="..\Shaders\TextShader.fx" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="Client.rc" />
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>16.0</VCProjectVersion>
+    <Keyword>Win32Proj</Keyword>
+    <ProjectGuid>{2c2d9aa8-61c9-4ab4-b14a-dbdf76a868cc}</ProjectGuid>
+    <RootNamespace>ArenaClient</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="Shared">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <OutDir>$(SolutionDir)Binaries\</OutDir>
+    <IntDir>$(SolutionDir)Intermediate\$(Configuration)\</IntDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <OutDir>$(SolutionDir)Binaries\</OutDir>
+    <IntDir>$(SolutionDir)Intermediate\$(Configuration)\</IntDir>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>_DEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <AdditionalIncludeDirectories>$(SolutionDir)Libraries\Include\;$(SolutionDir)Libraries\Include\Engine\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+      <LanguageStandard>Default</LanguageStandard>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalLibraryDirectories>$(SolutionDir)Libraries\Lib\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+    </Link>
+    <FxCompile>
+      <EntryPointName />
+    </FxCompile>
+    <FxCompile>
+      <ShaderType>Effect</ShaderType>
+    </FxCompile>
+    <FxCompile>
+      <ShaderModel>5.0</ShaderModel>
+    </FxCompile>
+    <PostBuildEvent>
+      <Command>
+      </Command>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>NDEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <AdditionalIncludeDirectories>$(SolutionDir)Libraries\Include\;$(SolutionDir)Libraries\Include\Engine\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+      <LanguageStandard>Default</LanguageStandard>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalLibraryDirectories>$(SolutionDir)Libraries\Lib\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+    </Link>
+    <FxCompile>
+      <EntryPointName />
+    </FxCompile>
+    <FxCompile>
+      <DisableOptimizations>true</DisableOptimizations>
+    </FxCompile>
+    <FxCompile>
+      <EnableDebuggingInformation>true</EnableDebuggingInformation>
+    </FxCompile>
+    <FxCompile>
+      <ShaderType>Effect</ShaderType>
+    </FxCompile>
+    <FxCompile>
+      <ShaderModel>5.0</ShaderModel>
+    </FxCompile>
+    <PostBuildEvent>
+      <Command>
+      </Command>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+  <Import Project="..\Build\Game.props" />
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

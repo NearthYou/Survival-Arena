@@ -1,0 +1,1170 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Game">
+      <UniqueIdentifier>{d2d0fd71-4d67-48c2-b343-6fdb5782e40f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Main">
+      <UniqueIdentifier>{7efaf247-0110-432a-9d3a-fb863c368ac6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Shaders">
+      <UniqueIdentifier>{ec1fc7a4-e083-4ffe-aa6f-9f1c2c16b5c4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Shaders\Common">
+      <UniqueIdentifier>{52931e45-58c0-4b5f-82bd-b79f029791a5}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Game\Week3">
+      <UniqueIdentifier>{f5d8a2ef-cfc3-46b6-9fc0-d6a7a191d2a2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Game\Week4">
+      <UniqueIdentifier>{ec5af676-cf94-482d-9d67-5fca2dc4d30f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Shaders\Week5">
+      <UniqueIdentifier>{5f62659e-f74f-41d7-b10a-919c1fa0eb28}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Game\UITest">
+      <UniqueIdentifier>{2f2b6679-2636-4834-8b01-ef6f235af33b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Shaders\Text">
+      <UniqueIdentifier>{878a2d81-db68-493c-a70e-c7928958eea6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Scripts">
+      <UniqueIdentifier>{1f7c04bf-b597-483a-87a0-71490610d009}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Scripts\Camera">
+      <UniqueIdentifier>{10bf8da9-c58d-45fe-b41c-357dc5245b2b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Scripts\FOW">
+      <UniqueIdentifier>{67440155-896d-4476-9eb0-00678c005e9a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Scripts\PlayerTest">
+      <UniqueIdentifier>{eac17648-82fa-433d-bcb1-91e9d825662c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Game\InGame">
+      <UniqueIdentifier>{30a1463b-9e9c-486d-8a3f-8e626c260bf2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Scripts\Player">
+      <UniqueIdentifier>{af9d922f-a947-49a3-b925-6b1ba52dbc81}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Scripts\Player\Bianca">
+      <UniqueIdentifier>{cc339bee-045e-41fb-8dea-c8bc1fc806fd}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Scripts\Player\Nicky">
+      <UniqueIdentifier>{7bc5ddb6-d27e-452f-8181-b989e98e7337}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Scripts\Item">
+      <UniqueIdentifier>{a99e0ae7-d986-4ea1-a65b-af53ac91b79f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Scripts\Item\Equipment">
+      <UniqueIdentifier>{a47bf411-7dad-4b44-a14e-b1b8cda2087f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Scripts\Monster">
+      <UniqueIdentifier>{0ae9907a-c8d1-443f-978e-5f702783a10e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Scripts\Monster\AI">
+      <UniqueIdentifier>{4aba99c0-03f4-440f-8521-45f6b99547dc}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Game\StartScene">
+      <UniqueIdentifier>{cf8b3d55-c48c-41ad-a54a-de1a0f5e642a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Game\CSScene">
+      <UniqueIdentifier>{d0457b38-34ae-4d3a-88b7-b52d1dcf3c89}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Scripts\Player\Skill">
+      <UniqueIdentifier>{171ecbac-caa9-4e7c-97e7-5cbdb4203f48}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Shaders\Billboard">
+      <UniqueIdentifier>{d2c86a34-4742-4bb0-8ace-a112870a55a7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Scripts\Player\Bianca\BiancaQ">
+      <UniqueIdentifier>{5d02c3f1-a361-4891-9288-1251c146559c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Scripts\Player\Nicky\NickyE">
+      <UniqueIdentifier>{b2c599c0-0d37-4bdc-8267-883a22789b03}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Scripts\Player\Bianca\BiancaE">
+      <UniqueIdentifier>{35bedf2a-c2a5-43d5-984e-c2862abe3c04}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Scripts\Player\Nicky\NickyR">
+      <UniqueIdentifier>{fb6acd0c-2b2a-4bb6-8123-e5031b363ece}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Shaders\Bianca">
+      <UniqueIdentifier>{79f1bb8a-cdbf-45ef-9394-32db4159a356}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Scripts\Monster\Wolf">
+      <UniqueIdentifier>{e7a85326-3874-4ad7-bad0-b990cb9e67e2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Scripts\Player\Nicky\NickyW">
+      <UniqueIdentifier>{36bad6ad-db4a-4648-b3a7-d2dc5cbd27ed}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Scripts\Monster\Alpha">
+      <UniqueIdentifier>{b540f4e1-6f77-4c1d-b8e4-a3f2ee2937d8}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Scripts\Player\Nicky\NickyQ">
+      <UniqueIdentifier>{b25d2951-85c0-4eae-95b8-310f49f0582f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Scripts\Player\Nicky\NickyAnims">
+      <UniqueIdentifier>{488caf35-0726-4e49-b458-68823d9442cf}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Scripts\Player\Bianca\BiancaR">
+      <UniqueIdentifier>{3a893f98-9aff-49e2-bbc5-304af8708168}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Scripts\Player\Bianca\BiancaW">
+      <UniqueIdentifier>{13e4371f-85e7-49bd-be60-d135c967102b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Scripts\Player\Bianca\BiancaAnims">
+      <UniqueIdentifier>{b43c8a30-e4d8-4d98-911b-d02e07291aa2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Scripts\Monster\Alpha\LogicState">
+      <UniqueIdentifier>{ff6a6209-a3d8-4ecd-bb62-ee2bc065cda2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Scripts\Monster\Alpha\AnimState">
+      <UniqueIdentifier>{a2090a1d-7754-46d6-bf61-71a3744e68b1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Scripts\Monster\Wolf\LogicState">
+      <UniqueIdentifier>{3a002245-ecf9-4ade-ae15-db5124e2f4d1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Scripts\Monster\Wolf\AnimState">
+      <UniqueIdentifier>{76ee9bc5-6843-48bc-a095-e40789d96ec6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Scripts\Player\Bianca\BiancaLogic">
+      <UniqueIdentifier>{6c172846-e401-4ee5-8e36-6ed1c0400d9f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Scripts\Player\Nicky\NickyLogic">
+      <UniqueIdentifier>{400732b6-a316-421f-a8ab-200187e2181a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Scripts\UI">
+      <UniqueIdentifier>{28fc06fd-ec5c-4ed4-9229-720e295837e6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Scripts\Item\InventoryManager">
+      <UniqueIdentifier>{36d5d433-1ff8-4255-90dd-910600e9775e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Scripts\Item\ItemSlot">
+      <UniqueIdentifier>{180a0ecb-0039-4d9e-b5fa-3c062ce34b30}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Scripts\UI\UIManager">
+      <UniqueIdentifier>{238f0a9e-6155-474c-ad40-7ce7f699a113}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Scripts\UI\InventoryPanelUI">
+      <UniqueIdentifier>{dcffdc44-1020-45ba-9165-fd76f6614171}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Scripts\UI\GameHUDPanelUI">
+      <UniqueIdentifier>{8787c27c-cba3-46c5-b433-fc1be232d94e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Scripts\UI\PlayerStatusPanelUI">
+      <UniqueIdentifier>{d787a9b9-94ed-41d2-825e-20108384cf5f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Scripts\UI\EquipmentPanelUI">
+      <UniqueIdentifier>{54069f4e-1957-4a8b-8eb3-186944c0b73a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Scripts\UI\Interface">
+      <UniqueIdentifier>{8c7db2d1-3440-4fef-9575-550e05908021}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Scripts\UI\SkillLevelUpPanelUI">
+      <UniqueIdentifier>{c3d5c95b-82fb-443d-94d5-baa2c4861dbd}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Scripts\UI\DayPanelUI">
+      <UniqueIdentifier>{93126d48-aa34-4718-b0d0-09d2f1357a69}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Scripts\UI\TimePanelUI">
+      <UniqueIdentifier>{b92033e7-52c3-4ec0-a664-3e01e89f662a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Scripts\Item\ItemManager">
+      <UniqueIdentifier>{0e4f36d3-8c8d-48f8-ab3e-825ecf53dd94}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Scripts\Item\Ingredient">
+      <UniqueIdentifier>{12393fba-34da-4d66-9876-0ddb9596edbb}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Scripts\Item\Recipe">
+      <UniqueIdentifier>{e4e36c2e-585a-479b-9ac5-7b06c5832a91}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Scripts\UI\CraftListPanelUI">
+      <UniqueIdentifier>{7f68b67a-fa11-4b7e-8f82-11f958a83e4c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Scripts\UI\CraftGagePanelUI">
+      <UniqueIdentifier>{7e1c8c72-bb04-46ef-92d3-144999db52c9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Scripts\UI\UIResourceManager">
+      <UniqueIdentifier>{08af5a1e-3942-4930-822b-e14968a926d7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Scripts\Monster\Wolf\WolfBaseAttack">
+      <UniqueIdentifier>{1301110f-62c4-4e6c-9f85-2b7d0888bc6b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Scripts\Monster\MonsterBehaviour">
+      <UniqueIdentifier>{46f5fbe8-9055-41c5-9153-246bedfbb133}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Scripts\Monster\Wolf\WolfTrace">
+      <UniqueIdentifier>{decc66f7-bf49-4418-8b24-8b8641d557f6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Scripts\Player\PlayerMonoBehaviour">
+      <UniqueIdentifier>{1d172e1d-6783-4b23-820e-83a1e5a2c455}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Scripts\Player\Nicky\NickyBaseAttack">
+      <UniqueIdentifier>{804c9484-13d1-4496-b69d-d0f334ea37d4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Scripts\Player\Bianca\BiancaBaseAttack">
+      <UniqueIdentifier>{fdab606e-41fb-44d5-9b3e-13e3e060d1dc}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Scripts\Monster\Alpha\AlphaTrace">
+      <UniqueIdentifier>{588b2f7b-61c0-4f16-a75f-f13121388214}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Scripts\Monster\Alpha\AlphaBaseAttack">
+      <UniqueIdentifier>{294b68d3-bb72-4d71-a38d-4a95e85a1188}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Scripts\Monster\Alpha\AlphaSkill">
+      <UniqueIdentifier>{3b937e8d-2c31-4ad3-86f5-510ff4209d07}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Scripts\Player\Nicky\NickyCounter">
+      <UniqueIdentifier>{29b5d241-67fe-445d-b363-873125482a58}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Scripts\Player\BaseAttack">
+      <UniqueIdentifier>{38bc0f90-fc62-4671-aca5-332dbc0e5e95}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="pch.cpp">
+      <Filter>Main</Filter>
+    </ClCompile>
+    <ClCompile Include="Main.cpp">
+      <Filter>Main</Filter>
+    </ClCompile>
+    <ClCompile Include="SceneDemo.cpp">
+      <Filter>Game\Week3</Filter>
+    </ClCompile>
+    <ClCompile Include="RawBufferDemo.cpp">
+      <Filter>Game\Week3</Filter>
+    </ClCompile>
+    <ClCompile Include="GroupBufferDemo.cpp">
+      <Filter>Game\Week3</Filter>
+    </ClCompile>
+    <ClCompile Include="TextureBufferDemo.cpp">
+      <Filter>Game\Week3</Filter>
+    </ClCompile>
+    <ClCompile Include="StructuredDemo.cpp">
+      <Filter>Game\Week3</Filter>
+    </ClCompile>
+    <ClCompile Include="ViewportDemo.cpp">
+      <Filter>Game\Week3</Filter>
+    </ClCompile>
+    <ClCompile Include="OrthoGraphicDemo.cpp">
+      <Filter>Game\Week4</Filter>
+    </ClCompile>
+    <ClCompile Include="ButtonDemo.cpp">
+      <Filter>Game\Week4</Filter>
+    </ClCompile>
+    <ClCompile Include="BillboardDemo.cpp">
+      <Filter>Game\Week4</Filter>
+    </ClCompile>
+    <ClCompile Include="SnowBillboardDemo.cpp">
+      <Filter>Game\Week4</Filter>
+    </ClCompile>
+    <ClCompile Include="ParticleDemo.cpp">
+      <Filter>Game\Week4</Filter>
+    </ClCompile>
+    <ClCompile Include="UITestDemo.cpp">
+      <Filter>Game\UITest</Filter>
+    </ClCompile>
+    <ClCompile Include="Loader.cpp">
+      <Filter>Main</Filter>
+    </ClCompile>
+    <ClCompile Include="FogOfWar.cpp">
+      <Filter>Scripts\FOW</Filter>
+    </ClCompile>
+    <ClCompile Include="CameraScript.cpp">
+      <Filter>Scripts\Camera</Filter>
+    </ClCompile>
+    <ClCompile Include="BiancaTest.cpp">
+      <Filter>Scripts\PlayerTest</Filter>
+    </ClCompile>
+    <ClCompile Include="BiancaCamera.cpp">
+      <Filter>Scripts\PlayerTest</Filter>
+    </ClCompile>
+    <ClCompile Include="LumiaIsland.cpp">
+      <Filter>Game\InGame</Filter>
+    </ClCompile>
+    <ClCompile Include="PlayerOutlineEffect.cpp">
+      <Filter>Scripts\Player</Filter>
+    </ClCompile>
+    <ClCompile Include="Player.cpp">
+      <Filter>Scripts\Player</Filter>
+    </ClCompile>
+    <ClCompile Include="BaseSkill.cpp">
+      <Filter>Scripts\Player</Filter>
+    </ClCompile>
+    <ClCompile Include="AI.cpp">
+      <Filter>Scripts\Monster\AI</Filter>
+    </ClCompile>
+    <ClCompile Include="StartScene.cpp">
+      <Filter>Game\StartScene</Filter>
+    </ClCompile>
+    <ClCompile Include="CharacterSelectScene.cpp">
+      <Filter>Game\CSScene</Filter>
+    </ClCompile>
+    <ClCompile Include="Bianca.cpp">
+      <Filter>Scripts\Player\Bianca</Filter>
+    </ClCompile>
+    <ClCompile Include="Nicky.cpp">
+      <Filter>Scripts\Player\Nicky</Filter>
+    </ClCompile>
+    <ClCompile Include="SkillDecalIndicator.cpp">
+      <Filter>Scripts\Player\Skill</Filter>
+    </ClCompile>
+    <ClCompile Include="BiancaQProjectile.cpp">
+      <Filter>Scripts\Player\Bianca\BiancaQ</Filter>
+    </ClCompile>
+    <ClCompile Include="BiancaQSkill.cpp">
+      <Filter>Scripts\Player\Bianca\BiancaQ</Filter>
+    </ClCompile>
+    <ClCompile Include="BiancaQCone.cpp">
+      <Filter>Scripts\Player\Bianca\BiancaQ</Filter>
+    </ClCompile>
+    <ClCompile Include="NickyESkill.cpp">
+      <Filter>Scripts\Player\Nicky\NickyE</Filter>
+    </ClCompile>
+    <ClCompile Include="NickyERange.cpp">
+      <Filter>Scripts\Player\Nicky\NickyE</Filter>
+    </ClCompile>
+    <ClCompile Include="BiancaESkill.cpp">
+      <Filter>Scripts\Player\Bianca\BiancaE</Filter>
+    </ClCompile>
+    <ClCompile Include="BiancaESkillCircle.cpp">
+      <Filter>Scripts\Player\Bianca\BiancaE</Filter>
+    </ClCompile>
+    <ClCompile Include="NickyQSkill.cpp">
+      <Filter>Scripts\Player\Nicky\NickyQ</Filter>
+    </ClCompile>
+    <ClCompile Include="NickyRSkill.cpp">
+      <Filter>Scripts\Player\Nicky\NickyR</Filter>
+    </ClCompile>
+    <ClCompile Include="PlayerInterface.cpp">
+      <Filter>Scripts\Player</Filter>
+    </ClCompile>
+    <ClCompile Include="Wolf.cpp">
+      <Filter>Scripts\Monster\Wolf</Filter>
+    </ClCompile>
+    <ClCompile Include="NickyWSkill.cpp">
+      <Filter>Scripts\Player\Nicky\NickyW</Filter>
+    </ClCompile>
+    <ClCompile Include="Monster.cpp">
+      <Filter>Scripts\Monster</Filter>
+    </ClCompile>
+    <ClCompile Include="Alpha.cpp">
+      <Filter>Scripts\Monster\Alpha</Filter>
+    </ClCompile>
+    <ClCompile Include="NickyAnimQState.cpp">
+      <Filter>Scripts\Player\Nicky\NickyAnims</Filter>
+    </ClCompile>
+    <ClCompile Include="NickyAnimEState.cpp">
+      <Filter>Scripts\Player\Nicky\NickyAnims</Filter>
+    </ClCompile>
+    <ClCompile Include="NickyAnimRState.cpp">
+      <Filter>Scripts\Player\Nicky\NickyAnims</Filter>
+    </ClCompile>
+    <ClCompile Include="NickyAnimWState.cpp">
+      <Filter>Scripts\Player\Nicky\NickyAnims</Filter>
+    </ClCompile>
+    <ClCompile Include="NickyAnimRunState.cpp">
+      <Filter>Scripts\Player\Nicky\NickyAnims</Filter>
+    </ClCompile>
+    <ClCompile Include="NickyAnimWaitState.cpp">
+      <Filter>Scripts\Player\Nicky\NickyAnims</Filter>
+    </ClCompile>
+    <ClCompile Include="BiancaRSkill.cpp">
+      <Filter>Scripts\Player\Bianca\BiancaR</Filter>
+    </ClCompile>
+    <ClCompile Include="BiancaWSkill.cpp">
+      <Filter>Scripts\Player\Bianca\BiancaW</Filter>
+    </ClCompile>
+    <ClCompile Include="BiancaAnimEState.cpp">
+      <Filter>Scripts\Player\Bianca\BiancaAnims</Filter>
+    </ClCompile>
+    <ClCompile Include="BiancaAnimQState.cpp">
+      <Filter>Scripts\Player\Bianca\BiancaAnims</Filter>
+    </ClCompile>
+    <ClCompile Include="BiancaAnimRState.cpp">
+      <Filter>Scripts\Player\Bianca\BiancaAnims</Filter>
+    </ClCompile>
+    <ClCompile Include="BiancaAnimRunState.cpp">
+      <Filter>Scripts\Player\Bianca\BiancaAnims</Filter>
+    </ClCompile>
+    <ClCompile Include="BiancaAnimWaitState.cpp">
+      <Filter>Scripts\Player\Bianca\BiancaAnims</Filter>
+    </ClCompile>
+    <ClCompile Include="BiancaAnimWState.cpp">
+      <Filter>Scripts\Player\Bianca\BiancaAnims</Filter>
+    </ClCompile>
+    <ClCompile Include="AlphaAnimAppearState.cpp">
+      <Filter>Scripts\Monster\Alpha\AnimState</Filter>
+    </ClCompile>
+    <ClCompile Include="AlphaAnimDeathState.cpp">
+      <Filter>Scripts\Monster\Alpha\AnimState</Filter>
+    </ClCompile>
+    <ClCompile Include="AlphaAnimWaitState.cpp">
+      <Filter>Scripts\Monster\Alpha\AnimState</Filter>
+    </ClCompile>
+    <ClCompile Include="AlphaAnimWalkState.cpp">
+      <Filter>Scripts\Monster\Alpha\AnimState</Filter>
+    </ClCompile>
+    <ClCompile Include="AlphaAnimDyingState.cpp">
+      <Filter>Scripts\Monster\Alpha\AnimState</Filter>
+    </ClCompile>
+    <ClCompile Include="AlphaAppearState.cpp">
+      <Filter>Scripts\Monster\Alpha\LogicState</Filter>
+    </ClCompile>
+    <ClCompile Include="AlphaDeathState.cpp">
+      <Filter>Scripts\Monster\Alpha\LogicState</Filter>
+    </ClCompile>
+    <ClCompile Include="AlphaDyingState.cpp">
+      <Filter>Scripts\Monster\Alpha\LogicState</Filter>
+    </ClCompile>
+    <ClCompile Include="AlphaWaitState.cpp">
+      <Filter>Scripts\Monster\Alpha\LogicState</Filter>
+    </ClCompile>
+    <ClCompile Include="AlphaWalkState.cpp">
+      <Filter>Scripts\Monster\Alpha\LogicState</Filter>
+    </ClCompile>
+    <ClCompile Include="WolfAnimAppearState.cpp">
+      <Filter>Scripts\Monster\Wolf\AnimState</Filter>
+    </ClCompile>
+    <ClCompile Include="WolfAnimDeathState.cpp">
+      <Filter>Scripts\Monster\Wolf\AnimState</Filter>
+    </ClCompile>
+    <ClCompile Include="WolfAnimDyingState.cpp">
+      <Filter>Scripts\Monster\Wolf\AnimState</Filter>
+    </ClCompile>
+    <ClCompile Include="WolfAnimRunState.cpp">
+      <Filter>Scripts\Monster\Wolf\AnimState</Filter>
+    </ClCompile>
+    <ClCompile Include="WolfAnimWaitState.cpp">
+      <Filter>Scripts\Monster\Wolf\AnimState</Filter>
+    </ClCompile>
+    <ClCompile Include="WolfAppearState.cpp">
+      <Filter>Scripts\Monster\Wolf\LogicState</Filter>
+    </ClCompile>
+    <ClCompile Include="WolfDeathState.cpp">
+      <Filter>Scripts\Monster\Wolf\LogicState</Filter>
+    </ClCompile>
+    <ClCompile Include="WolfDyingState.cpp">
+      <Filter>Scripts\Monster\Wolf\LogicState</Filter>
+    </ClCompile>
+    <ClCompile Include="WolfRunState.cpp">
+      <Filter>Scripts\Monster\Wolf\LogicState</Filter>
+    </ClCompile>
+    <ClCompile Include="WolfWaitState.cpp">
+      <Filter>Scripts\Monster\Wolf\LogicState</Filter>
+    </ClCompile>
+    <ClCompile Include="NickyQState.cpp">
+      <Filter>Scripts\Player\Nicky\NickyLogic</Filter>
+    </ClCompile>
+    <ClCompile Include="NickyEState.cpp">
+      <Filter>Scripts\Player\Nicky\NickyLogic</Filter>
+    </ClCompile>
+    <ClCompile Include="NickyRState.cpp">
+      <Filter>Scripts\Player\Nicky\NickyLogic</Filter>
+    </ClCompile>
+    <ClCompile Include="NickyRunState.cpp">
+      <Filter>Scripts\Player\Nicky\NickyLogic</Filter>
+    </ClCompile>
+    <ClCompile Include="NickyWaitState.cpp">
+      <Filter>Scripts\Player\Nicky\NickyLogic</Filter>
+    </ClCompile>
+    <ClCompile Include="NickyWState.cpp">
+      <Filter>Scripts\Player\Nicky\NickyLogic</Filter>
+    </ClCompile>
+    <ClCompile Include="BiancaEState.cpp">
+      <Filter>Scripts\Player\Bianca\BiancaLogic</Filter>
+    </ClCompile>
+    <ClCompile Include="BiancaQState.cpp">
+      <Filter>Scripts\Player\Bianca\BiancaLogic</Filter>
+    </ClCompile>
+    <ClCompile Include="BiancaRState.cpp">
+      <Filter>Scripts\Player\Bianca\BiancaLogic</Filter>
+    </ClCompile>
+    <ClCompile Include="BiancaRunState.cpp">
+      <Filter>Scripts\Player\Bianca\BiancaLogic</Filter>
+    </ClCompile>
+    <ClCompile Include="BiancaWaitState.cpp">
+      <Filter>Scripts\Player\Bianca\BiancaLogic</Filter>
+    </ClCompile>
+    <ClCompile Include="BiancaWState.cpp">
+      <Filter>Scripts\Player\Bianca\BiancaLogic</Filter>
+    </ClCompile>
+    <ClCompile Include="HealthBar.cpp">
+      <Filter>Scripts\UI</Filter>
+    </ClCompile>
+    <ClCompile Include="EquipableItem.cpp">
+      <Filter>Scripts\Item\Equipment</Filter>
+    </ClCompile>
+    <ClCompile Include="InventoryManager.cpp">
+      <Filter>Scripts\Item\InventoryManager</Filter>
+    </ClCompile>
+    <ClCompile Include="ItemSlot.cpp">
+      <Filter>Scripts\Item\ItemSlot</Filter>
+    </ClCompile>
+    <ClCompile Include="Cursor.cpp">
+      <Filter>Scripts\UI</Filter>
+    </ClCompile>
+    <ClCompile Include="UIManager.cpp">
+      <Filter>Scripts\UI\UIManager</Filter>
+    </ClCompile>
+    <ClCompile Include="InventoryPanelUI.cpp">
+      <Filter>Scripts\UI\InventoryPanelUI</Filter>
+    </ClCompile>
+    <ClCompile Include="GameHUDPanelUI.cpp">
+      <Filter>Scripts\UI\GameHUDPanelUI</Filter>
+    </ClCompile>
+    <ClCompile Include="IBasePanelUI.cpp">
+      <Filter>Scripts\UI\Interface</Filter>
+    </ClCompile>
+    <ClCompile Include="SkillLevelUpPanelUI.cpp">
+      <Filter>Scripts\UI\SkillLevelUpPanelUI</Filter>
+    </ClCompile>
+    <ClCompile Include="PlayerStatusPanelUI.cpp">
+      <Filter>Scripts\UI\PlayerStatusPanelUI</Filter>
+    </ClCompile>
+    <ClCompile Include="DayPanelUI.cpp">
+      <Filter>Scripts\UI\DayPanelUI</Filter>
+    </ClCompile>
+    <ClCompile Include="TimePanelUI.cpp">
+      <Filter>Scripts\UI\TimePanelUI</Filter>
+    </ClCompile>
+    <ClCompile Include="EquipmentPanelUI.cpp">
+      <Filter>Scripts\UI\EquipmentPanelUI</Filter>
+    </ClCompile>
+    <ClCompile Include="IngredientItem.cpp">
+      <Filter>Scripts\Item\Ingredient</Filter>
+    </ClCompile>
+    <ClCompile Include="ItemManager.cpp">
+      <Filter>Scripts\Item\ItemManager</Filter>
+    </ClCompile>
+    <ClCompile Include="Recipe.cpp">
+      <Filter>Scripts\Item\Recipe</Filter>
+    </ClCompile>
+    <ClCompile Include="RecipeManager.cpp">
+      <Filter>Scripts\Item\Recipe</Filter>
+    </ClCompile>
+    <ClCompile Include="ItemBox.cpp">
+      <Filter>Scripts\Item</Filter>
+    </ClCompile>
+    <ClCompile Include="CraftListPanelUI.cpp">
+      <Filter>Scripts\UI\CraftListPanelUI</Filter>
+    </ClCompile>
+    <ClCompile Include="NickyAnimCraftState.cpp">
+      <Filter>Scripts\Player\Nicky\NickyAnims</Filter>
+    </ClCompile>
+    <ClCompile Include="NickyCraftState.cpp">
+      <Filter>Scripts\Player\Nicky\NickyLogic</Filter>
+    </ClCompile>
+    <ClCompile Include="BiancaAnimCraftState.cpp">
+      <Filter>Scripts\Player\Bianca\BiancaAnims</Filter>
+    </ClCompile>
+    <ClCompile Include="BiancaCraftState.cpp">
+      <Filter>Scripts\Player\Bianca\BiancaLogic</Filter>
+    </ClCompile>
+    <ClCompile Include="CraftGagePanelUI.cpp">
+      <Filter>Scripts\UI\CraftGagePanelUI</Filter>
+    </ClCompile>
+    <ClCompile Include="UIResourceManager.cpp">
+      <Filter>Scripts\UI\UIResourceManager</Filter>
+    </ClCompile>
+    <ClCompile Include="WolfAnimAttackState.cpp">
+      <Filter>Scripts\Monster\Wolf\AnimState</Filter>
+    </ClCompile>
+    <ClCompile Include="WolfAnimTraceState.cpp">
+      <Filter>Scripts\Monster\Wolf\AnimState</Filter>
+    </ClCompile>
+    <ClCompile Include="WolfAttackState.cpp">
+      <Filter>Scripts\Monster\Wolf\LogicState</Filter>
+    </ClCompile>
+    <ClCompile Include="WolfTraceState.cpp">
+      <Filter>Scripts\Monster\Wolf\LogicState</Filter>
+    </ClCompile>
+    <ClCompile Include="SkillObject.cpp">
+      <Filter>Scripts\Player</Filter>
+    </ClCompile>
+    <ClCompile Include="WolfBaseAttack.cpp">
+      <Filter>Scripts\Monster\Wolf\WolfBaseAttack</Filter>
+    </ClCompile>
+    <ClCompile Include="MonsterBehaviour.cpp">
+      <Filter>Scripts\Monster\MonsterBehaviour</Filter>
+    </ClCompile>
+    <ClCompile Include="WolfTrace.cpp">
+      <Filter>Scripts\Monster\Wolf\WolfTrace</Filter>
+    </ClCompile>
+    <ClCompile Include="PlayerMonoBehaviour.cpp">
+      <Filter>Scripts\Player\PlayerMonoBehaviour</Filter>
+    </ClCompile>
+    <ClCompile Include="NickyBaseAttack.cpp">
+      <Filter>Scripts\Player\Nicky\NickyBaseAttack</Filter>
+    </ClCompile>
+    <ClCompile Include="NickyAnimBaseAttackState.cpp">
+      <Filter>Scripts\Player\Nicky\NickyAnims</Filter>
+    </ClCompile>
+    <ClCompile Include="NickyBaseAttackState.cpp">
+      <Filter>Scripts\Player\Nicky\NickyLogic</Filter>
+    </ClCompile>
+    <ClCompile Include="BiancaBaseAttack.cpp">
+      <Filter>Scripts\Player\Bianca\BiancaBaseAttack</Filter>
+    </ClCompile>
+    <ClCompile Include="BiancaAnimBaseAttackState.cpp">
+      <Filter>Scripts\Player\Bianca\BiancaAnims</Filter>
+    </ClCompile>
+    <ClCompile Include="BiancaBaseAttackState.cpp">
+      <Filter>Scripts\Player\Bianca\BiancaLogic</Filter>
+    </ClCompile>
+    <ClCompile Include="AlphaTrace.cpp">
+      <Filter>Scripts\Monster\Alpha\AlphaTrace</Filter>
+    </ClCompile>
+    <ClCompile Include="AlphaSkill.cpp">
+      <Filter>Scripts\Monster\Alpha\AlphaSkill</Filter>
+    </ClCompile>
+    <ClCompile Include="AlphaBaseAttack.cpp">
+      <Filter>Scripts\Monster\Alpha\AlphaBaseAttack</Filter>
+    </ClCompile>
+    <ClCompile Include="AlphaAnimAttackState.cpp">
+      <Filter>Scripts\Monster\Alpha\AnimState</Filter>
+    </ClCompile>
+    <ClCompile Include="AlphaAnimTraceState.cpp">
+      <Filter>Scripts\Monster\Alpha\AnimState</Filter>
+    </ClCompile>
+    <ClCompile Include="AlphaAttackState.cpp">
+      <Filter>Scripts\Monster\Alpha\LogicState</Filter>
+    </ClCompile>
+    <ClCompile Include="AlphaTraceState.cpp">
+      <Filter>Scripts\Monster\Alpha\LogicState</Filter>
+    </ClCompile>
+    <ClCompile Include="AlphaAnimSkillState.cpp">
+      <Filter>Scripts\Monster\Alpha\AnimState</Filter>
+    </ClCompile>
+    <ClCompile Include="NickyCounterState.cpp">
+      <Filter>Scripts\Player\Nicky\NickyLogic</Filter>
+    </ClCompile>
+    <ClCompile Include="NickyAnimCounterState.cpp">
+      <Filter>Scripts\Player\Nicky\NickyAnims</Filter>
+    </ClCompile>
+    <ClCompile Include="NickyCounter.cpp">
+      <Filter>Scripts\Player\Nicky\NickyCounter</Filter>
+    </ClCompile>
+    <ClCompile Include="BaseAttackState.cpp">
+      <Filter>Scripts\Player\BaseAttack</Filter>
+    </ClCompile>
+    <ClCompile Include="MonsterInterface.cpp">
+      <Filter>Scripts\Monster</Filter>
+    </ClCompile>
+    <ClCompile Include="NickyREffect.cpp">
+      <Filter>Scripts\Player\Nicky\NickyR</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="pch.h">
+      <Filter>Main</Filter>
+    </ClInclude>
+    <ClInclude Include="Main.h">
+      <Filter>Main</Filter>
+    </ClInclude>
+    <ClInclude Include="SceneDemo.h">
+      <Filter>Game\Week3</Filter>
+    </ClInclude>
+    <ClInclude Include="RawBufferDemo.h">
+      <Filter>Game\Week3</Filter>
+    </ClInclude>
+    <ClInclude Include="GroupBufferDemo.h">
+      <Filter>Game\Week3</Filter>
+    </ClInclude>
+    <ClInclude Include="TextureBufferDemo.h">
+      <Filter>Game\Week3</Filter>
+    </ClInclude>
+    <ClInclude Include="StructuredDemo.h">
+      <Filter>Game\Week3</Filter>
+    </ClInclude>
+    <ClInclude Include="ViewportDemo.h">
+      <Filter>Game\Week3</Filter>
+    </ClInclude>
+    <ClInclude Include="OrthoGraphicDemo.h">
+      <Filter>Game\Week4</Filter>
+    </ClInclude>
+    <ClInclude Include="ButtonDemo.h">
+      <Filter>Game\Week4</Filter>
+    </ClInclude>
+    <ClInclude Include="BillboardDemo.h">
+      <Filter>Game\Week4</Filter>
+    </ClInclude>
+    <ClInclude Include="SnowBillboardDemo.h">
+      <Filter>Game\Week4</Filter>
+    </ClInclude>
+    <ClInclude Include="ParticleDemo.h">
+      <Filter>Game\Week4</Filter>
+    </ClInclude>
+    <ClInclude Include="UITestDemo.h">
+      <Filter>Game\UITest</Filter>
+    </ClInclude>
+    <ClInclude Include="Loader.h">
+      <Filter>Main</Filter>
+    </ClInclude>
+    <ClInclude Include="Client_Define.h">
+      <Filter>Main</Filter>
+    </ClInclude>
+    <ClInclude Include="FogOfWar.h">
+      <Filter>Scripts\FOW</Filter>
+    </ClInclude>
+    <ClInclude Include="CameraScript.h">
+      <Filter>Scripts\Camera</Filter>
+    </ClInclude>
+    <ClInclude Include="BiancaTest.h">
+      <Filter>Scripts\PlayerTest</Filter>
+    </ClInclude>
+    <ClInclude Include="BiancaCamera.h">
+      <Filter>Scripts\PlayerTest</Filter>
+    </ClInclude>
+    <ClInclude Include="LumiaIsland.h">
+      <Filter>Game\InGame</Filter>
+    </ClInclude>
+    <ClInclude Include="PlayerOutlineEffect.h">
+      <Filter>Scripts\Player</Filter>
+    </ClInclude>
+    <ClInclude Include="Player.h">
+      <Filter>Scripts\Player</Filter>
+    </ClInclude>
+    <ClInclude Include="BaseSkill.h">
+      <Filter>Scripts\Player</Filter>
+    </ClInclude>
+    <ClInclude Include="AI.h">
+      <Filter>Scripts\Monster\AI</Filter>
+    </ClInclude>
+    <ClInclude Include="StartScene.h">
+      <Filter>Game\StartScene</Filter>
+    </ClInclude>
+    <ClInclude Include="CharacterSelectScene.h">
+      <Filter>Game\CSScene</Filter>
+    </ClInclude>
+    <ClInclude Include="Bianca.h">
+      <Filter>Scripts\Player\Bianca</Filter>
+    </ClInclude>
+    <ClInclude Include="Nicky.h">
+      <Filter>Scripts\Player\Nicky</Filter>
+    </ClInclude>
+    <ClInclude Include="SkillDecalIndicator.h">
+      <Filter>Scripts\Player\Skill</Filter>
+    </ClInclude>
+    <ClInclude Include="BiancaQProjectile.h">
+      <Filter>Scripts\Player\Bianca\BiancaQ</Filter>
+    </ClInclude>
+    <ClInclude Include="BiancaQSkill.h">
+      <Filter>Scripts\Player\Bianca\BiancaQ</Filter>
+    </ClInclude>
+    <ClInclude Include="BiancaQCone.h">
+      <Filter>Scripts\Player\Bianca\BiancaQ</Filter>
+    </ClInclude>
+    <ClInclude Include="NickyESkill.h">
+      <Filter>Scripts\Player\Nicky\NickyE</Filter>
+    </ClInclude>
+    <ClInclude Include="NickyERange.h">
+      <Filter>Scripts\Player\Nicky\NickyE</Filter>
+    </ClInclude>
+    <ClInclude Include="BiancaESkill.h">
+      <Filter>Scripts\Player\Bianca\BiancaE</Filter>
+    </ClInclude>
+    <ClInclude Include="BiancaESkillCircle.h">
+      <Filter>Scripts\Player\Bianca\BiancaE</Filter>
+    </ClInclude>
+    <ClInclude Include="NickyQSkill.h">
+      <Filter>Scripts\Player\Nicky\NickyQ</Filter>
+    </ClInclude>
+    <ClInclude Include="NickyRSkill.h">
+      <Filter>Scripts\Player\Nicky\NickyR</Filter>
+    </ClInclude>
+    <ClInclude Include="PlayerInterface.h">
+      <Filter>Scripts\Player</Filter>
+    </ClInclude>
+    <ClInclude Include="Wolf.h">
+      <Filter>Scripts\Monster\Wolf</Filter>
+    </ClInclude>
+    <ClInclude Include="NickyWSkill.h">
+      <Filter>Scripts\Player\Nicky\NickyW</Filter>
+    </ClInclude>
+    <ClInclude Include="Monster.h">
+      <Filter>Scripts\Monster</Filter>
+    </ClInclude>
+    <ClInclude Include="Alpha.h">
+      <Filter>Scripts\Monster\Alpha</Filter>
+    </ClInclude>
+    <ClInclude Include="NickyAnimQState.h">
+      <Filter>Scripts\Player\Nicky\NickyAnims</Filter>
+    </ClInclude>
+    <ClInclude Include="NickyAnimEState.h">
+      <Filter>Scripts\Player\Nicky\NickyAnims</Filter>
+    </ClInclude>
+    <ClInclude Include="NickyAnimWState.h">
+      <Filter>Scripts\Player\Nicky\NickyAnims</Filter>
+    </ClInclude>
+    <ClInclude Include="NickyAnimRState.h">
+      <Filter>Scripts\Player\Nicky\NickyAnims</Filter>
+    </ClInclude>
+    <ClInclude Include="NickyAnimRunState.h">
+      <Filter>Scripts\Player\Nicky\NickyAnims</Filter>
+    </ClInclude>
+    <ClInclude Include="NickyAnimWaitState.h">
+      <Filter>Scripts\Player\Nicky\NickyAnims</Filter>
+    </ClInclude>
+    <ClInclude Include="BiancaRSkill.h">
+      <Filter>Scripts\Player\Bianca\BiancaR</Filter>
+    </ClInclude>
+    <ClInclude Include="BiancaWSkill.h">
+      <Filter>Scripts\Player\Bianca\BiancaW</Filter>
+    </ClInclude>
+    <ClInclude Include="BiancaAnimEState.h">
+      <Filter>Scripts\Player\Bianca\BiancaAnims</Filter>
+    </ClInclude>
+    <ClInclude Include="BiancaAnimQState.h">
+      <Filter>Scripts\Player\Bianca\BiancaAnims</Filter>
+    </ClInclude>
+    <ClInclude Include="BiancaAnimRState.h">
+      <Filter>Scripts\Player\Bianca\BiancaAnims</Filter>
+    </ClInclude>
+    <ClInclude Include="BiancaAnimRunState.h">
+      <Filter>Scripts\Player\Bianca\BiancaAnims</Filter>
+    </ClInclude>
+    <ClInclude Include="BiancaAnimWaitState.h">
+      <Filter>Scripts\Player\Bianca\BiancaAnims</Filter>
+    </ClInclude>
+    <ClInclude Include="BiancaAnimWState.h">
+      <Filter>Scripts\Player\Bianca\BiancaAnims</Filter>
+    </ClInclude>
+    <ClInclude Include="AlphaAnimAppearState.h">
+      <Filter>Scripts\Monster\Alpha\AnimState</Filter>
+    </ClInclude>
+    <ClInclude Include="AlphaAnimDeathState.h">
+      <Filter>Scripts\Monster\Alpha\AnimState</Filter>
+    </ClInclude>
+    <ClInclude Include="AlphaAnimWaitState.h">
+      <Filter>Scripts\Monster\Alpha\AnimState</Filter>
+    </ClInclude>
+    <ClInclude Include="AlphaAnimWalkState.h">
+      <Filter>Scripts\Monster\Alpha\AnimState</Filter>
+    </ClInclude>
+    <ClInclude Include="AlphaAnimDyingState.h">
+      <Filter>Scripts\Monster\Alpha\AnimState</Filter>
+    </ClInclude>
+    <ClInclude Include="AlphaAppearState.h">
+      <Filter>Scripts\Monster\Alpha\LogicState</Filter>
+    </ClInclude>
+    <ClInclude Include="AlphaDeathState.h">
+      <Filter>Scripts\Monster\Alpha\LogicState</Filter>
+    </ClInclude>
+    <ClInclude Include="AlphaDyingState.h">
+      <Filter>Scripts\Monster\Alpha\LogicState</Filter>
+    </ClInclude>
+    <ClInclude Include="AlphaWaitState.h">
+      <Filter>Scripts\Monster\Alpha\LogicState</Filter>
+    </ClInclude>
+    <ClInclude Include="AlphaWalkState.h">
+      <Filter>Scripts\Monster\Alpha\LogicState</Filter>
+    </ClInclude>
+    <ClInclude Include="WolfAnimAppearState.h">
+      <Filter>Scripts\Monster\Wolf\AnimState</Filter>
+    </ClInclude>
+    <ClInclude Include="WolfAnimDeathState.h">
+      <Filter>Scripts\Monster\Wolf\AnimState</Filter>
+    </ClInclude>
+    <ClInclude Include="WolfAnimDyingState.h">
+      <Filter>Scripts\Monster\Wolf\AnimState</Filter>
+    </ClInclude>
+    <ClInclude Include="WolfAnimRunState.h">
+      <Filter>Scripts\Monster\Wolf\AnimState</Filter>
+    </ClInclude>
+    <ClInclude Include="WolfAnimWaitState.h">
+      <Filter>Scripts\Monster\Wolf\AnimState</Filter>
+    </ClInclude>
+    <ClInclude Include="WolfAppearState.h">
+      <Filter>Scripts\Monster\Wolf\LogicState</Filter>
+    </ClInclude>
+    <ClInclude Include="WolfDeathState.h">
+      <Filter>Scripts\Monster\Wolf\LogicState</Filter>
+    </ClInclude>
+    <ClInclude Include="WolfDyingState.h">
+      <Filter>Scripts\Monster\Wolf\LogicState</Filter>
+    </ClInclude>
+    <ClInclude Include="WolfRunState.h">
+      <Filter>Scripts\Monster\Wolf\LogicState</Filter>
+    </ClInclude>
+    <ClInclude Include="WolfWaitState.h">
+      <Filter>Scripts\Monster\Wolf\LogicState</Filter>
+    </ClInclude>
+    <ClInclude Include="NickyQState.h">
+      <Filter>Scripts\Player\Nicky\NickyLogic</Filter>
+    </ClInclude>
+    <ClInclude Include="NickyEState.h">
+      <Filter>Scripts\Player\Nicky\NickyLogic</Filter>
+    </ClInclude>
+    <ClInclude Include="NickyRState.h">
+      <Filter>Scripts\Player\Nicky\NickyLogic</Filter>
+    </ClInclude>
+    <ClInclude Include="NickyRunState.h">
+      <Filter>Scripts\Player\Nicky\NickyLogic</Filter>
+    </ClInclude>
+    <ClInclude Include="NickyWaitState.h">
+      <Filter>Scripts\Player\Nicky\NickyLogic</Filter>
+    </ClInclude>
+    <ClInclude Include="NickyWState.h">
+      <Filter>Scripts\Player\Nicky\NickyLogic</Filter>
+    </ClInclude>
+    <ClInclude Include="resource.h" />
+    <ClInclude Include="BiancaEState.h">
+      <Filter>Scripts\Player\Bianca\BiancaLogic</Filter>
+    </ClInclude>
+    <ClInclude Include="BiancaQState.h">
+      <Filter>Scripts\Player\Bianca\BiancaLogic</Filter>
+    </ClInclude>
+    <ClInclude Include="BiancaRState.h">
+      <Filter>Scripts\Player\Bianca\BiancaLogic</Filter>
+    </ClInclude>
+    <ClInclude Include="BiancaRunState.h">
+      <Filter>Scripts\Player\Bianca\BiancaLogic</Filter>
+    </ClInclude>
+    <ClInclude Include="BiancaWaitState.h">
+      <Filter>Scripts\Player\Bianca\BiancaLogic</Filter>
+    </ClInclude>
+    <ClInclude Include="BiancaWState.h">
+      <Filter>Scripts\Player\Bianca\BiancaLogic</Filter>
+    </ClInclude>
+    <ClInclude Include="Define.h">
+      <Filter>Main</Filter>
+    </ClInclude>
+    <ClInclude Include="HealthBar.h">
+      <Filter>Scripts\UI</Filter>
+    </ClInclude>
+    <ClInclude Include="EquipableItem.h">
+      <Filter>Scripts\Item\Equipment</Filter>
+    </ClInclude>
+    <ClInclude Include="InventoryManager.h">
+      <Filter>Scripts\Item\InventoryManager</Filter>
+    </ClInclude>
+    <ClInclude Include="ItemSlot.h">
+      <Filter>Scripts\Item\ItemSlot</Filter>
+    </ClInclude>
+    <ClInclude Include="Cursor.h">
+      <Filter>Scripts\UI</Filter>
+    </ClInclude>
+    <ClInclude Include="UIManager.h">
+      <Filter>Scripts\UI\UIManager</Filter>
+    </ClInclude>
+    <ClInclude Include="InventoryPanelUI.h">
+      <Filter>Scripts\UI\InventoryPanelUI</Filter>
+    </ClInclude>
+    <ClInclude Include="GameHUDPanelUI.h">
+      <Filter>Scripts\UI\GameHUDPanelUI</Filter>
+    </ClInclude>
+    <ClInclude Include="IBasePanelUI.h">
+      <Filter>Scripts\UI\Interface</Filter>
+    </ClInclude>
+    <ClInclude Include="SkillLevelUpPanelUI.h">
+      <Filter>Scripts\UI\SkillLevelUpPanelUI</Filter>
+    </ClInclude>
+    <ClInclude Include="PlayerStatusPanelUI.h">
+      <Filter>Scripts\UI\PlayerStatusPanelUI</Filter>
+    </ClInclude>
+    <ClInclude Include="DayPanelUI.h">
+      <Filter>Scripts\UI\DayPanelUI</Filter>
+    </ClInclude>
+    <ClInclude Include="TimePanelUI.h">
+      <Filter>Scripts\UI\TimePanelUI</Filter>
+    </ClInclude>
+    <ClInclude Include="EquipmentPanelUI.h">
+      <Filter>Scripts\UI\EquipmentPanelUI</Filter>
+    </ClInclude>
+    <ClInclude Include="IngredientItem.h">
+      <Filter>Scripts\Item\Ingredient</Filter>
+    </ClInclude>
+    <ClInclude Include="ItemManager.h">
+      <Filter>Scripts\Item\ItemManager</Filter>
+    </ClInclude>
+    <ClInclude Include="RecipeManager.h">
+      <Filter>Scripts\Item\Recipe</Filter>
+    </ClInclude>
+    <ClInclude Include="Recipe.h">
+      <Filter>Scripts\Item\Recipe</Filter>
+    </ClInclude>
+    <ClInclude Include="ItemBox.h">
+      <Filter>Scripts\Item</Filter>
+    </ClInclude>
+    <ClInclude Include="CraftListPanelUI.h">
+      <Filter>Scripts\UI\CraftListPanelUI</Filter>
+    </ClInclude>
+    <ClInclude Include="NickyAnimCraftState.h">
+      <Filter>Scripts\Player\Nicky\NickyAnims</Filter>
+    </ClInclude>
+    <ClInclude Include="NickyCraftState.h">
+      <Filter>Scripts\Player\Nicky\NickyLogic</Filter>
+    </ClInclude>
+    <ClInclude Include="BiancaAnimCraftState.h">
+      <Filter>Scripts\Player\Bianca\BiancaAnims</Filter>
+    </ClInclude>
+    <ClInclude Include="BiancaCraftState.h">
+      <Filter>Scripts\Player\Bianca\BiancaLogic</Filter>
+    </ClInclude>
+    <ClInclude Include="CraftGagePanelUI.h">
+      <Filter>Scripts\UI\CraftGagePanelUI</Filter>
+    </ClInclude>
+    <ClInclude Include="UIResourceManager.h">
+      <Filter>Scripts\UI\UIResourceManager</Filter>
+    </ClInclude>
+    <ClInclude Include="WolfAnimAttackState.h">
+      <Filter>Scripts\Monster\Wolf\AnimState</Filter>
+    </ClInclude>
+    <ClInclude Include="WolfAnimTraceState.h">
+      <Filter>Scripts\Monster\Wolf\AnimState</Filter>
+    </ClInclude>
+    <ClInclude Include="WolfAttackState.h">
+      <Filter>Scripts\Monster\Wolf\LogicState</Filter>
+    </ClInclude>
+    <ClInclude Include="WolfTraceState.h">
+      <Filter>Scripts\Monster\Wolf\LogicState</Filter>
+    </ClInclude>
+    <ClInclude Include="SkillObject.h">
+      <Filter>Scripts\Player</Filter>
+    </ClInclude>
+    <ClInclude Include="WolfBaseAttack.h">
+      <Filter>Scripts\Monster\Wolf\WolfBaseAttack</Filter>
+    </ClInclude>
+    <ClInclude Include="MonsterBehaviour.h">
+      <Filter>Scripts\Monster\MonsterBehaviour</Filter>
+    </ClInclude>
+    <ClInclude Include="WolfTrace.h">
+      <Filter>Scripts\Monster\Wolf\WolfTrace</Filter>
+    </ClInclude>
+    <ClInclude Include="PlayerMonoBehaviour.h">
+      <Filter>Scripts\Player\PlayerMonoBehaviour</Filter>
+    </ClInclude>
+    <ClInclude Include="NickyBaseAttack.h">
+      <Filter>Scripts\Player\Nicky\NickyBaseAttack</Filter>
+    </ClInclude>
+    <ClInclude Include="NickyAnimBaseAttackState.h">
+      <Filter>Scripts\Player\Nicky\NickyAnims</Filter>
+    </ClInclude>
+    <ClInclude Include="NickyBaseAttackState.h">
+      <Filter>Scripts\Player\Nicky\NickyLogic</Filter>
+    </ClInclude>
+    <ClInclude Include="BiancaBaseAttack.h">
+      <Filter>Scripts\Player\Bianca\BiancaBaseAttack</Filter>
+    </ClInclude>
+    <ClInclude Include="BiancaAnimBaseAttackState.h">
+      <Filter>Scripts\Player\Bianca\BiancaAnims</Filter>
+    </ClInclude>
+    <ClInclude Include="BiancaBaseAttackState.h">
+      <Filter>Scripts\Player\Bianca\BiancaLogic</Filter>
+    </ClInclude>
+    <ClInclude Include="AlphaTrace.h">
+      <Filter>Scripts\Monster\Alpha\AlphaTrace</Filter>
+    </ClInclude>
+    <ClInclude Include="AlphaSkill.h">
+      <Filter>Scripts\Monster\Alpha\AlphaSkill</Filter>
+    </ClInclude>
+    <ClInclude Include="AlphaBaseAttack.h">
+      <Filter>Scripts\Monster\Alpha\AlphaBaseAttack</Filter>
+    </ClInclude>
+    <ClInclude Include="AlphaAnimAttackState.h">
+      <Filter>Scripts\Monster\Alpha\AnimState</Filter>
+    </ClInclude>
+    <ClInclude Include="AlphaAnimTraceState.h">
+      <Filter>Scripts\Monster\Alpha\AnimState</Filter>
+    </ClInclude>
+    <ClInclude Include="AlphaAttackState.h">
+      <Filter>Scripts\Monster\Alpha\LogicState</Filter>
+    </ClInclude>
+    <ClInclude Include="AlphaTraceState.h">
+      <Filter>Scripts\Monster\Alpha\LogicState</Filter>
+    </ClInclude>
+    <ClInclude Include="AlphaAnimSkillState.h">
+      <Filter>Scripts\Monster\Alpha\AnimState</Filter>
+    </ClInclude>
+    <ClInclude Include="NickyCounterState.h">
+      <Filter>Scripts\Player\Nicky\NickyLogic</Filter>
+    </ClInclude>
+    <ClInclude Include="NickyAnimCounterState.h">
+      <Filter>Scripts\Player\Nicky\NickyAnims</Filter>
+    </ClInclude>
+    <ClInclude Include="NickyCounter.h">
+      <Filter>Scripts\Player\Nicky\NickyCounter</Filter>
+    </ClInclude>
+    <ClInclude Include="BaseAttackState.h">
+      <Filter>Scripts\Player\BaseAttack</Filter>
+    </ClInclude>
+    <ClInclude Include="MonsterInterface.h">
+      <Filter>Scripts\Monster</Filter>
+    </ClInclude>
+    <ClInclude Include="NickyREffect.h">
+      <Filter>Scripts\Player\Nicky\NickyR</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <FxCompile Include="..\Shaders\00. Global.fx">
+      <Filter>Shaders\Common</Filter>
+    </FxCompile>
+    <FxCompile Include="..\Shaders\00. Light.fx">
+      <Filter>Shaders\Common</Filter>
+    </FxCompile>
+    <FxCompile Include="..\Shaders\00. Render.fx">
+      <Filter>Shaders\Common</Filter>
+    </FxCompile>
+    <FxCompile Include="..\Shaders\28. BillboardDemo.fx">
+      <Filter>Shaders\Week5</Filter>
+    </FxCompile>
+    <FxCompile Include="..\Shaders\Sky.fx">
+      <Filter>Shaders\Common</Filter>
+    </FxCompile>
+    <FxCompile Include="..\Shaders\ParticleSystem.fx">
+      <Filter>Shaders\Common</Filter>
+    </FxCompile>
+    <FxCompile Include="..\Shaders\DebugTexture.fx">
+      <Filter>Shaders\Common</Filter>
+    </FxCompile>
+    <FxCompile Include="..\Shaders\23. RenderDemo.fx">
+      <Filter>Shaders\Week5</Filter>
+    </FxCompile>
+    <FxCompile Include="..\Shaders\24. RawBufferDemo.fx">
+      <Filter>Shaders\Week5</Filter>
+    </FxCompile>
+    <FxCompile Include="..\Shaders\25. GroupBufferDemo.fx">
+      <Filter>Shaders\Week5</Filter>
+    </FxCompile>
+    <FxCompile Include="..\Shaders\26. TextureBufferDemo.fx">
+      <Filter>Shaders\Week5</Filter>
+    </FxCompile>
+    <FxCompile Include="..\Shaders\27. StructuredDemo.fx">
+      <Filter>Shaders\Week5</Filter>
+    </FxCompile>
+    <FxCompile Include="..\Shaders\TextShader.fx">
+      <Filter>Shaders\Text</Filter>
+    </FxCompile>
+    <FxCompile Include="..\Shaders\FOW.fx">
+      <Filter>Shaders\Common</Filter>
+    </FxCompile>
+    <FxCompile Include="..\Shaders\ImageShader.fx">
+      <Filter>Shaders\Text</Filter>
+    </FxCompile>
+    <FxCompile Include="..\Shaders\00. GBuffer.fx">
+      <Filter>Shaders\Common</Filter>
+    </FxCompile>
+    <FxCompile Include="..\Shaders\00. DeferredLighting.fx">
+      <Filter>Shaders\Common</Filter>
+    </FxCompile>
+    <FxCompile Include="..\Shaders\OutlinePostProcess.fx">
+      <Filter>Shaders\Common</Filter>
+    </FxCompile>
+    <FxCompile Include="..\Shaders\SkillDecal.fx">
+      <Filter>Shaders\Common</Filter>
+    </FxCompile>
+    <FxCompile Include="..\Shaders\SnowBillboard.fx">
+      <Filter>Shaders\Billboard</Filter>
+    </FxCompile>
+    <FxCompile Include="..\Shaders\GatherBillboard.fx">
+      <Filter>Shaders\Billboard</Filter>
+    </FxCompile>
+    <FxCompile Include="..\Shaders\BiancaEShader.fx">
+      <Filter>Shaders\Bianca</Filter>
+    </FxCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="Client.rc" />
+  </ItemGroup>
+</Project>

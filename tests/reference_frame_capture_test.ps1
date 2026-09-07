@@ -13,6 +13,9 @@ $fixture = @'
 #include <vector>
 #include <iostream>
 #include <cstdlib>
+#include <chrono>
+#include <iomanip>
+#include <sstream>
 using HRESULT = long;
 std::vector<std::wstring> written;
 HRESULT ReferenceWriteFrame(const wchar_t* path) { written.emplace_back(path); return 0; }

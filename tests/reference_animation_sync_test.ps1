@@ -6,7 +6,8 @@ param([Parameter(Mandatory)][string]$RepositoryRoot,
       [switch]$ApplyCombatPatch,
       [switch]$ApplyEpisodePatch,
       [switch]$CheckCombatMovement,
-      [switch]$CheckCompletedAction)
+      [switch]$CheckCompletedAction,
+      [switch]$ImportedSource)
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $source = [Text.Encoding]::GetEncoding(949).GetString([IO.File]::ReadAllBytes($SourceFile))
@@ -19,16 +20,18 @@ if ($ApplyCombatPatch) {
     $source = Add-ReferenceCombatAnimationSync $source
 }
 $episodeFields = ''
-if ($ApplyEpisodePatch) {
-    if (-not $ApplyPatch) { throw 'Animation episode patch requires base player synchronization' }
-    $source = Add-ReferenceAnimationEpisodeSync $source
+if ($ApplyEpisodePatch -or $ImportedSource) {
+    if ($ApplyEpisodePatch) {
+        if (-not $ApplyPatch) { throw 'Animation episode patch requires base player synchronization' }
+        $source = Add-ReferenceAnimationEpisodeSync $source
+    }
     $headerPath = [IO.Path]::ChangeExtension($SourceFile, '.h')
     $header = [Text.Encoding]::GetEncoding(949).GetString([IO.File]::ReadAllBytes($headerPath))
-    $header = Add-ReferenceAnimationEpisodeHeader $header
+    if ($ApplyEpisodePatch) { $header = Add-ReferenceAnimationEpisodeHeader $header }
     $episodeFields = ([regex]::Matches($header, '(?m)^[\t ]*(?:AnimationStateType|bool) m_reference\w+ = [^;]+;') | ForEach-Object Value) -join "`n"
 }
 $parts = @()
-if ($ApplyPatch) {
+if ($ApplyPatch -or $ImportedSource) {
     $helper = [regex]::Matches($source, '(?ms)^static bool ReferenceAcceptedPlayerAnimation\(.*?^\}')
     if ($helper.Count -ne 1) { throw 'Missing accepted-animation mapping' }
     $parts += $helper[0].Value
@@ -192,8 +195,8 @@ try {
     $build = Join-Path $temporary 'build'
     & $CMakeExecutable -S $temporary -B $build -G 'Visual Studio 17 2022' -A x64 | Out-Null
     if ($LASTEXITCODE -ne 0) { throw 'Animation sync fixture configuration failed' }
-    & $CMakeExecutable --build $build --config Debug --target animation_sync | Out-Null
-    if ($LASTEXITCODE -ne 0) { throw 'Animation sync fixture compilation failed' }
+    $compiled = & $CMakeExecutable --build $build --config Debug --target animation_sync 2>&1
+    if ($LASTEXITCODE -ne 0) { throw "Animation sync fixture compilation failed: $compiled" }
     & (Join-Path $build 'Debug/animation_sync.exe')
     if ($LASTEXITCODE -ne 0) { throw 'Accepted gameplay animation synchronization failed' }
     Write-Output 'PASS: accepted combo animations, delayed acceptance, idle tail recovery, duplicate requests and non-player isolation'

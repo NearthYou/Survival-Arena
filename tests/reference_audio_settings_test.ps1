@@ -3,7 +3,9 @@ param([Parameter(Mandatory)][string]$RepositoryRoot,
       [Parameter(Mandatory)][string]$ReferenceRoot,
       [Parameter(Mandatory)][string]$CMakeExecutable,
       [string]$OutputRoot,
-      [switch]$ApplyPatch)
+      [switch]$ApplyPatch,
+      [string]$SdkRoot,
+      [string]$AssetRoot)
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $temporaryOutput = [string]::IsNullOrWhiteSpace($OutputRoot)
@@ -40,8 +42,10 @@ try {
 [IO.File]::WriteAllText((Join-Path $output 'OriginalSoundMethods.inc'),($methods -join "`n"),[Text.UTF8Encoding]::new($false))
 Copy-Item -LiteralPath (Join-Path $RepositoryRoot 'tests/reference_audio_settings_fixture.cpp') -Destination (Join-Path $output 'main.cpp')
 Copy-Item -LiteralPath (Join-Path $RepositoryRoot 'scripts/reference_oracle/ReferenceAudioCapture.hpp') -Destination (Join-Path $output 'ReferenceAudioCapture.hpp')
-$include = (Join-Path $ReferenceRoot 'Libraries/Include').Replace('\','/')
-$library = (Join-Path $ReferenceRoot 'Libraries/Lib/FMOD/fmod_vc.lib').Replace('\','/')
+if (-not $SdkRoot) { $SdkRoot = Join-Path $ReferenceRoot 'Libraries' }
+if (-not $AssetRoot) { $AssetRoot = $ReferenceRoot }
+$include = (Join-Path $SdkRoot 'Include').Replace('\','/')
+$library = (Join-Path $SdkRoot 'Lib/FMOD/fmod_vc.lib').Replace('\','/')
 $project = "cmake_minimum_required(VERSION 3.25)`nproject(ReferenceAudio LANGUAGES CXX)`nadd_executable(audio_settings main.cpp)`ntarget_compile_features(audio_settings PRIVATE cxx_std_17)`ntarget_compile_options(audio_settings PRIVATE /utf-8)`ntarget_include_directories(audio_settings PRIVATE `"$include`")`ntarget_link_libraries(audio_settings PRIVATE `"$library`")`n"
 [IO.File]::WriteAllText((Join-Path $output 'CMakeLists.txt'),$project)
 $build = Join-Path $output 'build'
@@ -49,10 +53,12 @@ $build = Join-Path $output 'build'
 if ($LASTEXITCODE -ne 0) { throw 'Audio fixture configuration failed' }
 $compiled = & $CMakeExecutable --build $build --config Debug --target audio_settings 2>&1
 if ($LASTEXITCODE -ne 0) { throw "Audio fixture build failed: $($compiled -join [Environment]::NewLine)" }
-Copy-Item -LiteralPath (Join-Path $ReferenceRoot 'Libraries/Lib/FMOD/fmod.dll') -Destination (Join-Path $build 'Debug/fmod.dll')
+$runtimeDll = Join-Path $SdkRoot 'Runtime/fmod.dll'
+if (-not (Test-Path -LiteralPath $runtimeDll)) { $runtimeDll = Join-Path $SdkRoot 'Lib/FMOD/fmod.dll' }
+Copy-Item -LiteralPath $runtimeDll -Destination (Join-Path $build 'Debug/fmod.dll')
 Push-Location -LiteralPath $output
 try {
-    & (Join-Path $build 'Debug/audio_settings.exe') (Join-Path $ReferenceRoot 'Resources/Sounds/BSER_AreaBGM_CEMETERY.wav')
+    & (Join-Path $build 'Debug/audio_settings.exe') (Join-Path $AssetRoot 'Resources/Sounds/BSER_AreaBGM_CEMETERY.wav')
     if ($LASTEXITCODE -ne 0) { throw 'Actual FMOD audio settings regression failed; evidence preserved' }
 } finally { Pop-Location }
 } finally {

@@ -29,6 +29,12 @@ inline void ReferenceNickySkillProbe(const std::shared_ptr<Wolf>& wolf)
     static float maxQDistance = 0;
     static bool maxQCharged = false, maxQReleased = false, maxQAutoAnimation = false;
     static bool qCooldownWithoutReplay = true, maxQIdle = false;
+    static bool rCooldownSeen = false, rRecastBlocked = false;
+    static bool eCooldownSeen = false, eRecastBlocked = false, eReused = false;
+    static std::array<int,4> castCounts{}, staminaAfterCast{}, costAtCast{};
+    static bool castObserverAttached = false, eRankUpgraded = false;
+    static int staminaBeforeR = 0, staminaBeforeE = 0, staminaBeforeEReuse = 0;
+    static float previousECooldown = 0;
     static bool rState = false, rMoved = false, rHit = false, guard = false;
     static bool counter = false, counterHit = false, killed = false, leveled = false;
     static bool incoming = false, rushCaptured = false, finished = false;
@@ -56,6 +62,15 @@ inline void ReferenceNickySkillProbe(const std::shared_ptr<Wolf>& wolf)
                << ",\"q_max_charged\":" << maxQCharged << ",\"q_max_released\":" << maxQReleased
                << ",\"q_max_distance\":" << maxQDistance << ",\"q_max_auto_animation\":" << maxQAutoAnimation
                << ",\"q_cooldown_without_replay\":" << qCooldownWithoutReplay << ",\"q_max_idle\":" << maxQIdle
+               << ",\"r_cooldown_seen\":" << rCooldownSeen << ",\"r_recast_blocked\":" << rRecastBlocked
+               << ",\"e_cooldown_seen\":" << eCooldownSeen << ",\"e_recast_blocked\":" << eRecastBlocked << ",\"e_reused\":" << eReused
+               << ",\"e_rank_upgraded\":" << eRankUpgraded
+               << ",\"r_cast_count\":" << castCounts[3] << ",\"e_cast_count\":" << castCounts[2]
+               << ",\"r_stamina_cost\":" << costAtCast[3] << ",\"e_stamina_cost\":" << costAtCast[2]
+               << ",\"e_rank\":" << (player ? player->GetSkill(2)->GetCurSkillLevel() : 0)
+               << ",\"e_rank_cooldown\":" << (player ? player->GetSkill(2)->GetMaxCooldown() : 0)
+               << ",\"e_rank_damage_multiplier\":" << (player ? player->GetSkill(2)->GetDamageMultiplier() : 0)
+               << ",\"player_stamina\":" << (player ? player->GetStatus().stamina : 0)
                << ",\"player_hp\":" << (player ? player->GetStatus().hp : -1) << "}";
         result.flush(); trace.flush();
         ReferenceQueueFrame(passed ? L"oracle-nicky-skills-final.bmp" : L"oracle-nicky-skills-failed.bmp");
@@ -66,6 +81,19 @@ inline void ReferenceNickySkillProbe(const std::shared_ptr<Wolf>& wolf)
     if (player->GetName() != L"Nicky") { finish(false, "wrong selected character"); return; }
     if (player->GetStatus().hp <= 0) { finish(false, "player died during skill verification"); return; }
     const auto states = player->GetPlayerStateMachine();
+#if defined(DXA_GAME_CHECK_NICKY_COOLDOWNS)
+    if (!castObserverAttached)
+    {
+        states->OnSkillUsed += [weakPlayer = std::weak_ptr<Player>(player)](int index, std::shared_ptr<GameObject>) {
+            if (auto owner = weakPlayer.lock()) {
+                ++castCounts[index];
+                staminaAfterCast[index] = owner->GetStatus().stamina;
+                costAtCast[index] = owner->GetSkill(index)->GetStaminaCost();
+            }
+        };
+        castObserverAttached = true;
+    }
+#endif
     const auto state = states->GetCurrentState();
     const auto animation = player->GetModelAnimator()->GetCurrentAnimationTag();
     const auto nearestWolf = [&]() {
@@ -107,9 +135,9 @@ inline void ReferenceNickySkillProbe(const std::shared_ptr<Wolf>& wolf)
         if (age > 0.16F)
         {
             if (level(skillIndex) != 1) { finish(false, "Ctrl skill learning failed"); return; }
-            if (stage == 1) { rushStart = player->GetTransform()->GetPosition(); targetHp = target->GetMonsterStatus().hp; advance(2); }
+            if (stage == 1) { staminaBeforeR = player->GetStatus().stamina; rushStart = player->GetTransform()->GetPosition(); targetHp = target->GetMonsterStatus().hp; advance(2); }
             else if (stage == 4) { targetHp = target->GetMonsterStatus().hp; advance(5); }
-            else if (stage == 8) { targetHp = target->GetMonsterStatus().hp; advance(9); }
+            else if (stage == 8) { staminaBeforeE = player->GetStatus().stamina; targetHp = target->GetMonsterStatus().hp; advance(9); }
             else
             {
                 qStart = player->GetTransform()->GetPosition();
@@ -130,6 +158,12 @@ inline void ReferenceNickySkillProbe(const std::shared_ptr<Wolf>& wolf)
         if (rState && state == PlayerStateType::Wait && age > 0.2F)
         {
             if (!rMoved || !rHit) { finish(false, "R ended without rush and target damage"); return; }
+#if defined(DXA_GAME_CHECK_NICKY_COOLDOWNS)
+            rCooldownSeen = player->GetSkill(3)->GetCurrentCooldown() > 0;
+            if (!rCooldownSeen) { finish(false, "R ended without an active cooldown"); return; }
+            if (castCounts[3] != 1 || staminaBeforeR - staminaAfterCast[3] != costAtCast[3] || costAtCast[3] != 70)
+            { finish(false, "R did not charge its accepted cast exactly once"); return; }
+#endif
             advance(3);
         }
         else if (age > 7.0F) { finish(false, "R input did not complete"); return; }
@@ -137,6 +171,13 @@ inline void ReferenceNickySkillProbe(const std::shared_ptr<Wolf>& wolf)
     else if (stage == 3)
     {
         if (age < 0.06F) input.keys[VK_RBUTTON] = true;
+#if defined(DXA_GAME_CHECK_NICKY_COOLDOWNS)
+        if (age >= 0.08F && age < 0.14F) input.keys['R'] = true;
+        if (age >= 0.08F && age < 0.4F && state == PlayerStateType::Skill_4)
+        { finish(false, "R input bypassed its active cooldown"); return; }
+        if (age >= 0.2F && age < 0.4F) rRecastBlocked = player->GetSkill(3)->GetCurrentCooldown() > 0;
+        if (castCounts[3] > 1) { finish(false, "Blocked R input spent stamina or executed"); return; }
+#endif
         if (target->IsDead() && state == PlayerStateType::Wait)
         {
             killed = true; leveled = player->GetStatus().level > 1;
@@ -194,9 +235,57 @@ inline void ReferenceNickySkillProbe(const std::shared_ptr<Wolf>& wolf)
         if (eState && state == PlayerStateType::Wait && age > 0.3F)
         {
             if (!eHit || !eNonCharging || !eAnimation) { finish(false, "E did not show its non-charging punch and target damage"); return; }
+#if defined(DXA_GAME_CHECK_NICKY_COOLDOWNS)
+            eCooldownSeen = player->GetSkill(2)->GetCurrentCooldown() > 0;
+            if (!eCooldownSeen) { finish(false, "E ended without an active cooldown"); return; }
+            if (castCounts[2] != 1 || staminaBeforeE - staminaAfterCast[2] != 40 || costAtCast[2] != 40)
+            { finish(false, "E did not charge its rank-one cost exactly once"); return; }
+            previousECooldown = player->GetSkill(2)->GetCurrentCooldown();
+            advance(16);
+#else
             advance(10);
+#endif
         }
         else if (age > 4.0F) { finish(false, "E input did not complete"); return; }
+    }
+    else if (stage == 16)
+    {
+        if (age < 0.06F) input.keys['E'] = true;
+        if (age >= 0.30F && age < 0.40F) {
+            input.keys[VK_LCONTROL] = true;
+            if (age >= 0.34F) input.keys['E'] = true;
+        }
+        if (castCounts[2] != 1) { finish(false, "Blocked E input spent stamina or executed"); return; }
+        if (state == PlayerStateType::Skill_3)
+        { finish(false, "E input bypassed its active cooldown"); return; }
+        if (age >= 0.2F) eRecastBlocked = true;
+        if (player->GetSkill(2)->GetCurrentCooldown() > previousECooldown + 0.0001f)
+        { finish(false, "Skill level upgrade reset an active cooldown"); return; }
+        previousECooldown = player->GetSkill(2)->GetCurrentCooldown();
+        if (age >= 0.5F) {
+            eRankUpgraded = level(2) == 2 && player->GetSkill(2)->GetStaminaCost() == 36 &&
+                std::abs(player->GetSkill(2)->GetMaxCooldown() - 4.5f) < 0.001f &&
+                std::abs(player->GetSkill(2)->GetDamageMultiplier() - 1.1f) < 0.001f;
+            if (!eRankUpgraded) { finish(false, "Earned skill rank did not update cooldown, damage and stamina cost"); return; }
+        }
+        if (player->GetSkill(2)->GetCurrentCooldown() <= 0 && state == PlayerStateType::Wait)
+        { staminaBeforeEReuse = player->GetStatus().stamina; advance(17); }
+        else if (age > player->GetSkill(2)->GetMaxCooldown() + 1.f)
+        { finish(false, "E did not become ready after its configured cooldown"); return; }
+    }
+    else if (stage == 17)
+    {
+        if (age < 0.06F) input.keys['E'] = true;
+        if (state == PlayerStateType::Skill_3) eReused = true;
+        if (eReused && state == PlayerStateType::Wait && age > 0.3F)
+        {
+            if (!rRecastBlocked || !eRecastBlocked || player->GetSkill(2)->GetCurrentCooldown() <= 0)
+            { finish(false, "Skill cooldown replay verification failed"); return; }
+            if (!eRankUpgraded || castCounts[2] != 2 || costAtCast[2] != 36 || staminaBeforeEReuse - staminaAfterCast[2] != 36)
+            { finish(false, "Rank-two E did not charge its reduced cost exactly once"); return; }
+            advance(10);
+        }
+        else if (age > 4.f) { finish(false, "E could not be reused after cooldown"); return; }
     }
     else if (stage == 10)
     {

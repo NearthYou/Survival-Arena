@@ -1,4 +1,8 @@
-# Private source-native gameplay. Public renderer/network targets stay independent.
+# Optional external comparison oracle. Never a default or game dependency.
+option(DXA_BUILD_REFERENCE_ORACLE "Enable the external comparison oracle targets" OFF)
+if(NOT DXA_BUILD_REFERENCE_ORACLE)
+    return()
+endif()
 set(DXA_REFERENCE_SOURCE_ROOT "" CACHE PATH "Local reference source checkout")
 set(DXA_REFERENCE_RUNTIME_ROOT "" CACHE PATH "External directory for private game builds")
 if(NOT DXA_REFERENCE_SOURCE_ROOT AND NOT DXA_REFERENCE_RUNTIME_ROOT)
@@ -35,7 +39,7 @@ add_custom_command(
     COMMENT "Build complete original Client and Engine for source-native gameplay"
     VERBATIM
 )
-add_custom_target(dxa_reference_game ALL
+add_custom_target(dxa_reference_game
     DEPENDS "${reference_stamp}"
     COMMAND "${DXA_REFERENCE_POWERSHELL}" -NoProfile -File "${reference_runner}"
         -RuntimeRoot "${DXA_REFERENCE_GAME_DIRECTORY}" -ValidateOnly

@@ -22,6 +22,7 @@ param(
     [switch]$SynchronizedCombatAnimation,
     [switch]$PersistentAudioSettings,
     [ValidateSet('Bianca','Nicky')][string]$ProbeCharacter = 'Bianca',
+    [ValidateSet('1366x768','1920x1080')][string]$Resolution = '1366x768',
     [string]$MSBuild = 'C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Current\Bin\MSBuild.exe'
 )
 
@@ -277,6 +278,14 @@ if ($runtimeProbe) {
     }
 }
 
+if ($Resolution -eq '1920x1080') {
+    $mainPath = Join-Path $output 'Client/Main.cpp'
+    $mainText = $byteEncoding.GetString([IO.File]::ReadAllBytes($mainPath))
+    if ($mainText.Split('desc.width = 1366;', [StringSplitOptions]::None).Count -ne 2 -or
+        $mainText.Split('desc.height = 768;', [StringSplitOptions]::None).Count -ne 2) { throw 'Unexpected oracle resolution declarations' }
+    $mainText = $mainText.Replace('desc.width = 1366;', 'desc.width = 1920;').Replace('desc.height = 768;', 'desc.height = 1080;')
+    [IO.File]::WriteAllBytes($mainPath, $byteEncoding.GetBytes($mainText))
+}
 foreach ($project in @('Engine', 'Client')) {
     $projectPath = Join-Path $output "$project/$project.vcxproj"
     $intermediate = Join-Path $output "Intermediate/$project/"
@@ -349,6 +358,10 @@ $sourceFiles = @(foreach ($folder in @('Client', 'Engine', 'Shaders')) {
         if ($skillInputProbe -and $relative.Replace('\','/') -ceq 'Engine/InputManager.cpp') {
             $expectedText = Add-IsolatedProbeInput ($byteEncoding.GetString([IO.File]::ReadAllBytes($file.FullName)))
         }
+        if ($Resolution -eq '1920x1080' -and $relative.Replace('\','/') -ceq 'Client/Main.cpp') {
+            if ($null -eq $expectedText) { $expectedText = $byteEncoding.GetString([IO.File]::ReadAllBytes($file.FullName)) }
+            $expectedText = $expectedText.Replace('desc.width = 1366;', 'desc.width = 1920;').Replace('desc.height = 768;', 'desc.height = 1080;')
+        }
         if ($null -ne $expectedText) {
             $expectedHash = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($byteEncoding.GetBytes($expectedText)))
         }
@@ -361,6 +374,7 @@ $receipt = [ordered]@{
     source_commit = $sourceCommit
     source_files = $sourceFiles
     configuration = 'Debug|x64'
+    resolution = $Resolution
     executable_sha256 = (Get-FileHash -LiteralPath $executable -Algorithm SHA256).Hash.ToLowerInvariant()
     runtime_files = @(Get-ChildItem -LiteralPath (Join-Path $output 'Binaries') -File | Where-Object {
         $_.Extension -in @('.exe','.dll')

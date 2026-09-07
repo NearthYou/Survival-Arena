@@ -1,254 +1,202 @@
-# DX11 Survival Arena
+# Survival Arena
 
-C++20과 DirectX 11 렌더러, 게임 클라이언트, 24인 권위형 서버를 검증하는 프로젝트다. 게임을 직접 실행할 때는 레퍼런스 저장소의 Client와 Engine을 함께 빌드하는 원본 실행 경로를 사용한다.
+C++ / DirectX 11 기반의 탑다운 생존 게임입니다.
 
-원본 게임 코드와 자산은 외부 의존성이다. 이 저장소에는 실행 준비, 요청된 수정과 검증 도구를 두며, 원본 게임을 직접 작성한 결과로 소개하지 않는다.
+## 주요 기능
 
-## 원본 게임 실행
+| 기능 | 구현 내용 |
+| --- | --- |
+| 렌더링 | 디퍼드와 포워드 혼합, 그림자 맵, Fog of War, 외곽선, 투명 효과와 파티클 |
+| 리소스와 애니메이션 | 메시와 재질 로딩, 텍스처 캐시, 본 행렬 텍스처를 이용한 GPU 스키닝 |
+| 전투 | 우클릭 대상 공격, Q 충전과 돌진, W 방어 후 반격, 스킬별 사용 조건과 쿨타임 |
+| 몬스터와 보스 | 피격 후 추격과 공격, 거리별 상태 전환, 보스의 시간차 범위 공격 |
+| 성장과 제작 | 스킬 강화, 재료 획득, 장비 제작과 착용, 능력치 반영 |
+| 이동과 충돌 | 내비게이션 메시 A*, Sphere / AABB / OBB 충돌과 피킹, 쿼드트리 |
+| UI와 편집 도구 | 체력과 쿨타임 HUD, 버튼과 스크롤, ImGui와 ImGuizmo, F3 충돌 영역 표시 |
 
-Windows SDK, Visual Studio 2022 Community C++ 도구, PowerShell 7, Git LFS가 필요하며 CMake 3.25 이상을 PATH에서 실행할 수 있어야 한다. 원본 저장소와 Resources를 준비한 뒤 아래 두 경로를 자신의 경로로 바꾼다. 출력 폴더는 이 저장소와 원본 저장소 밖에 둔다.
+## 화면을 그리는 과정
 
-```powershell
-./scripts/bootstrap.ps1
+불투명 오브젝트는 G-Buffer에 색상, 법선, 위치와 재질 정보를 기록합니다. 조명 단계에서 그림자와 Fog를 합성하고, 외곽선과 투명 효과를 더한 뒤 HUD를 그립니다.
 
-$referenceSource = 'C:/path/to/DirectX11-Engine-Client'
-$referenceRuntime = 'C:/path/to/reference-runtime'
-
-cmake --preset windows-msvc-debug `
-  "-DDXA_REFERENCE_SOURCE_ROOT=$referenceSource" `
-  "-DDXA_REFERENCE_RUNTIME_ROOT=$referenceRuntime"
-cmake --build --preset windows-msvc-debug --target dxa_reference_game
-cmake --build --preset windows-msvc-debug --target play_reference_game
+```mermaid
+flowchart TB
+    subgraph World[3D 장면]
+        direction LR
+        Geometry[Mesh / Model / Animation] --> Buffer[G-Buffer]
+        Buffer --> Light[조명 + Fog]
+        Shadow[그림자 맵] --> Light
+        Sight[플레이어 위치와 시야 범위] --> Light
+    end
+    subgraph Screen[화면 합성]
+        direction LR
+        Outline[외곽선] --> Transparent[투명 오브젝트]
+        Transparent --> Particle[파티클] --> HUD[HUD]
+    end
+    World --> Screen
 ```
 
-`dxa_reference_game`은 고정 원본 커밋 `01b820a3ebcfd473a898dec1f5bc67c4ac77261e`에서 외부 실행판을 만들고 무결성을 확인한다. `play_reference_game`은 검사를 거쳐 게임 창을 연다. 기존 출력은 덮어쓰지 않으며, 다른 수정 조합은 별도 출력으로 만든다.
+메시는 정점과 인덱스 버퍼로, 텍스처는 셰이더 리소스로 올립니다. 애니메이션은 프레임별 본 행렬을 텍스처에 저장하고, 버텍스 셰이더에서 보간해 재생합니다. 같은 리소스를 쓰는 오브젝트는 인스턴싱으로 묶습니다.
 
-캐릭터 선택 유지, 스킨 클릭과 시작 처리 분리, 이동 및 애니메이션, 제작 준비, BGM/SFX 설정을 보정했다. 충돌 디버그 도형은 기본으로 숨기고 F3으로 켜거나 끈다. 충돌 판정과 스킬 수치는 바꾸지 않는다.
+Fog는 플레이어와의 거리로 밝기를 조절합니다. 시야 경계를 부드럽게 보간하고, 멀어진 몬스터와 체력바는 숨깁니다.
 
-원본 출처, 적용한 수정과 검증의 한계는 [원본 게임 실행 안내](docs/implementation/reference-game-runtime.md)에 정리했다.
+몬스터는 공격받으면 공격자를 추격하고, 사거리에 따라 공격 상태로 전환합니다. 보스는 대상 방향에 원형 판정 5개를 배치한 뒤 2.25초 후 피해를 계산합니다. 여러 범위에 겹친 대상은 한 번만 타격합니다.
 
-## 실행 경로 구분
+## 실행에서 측정한 결과
 
-| 목적 | 대상 | 범위 |
-| --- | --- | --- |
-| 원본 게임 플레이 | `play_reference_game` | 외부 원본 Client와 Engine 실행 |
-| 렌더러와 서버 검증 | `dxa_client`, lobby, game server, benchmark | 이 저장소의 공개 엔진 및 네트워크 구현 |
-| 별도 gameplay 실험 | 미병합 개발 브랜치 | 미완료이며 원본 실행 경로가 아님 |
+| 항목 | 확인한 결과 |
+| --- | --- |
+| 렌더링 부하 | 같은 소품 1,024개에서 개별 그리기 51.7 FPS, 인스턴싱 89.6 FPS. 호출 수 2,262회에서 214회로 감소 |
+| A* 길찾기 | 내비게이션 삼각형 709개, 고정 경로 6개를 각각 100회 검색. 경로 유효성과 실제 이동 확인 |
+| 쿼드트리 | 충돌체 1,024개의 후보 검사 523,776회에서 11,836회로 감소. 겹친 128쌍은 두 방식에서 동일 |
 
-실험용 gameplay 구현은 이번 원본 실행 경로 병합에서 제외한다. 과거 자동 테스트 통과를 원본 화면과의 일치로 해석하지 않는다. 남은 문제와 미승인 결과는 [실험용 클라이언트 상태](docs/implementation/experimental-client-status.md)에 기록한다.
+![렌더링 부하 비교](docs/media/render-load-comparison.png)
 
-## 원본 경로 검증
+쿼드트리는 재사용 시 충돌 처리가 3.73ms였지만, 재구축에는 약 11.98ms가 더 들었습니다. 검사 횟수와 전체 처리 비용을 함께 확인했습니다.
 
-원본 빌드를 끝낸 뒤 다음 명령을 실행한다.
+1920×1080, Release, VSync 해제 조건입니다. 녹화와 성능 측정은 따로 실행했습니다. [측정 방법과 전체 결과](docs/implementation/engine-measurements.md)
 
-```powershell
-ctest --test-dir out/build/windows-msvc-vs-debug -C Debug `
-  -R "^Reference(Oracle|Game)" --output-on-failure
+## 구조
+
+Client는 캐릭터, 스킬, 아이템과 UI를 다룹니다. Engine은 입력, 상태 전환, 충돌, 길찾기와 렌더링을 맡습니다.
+
+```mermaid
+flowchart TB
+    Input[마우스와 키보드] --> State[PlayerStateMachine]
+    State -->|사용 확정| Skill[BaseSkill]
+    Skill --> Status[PlayerStatus]
+    Status --> HUD[HUD]
+    State --> Animation[AnimationStateMachine]
+    Animation --> Render[Direct3D 11 / HLSL]
 ```
 
-원본 출력이 구성된 로컬 환경에서는 13개 검증을 실행한다. 원본 저장소가 없는 공개 CI에서는 독립 fixture 5개만 등록한다. 원본 스냅샷이 필요한 나머지 8개와 실제 플레이 확인은 공개 CI 통과로 대신하지 않는다.
+| 데이터 | 보관하는 값 |
+| --- | --- |
+| PlayerStatus | 레벨, 체력, 스태미나, 공격력, 스킬 포인트 |
+| Skill | 스킬 단계, 남은 쿨타임, 소모량, 피해 배율 |
+| Item / Recipe | 아이템 ID와 등급, 재료 두 종류와 제작 결과 |
 
-## 공개 엔진과 서버 빌드
+## 핵심 문제 해결
 
-원본 경로를 구성하지 않아도 공개 타깃을 빌드할 수 있다.
+### 1. 스킬 사용과 비용 차감 시점 맞추기
 
-```powershell
-./scripts/bootstrap.ps1
-./scripts/build.ps1
-./scripts/test.ps1
+입력을 받은 시점과 상태 전환을 처리하는 시점은 다릅니다. 그사이에 행동이 취소되거나 대상이 사라지면, 스킬은 나가지 않고 비용만 차감될 수 있었습니다.
+
+<details>
+<summary>분석과 수정 과정</summary>
+
+입력 단계에서는 스킬 번호와 대상만 보관하도록 바꿨습니다. 상태 전환 직전에 현재 행동, 쿨타임, 스태미나를 다시 검사하고, 대상 지정 스킬은 대상의 생존 여부와 거리도 확인합니다. 이 검사를 통과한 뒤에만 `OnSkillUsed`를 호출합니다.
+
+콜백을 무조건 상태 진입 뒤로 옮기지는 않았습니다. R은 상태에 진입하기 전에 돌진 시간을 설정해야 하므로, 검사를 먼저 끝내고 콜백과 상태 진입 순서를 유지했습니다. 격투가의 비용 차감은 `BaseSkill::ExecuteSkill` 한 곳에서 처리합니다.
+
+```cpp
+if (!CanExecuteSkill()) return;
+if (m_progressionEnabled)
+{
+    m_castInProgress = true;
+    m_cooldownStarted = false;
+    m_playerObject->SetStamina(m_playerObject->GetStatus().stamina - GetStaminaCost());
+}
+PlaySkill();
 ```
 
-서버 부분은 Linux image와 단일 host worker pool까지 구현했다. lobby가 capacity 1 worker에 경기를 예약하고 ready 응답을 받은 뒤에만 ticket을 전달한다. DX11 client 1개와 같은 `GameSession`을 사용하는 play bot 23개가 TCP 인증, UDP bind, 30Hz input, 15Hz snapshot과 경기 결과까지 진행한다.
+같은 프레임의 중복 입력, 전환 직전 자원 부족, 죽거나 멀어진 대상을 검사했습니다. 거부된 입력은 비용을 쓰지 않고, 허용된 입력은 한 번만 차감합니다. 실제 플레이에서는 E와 R의 쿨타임 중 재사용이 막히는지 확인했습니다.
 
-기존 Release 측정에서 full-state 평균 수신량은 66.216564KiB/s로 64KiB/s 목표를 넘었고, interest-delta는 4.123043KiB/s였다. 100ms RTT, 2% loss와 10ms jitter 조건에서는 protocol error와 queue overflow 없이 경기가 끝났다. Windows soak와 Linux ASan/UBSan 결과를 포함한 당시 조건은 [프로젝트 계획](docs/PROJECT_PLAN.md)과 [24인 network 기록](docs/devlog/2026-08-25-24-player-network-load.md)에 있다. 이 수치를 원본 게임 실행판의 성능으로 사용하지 않는다.
+[상태 전환 코드](game/Engine/PlayerStateMachine.cpp) / [스킬 실행 코드](game/Client/BaseSkill.cpp) / [입력 수락 검사](tests/game_skill_admission_fixture.cpp)
 
-## 포트폴리오 문서
+</details>
 
-- [코드 근거 구조 다이어그램](docs/diagrams/index.html)
-- [사례와 수치의 근거 매트릭스](docs/portfolio/EVIDENCE_MATRIX.md)
-- [다섯 문제 해결 사례](docs/portfolio/cases/)
-- [현재 구현과 검증의 한계](docs/portfolio/LIMITATIONS.md)
-- [공개 준비 체크리스트](docs/portfolio/RELEASE_CHECKLIST.md)
+### 2. 갱신 순서에 따라 빠지는 범위 공격 타격
 
-기존 공개 준비 문서는 당시 검증과 출시 후보를 기록한 자료다. 현재 원본 실행 경로의 검증과 구분하며, 이번 작업은 PDF, 데모 영상, AWS 배포나 `v0.1.0` 출시를 포함하지 않는다.
+범위 공격이 모은 충돌 대상을 `Update`에서 지우고 있었습니다. 이펙트가 플레이어보다 먼저 갱신되면, 플레이어가 피해를 계산할 때 목록이 이미 비어 있었습니다.
 
-## 원칙
+<details>
+<summary>분석과 수정 과정</summary>
 
-- 원본 게임의 코드, 자산과 실행 파일은 공개 저장소에 넣지 않는다.
-- 직접 작성한 공개 엔진 및 서버 코드와 외부 원본 게임의 기여를 구분한다.
-- 성능 수치는 측정 조건과 결과를 함께 기록한다.
-- 커밋 본문에 변경 이유와 검증 명령을 남긴다.
-## Linux lobby와 game worker 2개 실행
+이번 충돌 검사에서 모으는 목록과 피해 계산에 사용할 목록을 나눴습니다. 충돌 검사가 끝난 `LateUpdate`에서 두 목록을 바꾸고, 다음 `Update`는 완료된 결과를 읽게 했습니다.
 
-Docker Desktop이 실행 중이면 다음 smoke runner가 image build, lobby 1개와 game worker 2개의 health 및 registration, cleanup을 한 번에 확인한다.
-
-```powershell
-./scripts/test_server_compose.ps1
+```cpp
+m_collisionSnapshot.swap(m_object);
+m_object.clear();
 ```
 
-고정 port로 직접 실행하거나 외부 접속용 host를 지정하는 방법은 [Linux 서버 컨테이너 실행](deploy/README.md)에 있다. AWS resource를 만들기 전 확인할 계정, 비용과 security group 경계는 [AWS 확인표](deploy/AWS_PRECHECK.md)에 분리했다.
-
-## 네 process로 2인 network 경기 실행
-
-먼저 Debug build를 만든다.
-
-```powershell
-./scripts/build.ps1
+```mermaid
+sequenceDiagram
+    participant C as 충돌 검사
+    participant E as 범위 이펙트
+    participant P as 플레이어
+    C->>E: 현재 프레임의 접촉 대상 수집
+    E->>E: LateUpdate에서 결과 보관
+    Note over E,P: 다음 프레임
+    P->>E: 완료된 충돌 결과 조회
+    P->>P: 범위 피해 계산
 ```
 
-첫 번째 터미널에서 lobby server를 실행한다. client용 TCP는 7000, worker control TCP는 7001을 사용한다.
+이펙트를 먼저 갱신해도 타격 대상이 유지되는지 검사했습니다. 범위를 벗어난 적이 다음 결과에서 빠지는지, 스킬 종료 후 이전 대상이 남지 않는지도 확인했습니다. 객체의 갱신 순서에 의존하지 않게 된 대신, 피해 판정은 완료된 이전 프레임의 충돌 결과를 사용합니다.
 
-```powershell
-./out/build/windows-msvc-vs-debug/apps/lobby_server/Debug/dxa_lobby_server.exe `
-  --bind 127.0.0.1 `
-  --port 7000 `
-  --worker-bind 127.0.0.1 `
-  --worker-port 7001
+[충돌 결과 보관 코드](game/Client/BiancaESkillCircle.cpp) / [갱신 순서 검사](tests/game_skill_collision_fixture.cpp)
+
+</details>
+
+### 3. 충돌 후보는 줄었지만 더 느렸던 쿼드트리
+
+충돌체 1,024개에서 후보 검사는 97.7% 줄었습니다. 하지만 트리를 새로 만드는 시간까지 합치면 전체 쌍 검사보다 오래 걸렸습니다.
+
+<details>
+<summary>분석과 수정 과정</summary>
+
+전체 쌍 검사, 트리 구축, 트리의 충돌 처리를 따로 측정했습니다. 같은 충돌체를 두 방식으로 검사하고, 찾아낸 충돌 ID 쌍도 대조했습니다. 후보만 줄고 충돌을 놓치는 경우를 구분하기 위해서입니다.
+
+| 측정 구간 | 시간 중앙값 |
+| --- | --- |
+| 전체 쌍 검사 | 9.28ms |
+| 기존 트리의 충돌 처리 | 3.73ms |
+| 트리 구축 | 11.98ms |
+| 구축과 충돌 처리를 함께 실행 | 15.68ms |
+
+장면의 기존 재사용 조건도 확인했습니다. 객체의 위치와 활성 상태, 개수 또는 카메라가 바뀌면 트리를 갱신하고, 바뀌지 않은 프레임에서는 기존 트리를 사용합니다. 트리를 재사용하는 조건과 매번 다시 만드는 조건을 나눠 봐야 적용 효과를 판단할 수 있었습니다.
+
+두 방식에서 겹친 128쌍은 같았습니다. 재사용 시 충돌 처리 비용은 줄었지만, 객체와 카메라가 자주 움직이는 장면의 전체 프레임 성능까지 개선됐다고 결론 내리지는 않았습니다.
+
+[트리 갱신 조건](game/Engine/SceneObjectManager.cpp) / [충돌 검사](game/Engine/QuadTree.cpp) / [측정 방법과 원본](docs/implementation/engine-measurements.md)
+
+</details>
+
+## 사용 기술
+
+C++17, Direct3D 11, HLSL, Direct2D / DirectWrite, DirectXTex, FMOD를 사용합니다. 편집 도구는 ImGui / ImGuizmo, 별도 모델 변환 도구는 Assimp 기반입니다. 빌드는 CMake와 MSBuild, 실행 및 검증 스크립트는 PowerShell과 Python으로 구성했습니다.
+
+<details>
+<summary>프로젝트 폴더</summary>
+
+```text
+game/
+├── Client/          캐릭터, 스킬, 몬스터, 아이템과 HUD
+├── Engine/          렌더링, 컴포넌트, 상태 전환, 충돌과 길찾기
+└── Shaders/         G-Buffer, 조명, Fog, 외곽선과 이펙트
+apps/asset_tool/     Assimp 모델 변환, DDS 텍스처 변환
+scripts/            빌드, 실행, 검사와 측정
+tests/              동작 검사
+docs/               측정 방법과 원본 데이터
 ```
 
-두 번째 터미널에서 game server를 실행한다. worker가 lobby control endpoint에 등록되고 game TCP 7100, UDP 7101에서 기다린다.
+</details>
+
+## 실행
+
+Windows x64, Visual Studio 2022 C++ 도구가 필요합니다. SDK와 게임 리소스는 로컬 패키지로 별도 준비합니다.
 
 ```powershell
-./out/build/windows-msvc-vs-debug/apps/game_server/Debug/dxa_game_server.exe `
-  --lobby-control-host 127.0.0.1 `
-  --lobby-control-port 7001 `
-  --worker-id 1 `
-  --advertise-host 127.0.0.1 `
-  --game-bind 127.0.0.1 `
-  --game-tcp-port 7100 `
-  --game-udp-port 7101 `
-  --replication-mode interest-delta
+./scripts/bootstrap.ps1 -Preset windows-game-release `
+  -SdkRoot 'C:/local-package/sdk-release' -AssetRoot 'C:/local-package/assets'
+./scripts/build.ps1 -Preset windows-game-release
+./scripts/test.ps1 -Preset windows-game-release
+./scripts/run_game.ps1 -Executable './out/build/game-msvc-release/game/Release/runtime/Binaries/dxa_game.exe'
 ```
 
-세 번째 터미널에서 hardware DX11 client를 실행한다. client가 방을 만들고 ready를 켠 뒤 `network room=<ID>`를 출력한다.
+Release에서도 파일 읽기와 D3D 객체 생성이 실행되도록 `assert` 내부 호출을 분리했습니다. 파일 I/O는 [NDEBUG 검사](tests/game_file_io_fixture.cpp)로 확인합니다.
 
-```powershell
-./out/build/windows-msvc-vs-debug/apps/client/Debug/dxa_client.exe `
-  --render-path hybrid-deferred `
-  --network-create `
-  --replication-mode interest-delta `
-  --expected-players 2 `
-  --lobby-host 127.0.0.1 `
-  --lobby-port 7000
-```
+## 저작권 및 라이선스
 
-네 번째 터미널에서 출력된 실제 RoomId로 play bot 하나를 넣는다. 새 lobby process의 첫 방은 보통 1이지만 출력값을 우선한다.
+학습 및 포트폴리오 목적으로 제작한 비공식 클론코딩 프로젝트입니다. 이터널 리턴 리소스의 저작권은 ㈜님블뉴런 및 각 권리자에게 있습니다. 해당 원본 에셋과 실행 패키지는 배포하지 않으며, 수익화를 하지 않습니다.
 
-```powershell
-./out/build/windows-msvc-vs-debug/apps/bot_client/Debug/dxa_bot_client.exe `
-  --host 127.0.0.1 `
-  --port 7000 `
-  --room 1 `
-  --count 1 `
-  --play
-```
-
-두 process가 같은 MatchId와 `state=synchronized`를 출력하면 실제 game TCP 인증과 UDP snapshot 수신이 끝난 상태다. 창에서 지면을 우클릭하면 local destination을 보내며 server가 NavMesh에서 다시 검증한다. bot의 game connection을 종료하면 다음 server tick에 탈락 처리되고 DX11 client에 최후 생존 결과가 전달된다.
-
-## 24인 부하와 replication 비교
-
-Release binary를 만든 뒤 clean commit SHA로 runner를 실행한다. bot process 하나가 내부 `GameSession` 23개와 network runtime 하나를 공유한다.
-
-```powershell
-./scripts/build.ps1 -Preset windows-msvc-release
-$sha = git rev-parse HEAD
-
-./scripts/run_network_load.ps1 `
-  -ReplicationMode interest-delta `
-  -Matches 3 `
-  -Seeds 20260825,20260826,20260827 `
-  -CommitSha $sha `
-  -Release
-```
-
-`-ReplicationMode`은 `full-state`, `interest-full`, `interest-quantized`, `interest-delta`를 받는다. network 장애를 재현하려면 `-Impairment`를 붙인다. 30분 이상 반복과 working set guard까지 실행하려면 `-SoakMinutes 30`을 추가한다.
-
-```powershell
-./scripts/run_network_load.ps1 `
-  -ReplicationMode interest-delta `
-  -Matches 3 `
-  -Seeds 20260825,20260826,20260827 `
-  -CommitSha $sha `
-  -Impairment `
-  -SoakMinutes 30 `
-  -Release
-```
-
-runner는 match마다 child evidence를 만들고 parent `summary.json`과 `RESULT.md`를 raw CSV에서 계산한다. 1MB가 넘는 CSV와 log는 Git LFS에 저장한다. clone 뒤 원본 evidence가 필요하면 `git lfs pull`을 실행한다.
-
-공식 비교와 target 판정은 [24인 replication 비교](docs/benchmarks/network-load/20260826-01ae1278-COMPARISON.md)에 있다. full-state의 64KiB/s 목표 미달과 delta encode 비용 증가도 같은 문서에 남겼다.
-
-모든 binary bind 기본값은 `127.0.0.1`이다. Compose는 명시적으로 `0.0.0.0`에 bind하되 worker control 7001/TCP를 host에 publish하지 않는다. game TCP와 UDP는 암호화되지 않았고 worker control에도 외부 network용 상호 인증이 없다. 짧은 demo 검증 외 장기 public 운영에는 사용하지 않는다. ticket과 UDP token은 console과 log에 출력하지 않는다.
-
-렌더 경로만 짧게 확인하려면 다음 명령을 사용한다.
-
-```powershell
-./out/build/windows-msvc-vs-debug/apps/client/Debug/dxa_client.exe --warp --hidden --no-vsync --frames 3 --verify-render --verify-asset-scene
-```
-
-하이브리드 경로는 `--render-path`로 선택한다.
-
-```powershell
-./out/build/windows-msvc-vs-debug/apps/client/Debug/dxa_client.exe --warp --hidden --no-vsync --frames 3 --verify-render --verify-asset-scene --render-path hybrid-deferred
-```
-
-NavMesh 이동 수직 기능은 별도 데모에서 확인한다. 창을 띄운 실행에서는 지면을 우클릭하고, 자동 검증에서는 같은 `NavAgent` 경로를 60Hz로 진행한다.
-
-```powershell
-./out/build/windows-msvc-vs-debug/apps/navigation_demo/Debug/dxa_navigation_demo.exe
-
-./out/build/windows-msvc-vs-debug/apps/navigation_demo/Debug/dxa_navigation_demo.exe --warp --hidden --frames 120 --auto-destination 20 10 --verify-render
-```
-
-오프라인 경기는 별도 demo에서 실행한다. 창을 띄운 실행에서는 지면을 우클릭해 actor 0을 움직일 수 있다. WARP 자동 실행은 같은 공개 command 경계를 사용해 한 경기를 끝내고 결과 frame과 checksum을 검증한다.
-
-```powershell
-./out/build/windows-msvc-vs-debug/apps/offline_match_demo/Debug/dxa_offline_match_demo.exe
-
-./out/build/windows-msvc-vs-debug/apps/offline_match_demo/Debug/dxa_offline_match_demo.exe --warp --hidden --auto-match --verify-match
-```
-
-원본 에셋을 다시 변환하려면 다음 명령을 사용한다.
-
-```powershell
-./out/build/windows-msvc-vs-debug/apps/asset_tool/Debug/dxa_asset_tool.exe model --input Character.fbx --output cyber-runner.dxam --sample-rate 30
-./out/build/windows-msvc-vs-debug/apps/asset_tool/Debug/dxa_asset_tool.exe texture --input colormap.png --output colormap.dds
-```
-
-벤치마크는 깨끗한 commit에서만 실행된다. 인자를 생략하면 포워드 경로를 측정한다.
-
-```powershell
-./scripts/run_benchmark.ps1
-```
-
-공간 탐색과 AI 비교는 별도 Release runner로 실행한다. 결과 동등성 검사를 통과한 뒤에만 5회 시간 sample을 기록한다.
-
-```powershell
-./scripts/run_simulation_benchmark.ps1
-```
-
-오프라인 경기 runner는 깨끗한 commit에서 같은 seed 경기를 반복 검증한 뒤 세 번째 경기의 `OfflineMatch::Step()` 시간을 기록한다.
-
-```powershell
-./scripts/run_offline_match_benchmark.ps1
-```
-
-하이브리드 측정과 잠긴 포워드 원본 비교는 다음 순서로 실행한다.
-
-```powershell
-./scripts/run_benchmark.ps1 -RenderPath hybrid-deferred
-
-./scripts/compare_benchmarks.ps1 `
-  -ForwardRun docs/benchmarks/forward-baseline/20260823-033736-80988ef7-seed20260823 `
-  -HybridRun docs/benchmarks/hybrid-deferred/20260823-145749-54a54e5c-seed20260823
-```
-
-첫 프레임에서 확인한 실패와 경계는 [첫 DX11 프레임 기록](docs/devlog/2026-08-22-first-dx11-frame.md)에, 에셋 파이프라인에서 확인한 문제는 [에셋 파이프라인 기록](docs/devlog/2026-08-23-asset-pipeline.md)에 적었다. GPU query 302개 누락 과정은 [포워드 기준선 기록](docs/devlog/2026-08-23-forward-baseline.md)에, 2,240 draw를 줄인 과정은 [하이브리드 디퍼드 기록](docs/devlog/2026-08-23-hybrid-deferred.md)에 남겼다. 전수 탐색과 가속 구조를 같은 결과로 맞춘 과정은 [공간 탐색과 AI 기록](docs/devlog/2026-08-23-spatial-navigation-ai.md)에 정리했다. 3초 만에 끝난 첫 경기를 규칙 수치 조작 없이 재설계한 과정과 측정 경계는 [오프라인 경기 기록](docs/devlog/2026-08-24-offline-match-loop.md)과 [공식 Release 원본](docs/benchmarks/offline-match/20260824-023134-1ede6a23-seed20260823/RESULT.md)에서 확인할 수 있다. 로비 domain, TCP session, 24인 실제 socket 검증 과정은 [로비와 방 기록](docs/devlog/2026-08-24-lobby-room-flow.md)과 [ADR 0006](docs/adr/0006-lobby-domain-and-tcp-adapter.md)에 남겼다. 실제 worker 예약부터 DX11 result까지 이어진 과정은 [권위형 게임 서버 기록](docs/devlog/2026-08-24-authoritative-game-server.md)과 [ADR 0007](docs/adr/0007-authoritative-game-session.md)에 정리했다. ACK baseline, 관심 영역과 impairment 선택은 [ADR 0008](docs/adr/0008-acked-interest-replication.md)에, 24인 기준선부터 soak까지의 시행착오는 [10주차 개발 기록](docs/devlog/2026-08-25-24-player-network-load.md)에 남겼다. Linux Release 경고와 두 worker container 경계는 [11주차 개발 기록](docs/devlog/2026-08-26-linux-server-packaging.md)과 [ADR 0009](docs/adr/0009-single-host-compose-worker-pool.md)에 정리했다.
-
-## CI 상태
-
-local Windows 전체 CTest, WARP와 shader 배포 검사, Ubuntu 24.04 Docker GCC build와 sanitizer 검증을 완료했다. 11주차에는 GCC 13 Release server image와 세 container Compose smoke를 추가했다. PR #11의 head `e2aba12c670b288b596169b8115b1fef77d54068`은 GitHub Actions run `32935640972`에서 Windows와 Ubuntu job이 성공한 뒤 `884e5e70d68d9fcf9dfe5638d97e06623da154c2`로 main에 병합됐다. 이후 문서 커밋을 포함한 현재 branch HEAD는 hosted CI를 아직 실행하지 않았으므로 같은 상태로 표현하지 않는다. 과거 runner billing 문제는 당시 미실행 원인을 분리해 기록하기 위한 경계였으며 현재 확인된 성공 run과 구분한다.
-
-## 라이선스
-
-직접 작성한 코드는 [MIT License](LICENSE)를 따른다. 외부 자산과 라이브러리는 각각의 라이선스를 따르며, 사용 시 `THIRD_PARTY_ASSETS.md`와 dependency manifest에 출처를 기록한다.
+[외부 리소스와 라이선스](THIRD_PARTY_ASSETS.md) / [님블뉴런 IP 이용 정책](https://support.playeternalreturn.com/hc/ko/articles/49503976113177)

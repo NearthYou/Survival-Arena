@@ -1,0 +1,4 @@
+# Preserve the imported mixture of CP949 and UTF-8 bytes and original newlines.
+Client/** -text
+Engine/** -text
+Shaders/** -text

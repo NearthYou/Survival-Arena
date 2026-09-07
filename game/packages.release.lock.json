@@ -1,0 +1,29 @@
+{
+  "schema": "dxa-game-packages-v1",
+  "upstream_commit": "01b820a3ebcfd473a898dec1f5bc67c4ac77261e",
+  "sdk": {
+    "kind": "sdk",
+    "manifest_sha256": "de89ec75111444f0ff3fb53b46b6e84ed70cb141f0596676adc360ea3d8c6408",
+    "files": 122,
+    "bytes": 20455491,
+    "configuration": "Release|x64"
+  },
+  "assets": {
+    "kind": "assets",
+    "manifest_sha256": "dac9a216291b7740d88d6ac35f791da4a6bae8addd9d7fb3dfae7d0808e6c4f8",
+    "files": 3004,
+    "bytes": 1748139242
+  },
+  "release_dependencies": {
+    "assimp": {
+      "repository": "https://github.com/assimp/assimp",
+      "version": "5.2.5",
+      "commit": "9519a62dd20799c5493c638d1ef5a6f484e5faf1",
+      "built": "VS2022 x64 Release, shared library, bundled zlib"
+    },
+    "vc_runtime": {
+      "toolchain": "Visual Studio 2022",
+      "redist_version": "14.44.35112"
+    }
+  }
+}

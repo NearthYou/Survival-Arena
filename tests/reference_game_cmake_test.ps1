@@ -39,7 +39,7 @@ Write-Host 'VALIDATED'
 [pscustomobject]@{source_commit='01b820a3ebcfd473a898dec1f5bc67c4ac77261e';runtime_adjustments=@('collision-debug-toggle-v1','craft-state-preparation-v1','character-selection-index-v1','skin-selection-isolation-v1','picking-camera-sync-v1','player-animation-sync-v1','player-animation-episode-sync-v1','walkable-path-smoothing-v1','combat-approach-animation-v1','audio-category-settings-v1');validated=$true}
 '@
     $module = (Join-Path $RepositoryRoot 'cmake/ReferenceGame.cmake').Replace('\','/')
-    Save (Join-Path $project 'CMakeLists.txt') "cmake_minimum_required(VERSION 3.25)`nproject(ReferenceGameContract NONE)`ninclude(`"$module`")`n"
+    Save (Join-Path $project 'CMakeLists.txt') "cmake_minimum_required(VERSION 3.25)`nproject(ReferenceGameContract NONE)`nset(DXA_BUILD_REFERENCE_ORACLE ON CACHE BOOL `"Comparison oracle`" )`ninclude(`"$module`")`n"
     & $CMakeExecutable -S $project -B $build -G 'Visual Studio 17 2022' -A x64 `
         "-DDXA_REFERENCE_SOURCE_ROOT=$project" "-DDXA_REFERENCE_RUNTIME_ROOT=$temporary/runtime" | Out-Null
     if ($LASTEXITCODE -ne 0) { throw 'CMake configuration failed' }
